@@ -1,0 +1,236 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ResolveNugetPackages>false</ResolveNugetPackages>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{C54D4216-142C-3044-9B85-9A7FC9DF911C}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.22000.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>ALL_BUILD</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>E:\BarsTech_corrected\external\libwebm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>E:\BarsTech_corrected\external\libwebm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>E:\BarsTech_corrected\external\libwebm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <Midl>
+      <AdditionalIncludeDirectories>E:\BarsTech_corrected\external\libwebm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="E:\BarsTech_corrected\external\libwebm\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule E:/BarsTech_corrected/external/libwebm/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+D:\cmake-3.26.1-windows-x86_64\bin\cmake.exe -SE:/BarsTech_corrected/external/libwebm -BE:/BarsTech_corrected/external/libwebm --check-stamp-file E:/BarsTech_corrected/external/libwebm/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCXXInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCommonLanguageInclude.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeGenericSystem.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeInitializeConfigs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeLanguageInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeRCInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInitialize.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\CMakeCommonCompilerMacros.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\GNUInstallDirs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckFlagCommonConfig.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\WindowsPaths.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeCXXCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeRCCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeSystem.cmake;E:\BarsTech_corrected\external\libwebm\build\cxx_flags.cmake;E:\BarsTech_corrected\external\libwebm\build\msvc_runtime.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\BarsTech_corrected\external\libwebm\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule E:/BarsTech_corrected/external/libwebm/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+D:\cmake-3.26.1-windows-x86_64\bin\cmake.exe -SE:/BarsTech_corrected/external/libwebm -BE:/BarsTech_corrected/external/libwebm --check-stamp-file E:/BarsTech_corrected/external/libwebm/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCXXInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCommonLanguageInclude.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeGenericSystem.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeInitializeConfigs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeLanguageInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeRCInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInitialize.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\CMakeCommonCompilerMacros.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\GNUInstallDirs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckFlagCommonConfig.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\WindowsPaths.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeCXXCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeRCCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeSystem.cmake;E:\BarsTech_corrected\external\libwebm\build\cxx_flags.cmake;E:\BarsTech_corrected\external\libwebm\build\msvc_runtime.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\BarsTech_corrected\external\libwebm\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule E:/BarsTech_corrected/external/libwebm/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+D:\cmake-3.26.1-windows-x86_64\bin\cmake.exe -SE:/BarsTech_corrected/external/libwebm -BE:/BarsTech_corrected/external/libwebm --check-stamp-file E:/BarsTech_corrected/external/libwebm/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCXXInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCommonLanguageInclude.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeGenericSystem.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeInitializeConfigs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeLanguageInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeRCInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInitialize.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\CMakeCommonCompilerMacros.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\GNUInstallDirs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckFlagCommonConfig.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\WindowsPaths.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeCXXCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeRCCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeSystem.cmake;E:\BarsTech_corrected\external\libwebm\build\cxx_flags.cmake;E:\BarsTech_corrected\external\libwebm\build\msvc_runtime.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">E:\BarsTech_corrected\external\libwebm\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule E:/BarsTech_corrected/external/libwebm/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+D:\cmake-3.26.1-windows-x86_64\bin\cmake.exe -SE:/BarsTech_corrected/external/libwebm -BE:/BarsTech_corrected/external/libwebm --check-stamp-file E:/BarsTech_corrected/external/libwebm/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCXXInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCheckCompilerFlagCommonPatterns.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeCommonLanguageInclude.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeGenericSystem.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeInitializeConfigs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeLanguageInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeRCInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInformation.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CMakeSystemSpecificInitialize.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\CheckCXXSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\CMakeCommonCompilerMacros.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Compiler\MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\GNUInstallDirs.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckCompilerFlag.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckFlagCommonConfig.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Internal\CheckSourceCompiles.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC-CXX.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows-MSVC.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\Windows.cmake;D:\cmake-3.26.1-windows-x86_64\share\cmake-3.26\Modules\Platform\WindowsPaths.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeCXXCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeRCCompiler.cmake;E:\BarsTech_corrected\external\libwebm\CMakeFiles\3.26.1\CMakeSystem.cmake;E:\BarsTech_corrected\external\libwebm\build\cxx_flags.cmake;E:\BarsTech_corrected\external\libwebm\build\msvc_runtime.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">E:\BarsTech_corrected\external\libwebm\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\ZERO_CHECK.vcxproj">
+      <Project>{B38835EA-1A49-3187-B59C-EBB5AFEBDBA9}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\dumpvtt.vcxproj">
+      <Project>{25F61F5E-FB56-3D5F-9A5A-BEA88B26C971}</Project>
+      <Name>dumpvtt</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\mkvmuxer.vcxproj">
+      <Project>{D7C0F25B-BDA3-3346-A563-42416DB494CD}</Project>
+      <Name>mkvmuxer</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\mkvmuxer_sample.vcxproj">
+      <Project>{3A49FCF2-0A05-3A32-B3F4-6CE2BA858D28}</Project>
+      <Name>mkvmuxer_sample</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\mkvparser.vcxproj">
+      <Project>{8BDA52CC-2265-3BBE-932D-28F7E1FE0434}</Project>
+      <Name>mkvparser</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\mkvparser_sample.vcxproj">
+      <Project>{991E9667-1974-3E4E-B9CB-61BABCA1D90D}</Project>
+      <Name>mkvparser_sample</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\vttdemux.vcxproj">
+      <Project>{58CB876E-CB9F-39BC-994E-F11BDFE066C0}</Project>
+      <Name>vttdemux</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\webm.vcxproj">
+      <Project>{DC87183B-717C-3B11-A812-60A7EF3FA593}</Project>
+      <Name>webm</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\webm2pes.vcxproj">
+      <Project>{2E3D2901-AB23-3C76-AD28-3411F966D50E}</Project>
+      <Name>webm2pes</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\webm2ts.vcxproj">
+      <Project>{229F2B08-E9C5-32B1-9987-948030B825E1}</Project>
+      <Name>webm2ts</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\webm_info.vcxproj">
+      <Project>{629534C2-38ED-3167-AACD-A860DBE1064E}</Project>
+      <Name>webm_info</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\webmts.vcxproj">
+      <Project>{99C00AF7-678B-3231-8A4D-476B12992551}</Project>
+      <Name>webmts</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="E:\BarsTech_corrected\external\libwebm\webvtt_common.vcxproj">
+      <Project>{2DB980F1-5DEC-3DD3-8F9A-A5DD86A4D9B2}</Project>
+      <Name>webvtt_common</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

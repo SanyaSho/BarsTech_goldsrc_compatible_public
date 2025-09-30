@@ -1,0 +1,513 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{A293418A-603A-4119-B7B4-1E6204606BA9}</ProjectGuid>
+    <RootNamespace>vpx</RootNamespace>
+  </PropertyGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="smp_winrt.props" />
+    <Import Project="libvpx_files.props" />
+  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\yasm.props" />
+  </ImportGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugWinRT|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Lib>
+      <AdditionalOptions>/ignore:4221 %(AdditionalOptions)</AdditionalOptions>
+    </Lib>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugWinRT|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86_64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Lib>
+      <AdditionalOptions>/ignore:4221 %(AdditionalOptions)</AdditionalOptions>
+    </Lib>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugDLLWinRT|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <ModuleDefinitionFile>.\libvpx.def</ModuleDefinitionFile>
+    </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugDLLWinRT|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86_64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <ModuleDefinitionFile>.\libvpx.def</ModuleDefinitionFile>
+    </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWinRT|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Lib>
+      <AdditionalOptions>/ignore:4221 %(AdditionalOptions)</AdditionalOptions>
+    </Lib>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWinRT|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86_64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Lib>
+      <AdditionalOptions>/ignore:4221 %(AdditionalOptions)</AdditionalOptions>
+    </Lib>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDLLWinRT|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <ModuleDefinitionFile>.\libvpx.def</ModuleDefinitionFile>
+    </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseDLLWinRT|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>.\;..\;.\x86_64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4752;4703;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <ModuleDefinitionFile>.\libvpx.def</ModuleDefinitionFile>
+    </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(OutDir)"\include
+mkdir "$(OutDir)"\include\vpx
+copy ..\vpx\*.h "$(OutDir)"\include\vpx
+mkdir $(OutDir)\licenses
+copy ..\LICENSE $(OutDir)\licenses\libvpx.txt</Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist ..\vpx_config.h (
+del ..\vpx_config.h 
+)
+if exist ..\vpx_config.c (
+del ..\vpx_config.c 
+)
+if exist ..\vpx_config.asm (
+del ..\vpx_config.asm 
+)
+if exist ..\vpx_version.h (
+del ..\vpx_version.h
+)
+if exist ..\vpx_scale_rtcd.h (
+del ..\vpx_scale_rtcd.h
+)
+if exist ..\vpx_dsp_rtcd.h (
+del ..\vpx_dsp_rtcd.h
+)
+if exist ..\vp8_rtcd.h (
+del ..\vp8_rtcd.h
+)
+if exist ..\vp9_rtcd.h (
+del ..\vp9_rtcd.h
+)
+if exist "$(OutDir)"\include\vpx (
+rd /s /q "$(OutDir)"\include\vpx
+cd ../
+cd $(ProjectDir)
+)</Command>
+    </PreBuildEvent>
+    <YASM>
+      <IncludePaths>$(ProjectDir);$(ProjectDir)\..\;%(IncludePaths)</IncludePaths>
+    </YASM>
+    <CustomBuildStep>
+      <Message>Custom Clean Step</Message>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>force_clean</Outputs>
+      <Command>if exist "$(OutDir)"\include\vpx (
+rmdir /s /q "$(OutDir)"\include\vpx
+)
+if exist $(OutDir)\licenses\libvpx.txt (
+del /f /q $(OutDir)\licenses\libvpx.txt
+)</Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\yasm.targets" />
+  </ImportGroup>
+</Project>
