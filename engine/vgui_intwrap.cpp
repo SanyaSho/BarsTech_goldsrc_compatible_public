@@ -151,7 +151,7 @@ void VGuiWrap_Paint( bool paintAll )
 
 		if( paintAll )
 		{
-		//	pRoot->paintTraverse();
+			pRoot->paintTraverse();
 		}
 		else
 		{

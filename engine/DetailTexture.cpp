@@ -157,12 +157,12 @@ bool DT_GetToken(char** const cPtr, ParseState* const parseState, std::string* c
 					(*ePtr - '0') > '9' - '0'
 					)
 				{
-					bool invalid = false;
+					bool invalid = true;
 					for (int i = 0; i < sizeof(special) - 1; i++)
 					{
 						if (*ePtr == special[i])
 						{
-							invalid = true;
+							invalid = false;
 							break;
 						}
 					}

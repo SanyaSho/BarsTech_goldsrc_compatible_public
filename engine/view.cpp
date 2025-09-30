@@ -524,11 +524,14 @@ void V_RenderView(void)
 {
 	model_t *clmodel;
 	ref_params_s angles;
+#if defined(GLQUAKE)
+	int viewnum;
+#endif
 	
 	r_soundOrigin[0] = r_soundOrigin[1] = r_soundOrigin[2] = 0.0;
 	r_playerViewportAngles[0] = r_playerViewportAngles[1] = r_playerViewportAngles[2] = 0.0;
 
-	if (con_forcedup || cls.state != ca_active || cls.signon != 2)
+	if (con_forcedup || cls.state != ca_active || cls.signon != SIGNONS)
 		return;
 
 	clmodel = CL_GetModelByIndex(cl.stats[STAT_WEAPON]);
@@ -541,73 +544,92 @@ void V_RenderView(void)
 
 	V_SetRefParams(&angles);
 
-	ClientDLL_CalcRefdef(&angles);
-
-	if (cls.demoplayback || (CL_SetDemoViewInfo(&angles, cl.viewent.origin, cl.stats[STAT_WEAPON]), cls.demoplayback))
+#if defined(GLQUAKE)
+	viewnum = 0;
+	do
 	{
-		if (!cls.spectator)
+#endif
+		ClientDLL_CalcRefdef(&angles);
+
+#if defined(GLQUAKE)
+		if (viewnum == 0)
+#endif
+		if (cls.demoplayback || (CL_SetDemoViewInfo(&angles, cl.viewent.origin, cl.stats[STAT_WEAPON]), cls.demoplayback))
 		{
-			CL_GetDemoViewInfo(&angles, cl.viewent.origin, &cl.stats[STAT_WEAPON]);
-			cl.viewent.angles[0] = -angles.viewangles[0];
-			cl.viewent.angles[1] = angles.viewangles[1];
-			cl.viewent.angles[2] = angles.viewangles[2];
-			cl.viewent.curstate.angles[0] = -angles.viewangles[0];
-			cl.viewent.curstate.angles[1] = angles.viewangles[1];
-			cl.viewent.curstate.angles[2] = angles.viewangles[2];
-			cl.viewent.latched.prevangles[0] = -angles.viewangles[0];
-			cl.viewent.latched.prevangles[1] = angles.viewangles[1];
-			cl.viewent.latched.prevangles[2] = angles.viewangles[2];
-			angles.nextView = 0;
+			if (!cls.spectator)
+			{
+				CL_GetDemoViewInfo(&angles, cl.viewent.origin, &cl.stats[STAT_WEAPON]);
+				cl.viewent.angles[0] = -angles.viewangles[0];
+				cl.viewent.angles[1] = angles.viewangles[1];
+				cl.viewent.angles[2] = angles.viewangles[2];
+				cl.viewent.curstate.angles[0] = cl.viewent.angles[0];
+				cl.viewent.curstate.angles[1] = angles.viewangles[1];
+				cl.viewent.curstate.angles[2] = angles.viewangles[2];
+				cl.viewent.latched.prevangles[0] = cl.viewent.angles[0];
+				cl.viewent.latched.prevangles[1] = angles.viewangles[1];
+				cl.viewent.latched.prevangles[2] = angles.viewangles[2];
+				angles.nextView = 0;
+			}
 		}
-	}
 
-	V_GetRefParams(&angles);
-	if (angles.intermission)
-	{
-		cl.viewent.model = 0;
-	}
-	else if (!angles.paused && chase_active.value != 0.0)
-	{
-		Chase_Update();
-	}
-	R_PushDlights();
-
-	if (lcd_x.value == 0.0)
-	{
-		R_RenderView();
-	}
-	else
-	{
-		vid.rowbytes *= 2;
-		vid.aspect /= 2;
-		r_refdef.viewangles[YAW] -= lcd_yaw.value;
-
-		for (int i = 0; i < 3; i++)
-			r_refdef.vieworg[i] = r_refdef.vieworg[i] - angles.right[i] * lcd_x.value;
-
-		R_RenderView();
-		
-		vid.buffer += vid.rowbytes >> 1;
-
+		V_GetRefParams(&angles);
+		if (angles.intermission)
+		{
+			cl.viewent.model = 0;
+		}
+		else if (!angles.paused && chase_active.value != 0.0)
+		{
+			Chase_Update();
+		}
 		R_PushDlights();
-		
-		r_refdef.viewangles[YAW] += lcd_yaw.value * 2;
-		
-		for (int i = 0; i < 3; i++)
-			r_refdef.vieworg[i] = (angles.right[i] * 2) * lcd_x.value + r_refdef.vieworg[i];
 
-		R_RenderView();
-		
-		r_refdef.vrect.height *= 2;
-		vid.rowbytes /= 2;
-		vid.buffer -= vid.rowbytes;
-		vid.aspect *= 2;
-	}
+#if defined(GLQUAKE)
+		if (viewnum == 0 && r_refdef.onlyClientDraws)
+		{
+			qglClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			qglClear(GL_COLOR_BUFFER_BIT);
+		}
+#endif
 
-	if (!angles.onlyClientDraw)
-	{
-		VectorCopy(r_origin, r_soundOrigin);
-		VectorCopy(angles.viewangles, r_playerViewportAngles);
-	}
+		if (lcd_x.value == 0.0)
+		{
+			R_RenderView();
+		}
+		else
+		{
+			vid.rowbytes *= 2;
+			vid.aspect /= 2;
+			r_refdef.viewangles[YAW] -= lcd_yaw.value;
 
+			for (int i = 0; i < 3; i++)
+				r_refdef.vieworg[i] = r_refdef.vieworg[i] - angles.right[i] * lcd_x.value;
+
+			R_RenderView();
+
+			vid.buffer += vid.rowbytes >> 1;
+
+			R_PushDlights();
+
+			r_refdef.viewangles[YAW] += lcd_yaw.value * 2;
+
+			for (int i = 0; i < 3; i++)
+				r_refdef.vieworg[i] = (angles.right[i] * 2) * lcd_x.value + r_refdef.vieworg[i];
+
+			R_RenderView();
+
+			r_refdef.vrect.height *= 2;
+			vid.rowbytes /= 2;
+			vid.buffer -= vid.rowbytes;
+			vid.aspect *= 2;
+		}
+
+		if (!angles.onlyClientDraw)
+		{
+			VectorCopy(r_origin, r_soundOrigin);
+			VectorCopy(angles.viewangles, r_playerViewportAngles);
+		}
+#if defined(GLQUAKE)
+		viewnum++;
+	} while (angles.nextView != 0);
+#endif
 }

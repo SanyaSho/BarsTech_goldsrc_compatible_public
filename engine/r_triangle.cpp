@@ -114,13 +114,13 @@ void tri_GL_RenderMode(int mode)
 {
 	switch (mode)
 	{
-	case kRenderTransColor:
+	case kRenderNormal:
 		qglDisable(GL_BLEND);
-		qglDepthMask(1);
+		qglDepthMask(GL_TRUE);
 		qglShadeModel(GL_FLAT);
 		break;
+	case kRenderTransColor:
 	case kRenderTransTexture:
-	case kRenderGlow:
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		qglEnable(GL_BLEND);
 		qglShadeModel(GL_SMOOTH);
@@ -130,12 +130,12 @@ void tri_GL_RenderMode(int mode)
 		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		qglShadeModel(GL_SMOOTH);
-		qglDepthMask(0);
+		qglDepthMask(GL_FALSE);
 		break;
 	case kRenderTransAdd:
-		qglBlendFunc(1, 1);
+		qglBlendFunc(1, GL_ONE);
 		qglEnable(GL_BLEND);
-		qglDepthMask(0);
+		qglDepthMask(GL_FALSE);
 		qglShadeModel(GL_SMOOTH);
 		break;
 	default:
