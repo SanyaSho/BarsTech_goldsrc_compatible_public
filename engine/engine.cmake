@@ -422,13 +422,12 @@ function( add_engine )
 	target_link_libraries(
 		${ARGS_TARGET} PRIVATE
 
-		winmm
-		ws2_32
-		dinput
-		dxguid
-		ddraw
-		$<${IS_HW}:opengl32>
-		$<${IS_HW}:glew32s>
+		$<${IS_WINDOWS}:winmm>
+		$<${IS_WINDOWS}:ws2_32>
+		$<${IS_WINDOWS}:dinput>
+		$<${IS_WINDOWS}:dxguid>
+		$<${IS_WINDOWS}:ddraw>
+		$<$<AND:${IS_WINDOWS},${IS_HW}>:opengl32>
 
 		tier0
 		tier1
@@ -446,6 +445,9 @@ function( add_engine )
 		#libwebm
 	)
 
+	if( ${IS_HW} )
+		target_use_glew( ${ARGS_TARGET} )
+	endif()
 	target_use_bz2( ${ARGS_TARGET} )
 	target_use_steam_api( ${ARGS_TARGET} )
 	target_use_sdl2( ${ARGS_TARGET} )

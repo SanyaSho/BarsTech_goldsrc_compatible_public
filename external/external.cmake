@@ -167,3 +167,27 @@ function( target_use_bz2 target )
 	target_include_directories( ${target} PRIVATE "${BZIP2_INCLUDE_DIR}" )
 	target_link_libraries( ${target} PRIVATE bz2 )
 endfunction()
+
+
+### GLEW
+
+function( target_use_glew target )
+	set( GLEW_INCLUDE_DIR "${SRCDIR}/external/GLEW/include" )
+
+	set( GLEW_HEADER_FILES )
+	BEGIN_SRC( GLEW_HEADER_FILES "Header Files" )
+		SRC_GRP(
+			SUBGROUP "GLEW Header Files"
+			SOURCES
+			"${GLEW_INCLUDE_DIR}/GL/eglew.h"
+			"${GLEW_INCLUDE_DIR}/GL/glew.h"
+			"${GLEW_INCLUDE_DIR}/GL/glxew.h"
+			"${GLEW_INCLUDE_DIR}/GL/wglew.h"
+		)
+	END_SRC( GLEW_HEADER_FILES "Header Files" )
+
+	target_sources( ${target} PRIVATE ${GLEW_HEADER_FILES} )
+	target_include_directories( ${target} PRIVATE "${GLEW_INCLUDE_DIR}" )
+	target_link_directories( ${target} PRIVATE "${SRCDIR}/external/GLEW/lib" )
+	target_link_libraries( ${target} PRIVATE $<${IS_WINDOWS}:glew32s> $<${IS_POSIX}:GLEW> )
+endfunction()
