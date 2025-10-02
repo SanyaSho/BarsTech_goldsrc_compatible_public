@@ -6,6 +6,9 @@
 
 include_guard( GLOBAL )
 
+
+### SDL2
+
 function( target_use_sdl2 target )
 	set( SDL2_INCLUDE_DIR "${SRCDIR}/external/SDL2/include" )
 
@@ -96,6 +99,9 @@ function( target_use_sdl2 target )
 	target_link_libraries( ${target} PRIVATE SDL2 )
 endfunction()
 
+
+### STEAM API
+
 function( target_use_steam_api target )
 	set( STEAM_API_INCLUDE_DIR "${SRCDIR}/public/steam" )
 
@@ -133,4 +139,31 @@ function( target_use_steam_api target )
 	target_sources( ${target} PRIVATE ${STEAM_API_HEADER_FILES} )
 	target_include_directories( ${target} PRIVATE "${STEAM_API_INCLUDE_DIR}" )
 	target_link_libraries( ${target} PRIVATE steam_api ) # TODO(SanyaSho): 64bit support
+endfunction()
+
+
+### BZIP2
+
+set( BZ_VERSION "1.1.0" )
+configure_file( "${SRCDIR}/external/bzip2/bz_version.h.in" "${CMAKE_CURRENT_BINARY_DIR}/bz_version.h" )
+add_library( bz2 STATIC "${SRCDIR}/external/bzip2/blocksort.c" "${SRCDIR}/external/bzip2/huffman.c" "${SRCDIR}/external/bzip2/crctable.c" "${SRCDIR}/external/bzip2/randtable.c" "${SRCDIR}/external/bzip2/compress.c" "${SRCDIR}/external/bzip2/decompress.c" "${SRCDIR}/external/bzip2/bzlib.c" )
+set_property( TARGET bz2 PROPERTY FOLDER "3rdparty Libraries" )
+target_include_directories( bz2 PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" ) # Include "bz_version.h" from project build folder
+
+function( target_use_bz2 target )
+	set( BZIP2_INCLUDE_DIR "${SRCDIR}/external/bzip2" )
+
+	set( BZIP2_HEADER_FILES )
+	BEGIN_SRC( BZIP2_HEADER_FILES "Header Files" )
+		SRC_GRP(
+			SUBGROUP "BZ2 Header Files"
+			SOURCES
+			"${BZIP2_INCLUDE_DIR}/bzlib.h"
+			"${BZIP2_INCLUDE_DIR}/bzlib_private.h"
+		)
+	END_SRC( BZIP2_HEADER_FILES "Header Files" )
+
+	target_sources( ${target} PRIVATE ${BZIP2_HEADER_FILES} )
+	target_include_directories( ${target} PRIVATE "${BZIP2_INCLUDE_DIR}" )
+	target_link_libraries( ${target} PRIVATE bz2 )
 endfunction()

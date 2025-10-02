@@ -437,7 +437,6 @@ function( add_engine )
 		vgui2_controls
 		vgui2_surfacelib
 
-		bzip2
 		mss32
 		game_controls
 		#libogg
@@ -447,6 +446,7 @@ function( add_engine )
 		#libwebm
 	)
 
+	target_use_bz2( ${ARGS_TARGET} )
 	target_use_steam_api( ${ARGS_TARGET} )
 	target_use_sdl2( ${ARGS_TARGET} )
 
