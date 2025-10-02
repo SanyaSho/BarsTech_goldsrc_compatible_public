@@ -1,0 +1,3 @@
+[submodule "external/bzip2"]
+	path = external/bzip2
+	url = git@gitlab.com:bzip2/bzip2.git
