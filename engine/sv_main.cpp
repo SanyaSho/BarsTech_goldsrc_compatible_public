@@ -6045,48 +6045,38 @@ void SV_FailDownload(const char *filename)
 	}
 }
 
-qboolean IsSafeFileToDownload(const char *filename)
+qboolean IsSafeFileToDownload( const char *tfilename )
 {
-	char *first;
-	char *last;
-
-	char lwrfilename[MAX_PATH];
-
-	if (!filename)
-		return FALSE;
-
-	// Convert to lower case
-	Q_strncpy(lwrfilename, filename, ARRAYSIZE(lwrfilename));
-	strlwr(lwrfilename);
-
-	first = strchr(lwrfilename, '.');
-	last = Q_strrchr(lwrfilename, '.');
-
-	if (lwrfilename[0] == '/'
-		|| strstr(lwrfilename, "\\")
-		|| strstr(lwrfilename, ":")
-		|| strstr(lwrfilename, "~")
-		|| first != last // This and below line make sure that dot count is always equal to one
-		|| !first
-		|| Q_strlen(first) != 4
-		|| Q_stristr(lwrfilename, "halflife.wad")
-		|| Q_stristr(lwrfilename, "pak0.pak")
-		|| Q_stristr(lwrfilename, "xeno.wad")
-		|| Q_stristr(lwrfilename, ".cfg")
-		|| Q_stristr(lwrfilename, ".lst")
-		|| Q_stristr(lwrfilename, ".exe")
-		|| Q_stristr(lwrfilename, ".vbs")
-		|| Q_stristr(lwrfilename, ".com")
-		|| Q_stristr(lwrfilename, ".bat")
-		|| Q_stristr(lwrfilename, ".dll")
-		|| Q_stristr(lwrfilename, ".ini")
-		|| Q_stristr(lwrfilename, ".log")
-		|| Q_stristr(lwrfilename, ".so")
-		|| Q_stristr(lwrfilename, ".dylib")
-		|| Q_stristr(lwrfilename, ".sys"))
+	if ( !tfilename )
 	{
 		return FALSE;
 	}
+
+	char filename[MAX_PATH] = { 0 };
+	Q_strncpy( filename, tfilename, sizeof( filename ) );
+	Q_strlwr( filename );
+
+	// Disallow access to toplevel directories
+	if ( Q_strstr( filename, ":" ) || Q_strstr( filename, ".." ) || Q_strstr( filename, "~" ) )
+	{
+		return FALSE;
+	}
+
+	if ( filename[0] == '/' || filename[0] == '\\' )
+	{
+		return FALSE;
+	}
+
+#define BADEXT( f ) Q_stristr( filename, f )
+
+	// Check if we're trying to download any bad files
+	if ( strchr( filename, '.' ) != strrchr( filename, '.' ) || BADEXT( ".cfg" ) || BADEXT( ".rc" ) || BADEXT( ".lst" ) || BADEXT( ".exe" ) || BADEXT( ".vbs" ) || BADEXT( ".com" ) || BADEXT( ".bat" ) || BADEXT( ".dll" ) || BADEXT( ".ini" ) || BADEXT( ".log" ) || BADEXT( "halflife.wad" ) || BADEXT( "pak0.pak" ) || BADEXT( "xeno.wad" ) || BADEXT( ".so" ) || BADEXT( ".dylib" ) || BADEXT( ".sys" ) || BADEXT( ".asi" ) || BADEXT( ".mix" ) || BADEXT( ".flt" ) )
+	{
+		return FALSE;
+	}
+
+#undef BADEXT
+
 	return TRUE;
 }
 
