@@ -27,10 +27,38 @@ if( ${IS_WINDOWS} )
 
 	add_compile_options(
 		/W3
+
+		/permissive
+
+		/MP
+
+		/GR # Enable Run-Time Type Information
+		/GF # Enable String Pooling
+		/fp:fast # Floating Point Model
+		/GS # Buffer Security Check
+
+		$<${IS_RELEASE}:/Oi> # Enable Intrinsic Functions
+		$<${IS_RELEASE}:/Ot> # Favor Fast Code
+		$<${IS_RELEASE}:/Gy> # Enable Function-Level Linking
+
+		/FC # Full path to source
+
+		# Inline Function Expansion
+		$<${IS_RELEASE}:/Ob2>
+		$<${IS_DEBUG}:/Ob0>
+	)
+
+	add_link_options(
+		$<$<CONFIG:Debug>:/DEBUG:FASTLINK>
+		$<$<CONFIG:Release>:/DEBUG:FULL>
 	)
 
 	add_compile_definitions(
 		USE_BREAKPAD_HANDLER
 		_CRT_SECURE_NO_WARNINGS
+
+		_ALLOW_RUNTIME_LIBRARY_MISMATCH
+		_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH
+		_ALLOW_MSC_VER_MISMATCH
 	)
 endif()
