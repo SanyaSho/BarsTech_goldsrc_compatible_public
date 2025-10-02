@@ -134,9 +134,137 @@ BEGIN_SRC( ENGINE_SOURCE_FILES "Source Files" )
 	)
 END_SRC( ENGINE_SOURCE_FILES "Source Files" )
 
-set( ENGINE_HW_SOURCE_FILES )
-BEGIN_SRC( ENGINE_HW_SOURCE_FILES "HW Source Files" )
+set( ENGINE_HEADER_FILES )
+BEGIN_SRC( ENGINE_HEADER_FILES "Header Files" )
 	SRC_GRP(
+		SOURCES
+		"adivtab.h"
+		"anorms.h"
+		"anorm_dots.h"
+		"APIProxy.h"
+		"bitmap_win.h"
+		"buildnum.h"
+		"cd.h"
+		"cdaudio.h"
+		"cdll_exp.h"
+		"cdll_int.h"
+		"cd_internal.h"
+		"chase.h"
+		"CircularBuffer.h"
+		"client.h"
+		"cl_demo.h"
+		"cl_draw.h"
+		"cl_ents.h"
+		"cl_extrap.h"
+		"cl_main.h"
+		"cl_parse.h"
+		"cl_parsefn.h"
+		"cl_pmove.h"
+		"cl_pred.h"
+		"cl_spectator.h"
+		"cl_tent.h"
+		"cmd.h"
+		"cmodel.h"
+		"color.h"
+		"common.h"
+		"com_custom.h"
+		"consistency.h"
+		"console.h"
+		"custom.h"
+		"customentity.h"
+		"cvar.h"
+		"decals.h"
+		"delta.h"
+		"DemoPlayerWrapper.h"
+		"download.h"
+		"edict.h"
+		"eiface.h"
+		"eventapi.h"
+		"filesystem.h"
+		"hashpak.h"
+		"host.h"
+		"host_cmd.h"
+		"IEngine.h"
+		"IGame.h"
+		"info.h"
+		"inst_baseline.h"
+		"ipratelimit.h"
+		"ipratelimitWrapper.h"
+		"ithread.h"
+		"keys.h"
+		"LoadBlob.h"
+		"mathlib.h"
+		"mem.h"
+		"modelgen.h"
+		"modinfo.h"
+		"module.h"
+		"net.h"
+		"net_api_int.h"
+		"net_chan.h"
+		"net_ws.h"
+		"pmove.h"
+		"pmovetst.h"
+		"progdefs.h"
+		"progs.h"
+		"protocol.h"
+		"pr_cmds.h"
+		"pr_edict.h"
+		"quakedef.h"
+		"render.h"
+		"sbar.h"
+		"server.h"
+		"shake.h"
+		"sound.h"
+		"spritegn.h"
+		"studio.h"
+		"sv_log.h"
+		"sv_main.h"
+		"sv_move.h"
+		"sv_phys.h"
+		"sv_pmove.h"
+		"sv_remoteaccess.h"
+		"sv_secure.h"
+		"sv_steam3.h"
+		"sv_upld.h"
+		"sv_user.h"
+		"sys.h"
+		"SystemWrapper.h"
+		"sys_getmodes.h"
+		"textures.h"
+		"tmessage.h"
+		"traceinit.h"
+		"userid.h"
+		"vgui2/BasePanel.h"
+		"vgui2/BaseUISurface.h"
+		"vgui2/BaseUISurface_Font.h"
+		"vgui2/BaseUI_Interface.h"
+		"vgui2/FontTextureCache.h"
+		"vgui2/IMouseControl.h"
+		"vgui2/text_draw.h"
+		"vgui_EngineSurface.h"
+		"vgui_EngineSurfaceWin32.h"
+		"VGUI_EngineSurfaceWrap.h"
+		"vgui_int.h"
+		"vid.h"
+		"view.h"
+		"voice.h"
+		"voice_gain.h"
+		"voice_mixer_controls.h"
+		"voice_sound_engine_interface.h"
+		"voice_wavefile.h"
+		"wad.h"
+		#"webm_video.h"
+		"winquake.h"
+		"world.h"
+		"yuv2rgb.h"
+		"zone.h"
+	)
+END_SRC( ENGINE_HEADER_FILES "Header Files" )
+
+set( ENGINE_HW_SOURCE_FILES )
+BEGIN_SRC( ENGINE_HW_SOURCE_FILES "Source Files" )
+	SRC_GRP(
+		SUBGROUP "HW Source Files"
 		SOURCES
 		"DetailTexture.cpp" # GL
 		"glHud.cpp" # GL
@@ -155,11 +283,35 @@ BEGIN_SRC( ENGINE_HW_SOURCE_FILES "HW Source Files" )
 		"qgl.cpp" # GL
 		"vgui_EngineSurfaceHW.cpp" # GL
 	)
-END_SRC( ENGINE_HW_SOURCE_FILES "HW Source Files" )
+END_SRC( ENGINE_HW_SOURCE_FILES "Source Files" )
+
+set( ENGINE_HW_HEADER_FILES )
+BEGIN_SRC( ENGINE_HW_HEADER_FILES "Header Files" )
+	SRC_GRP(
+		SUBGROUP "HW Header Files"
+		SOURCES
+		"DetailTexture.h"
+		"glHud.h"
+		"glquake.h"
+		"gl_draw.h"
+		"gl_hw.h"
+		"gl_mesh.h"
+		"gl_model.h"
+		"gl_refrag.h"
+		"gl_rmain.h"
+		"gl_rmisc.h"
+		"gl_rsurf.h"
+		"gl_screen.h"
+		"gl_vidnt.h"
+		"gl_warp_sin.h"
+		"qgl.h"
+	)
+END_SRC( ENGINE_HW_HEADER_FILES "Header Files" )
 
 set( ENGINE_SW_SOURCE_FILES )
-BEGIN_SRC( ENGINE_SW_SOURCE_FILES "SW Source Files" )
+BEGIN_SRC( ENGINE_SW_SOURCE_FILES "Source Files" )
 	SRC_GRP(
+		SUBGROUP "SW Source Files"
 		SOURCES
 		"draw.cpp" # !GL
 		"d_fill.cpp" # !GL
@@ -191,7 +343,27 @@ BEGIN_SRC( ENGINE_SW_SOURCE_FILES "SW Source Files" )
 		"screen.cpp" # !GL
 		"vid_win.cpp" # !GL
 	)
-END_SRC( ENGINE_SW_SOURCE_FILES "SW Source Files" )
+END_SRC( ENGINE_SW_SOURCE_FILES "Source Files" )
+
+set( ENGINE_SW_HEADER_FILES )
+BEGIN_SRC( ENGINE_SW_HEADER_FILES "Header Files" )
+	SRC_GRP(
+		SUBGROUP "SW Header Files"
+		SOURCES
+		"draw.h"
+		"d_iface.h"
+		"d_local.h"
+		"model.h"
+		"r_efx_int.h"
+		"r_local.h"
+		"r_part.h"
+		"r_shared.h"
+		"r_studio.h"
+		"r_trans.h"
+		"r_triangle.h"
+		"screen.h"
+	)
+END_SRC( ENGINE_SW_HEADER_FILES "Header Files" )
 
 function( add_engine )
 	cmake_parse_arguments(
@@ -209,7 +381,7 @@ function( add_engine )
 	set( IS_HW $<BOOL:${ARGS_HW}> )
 	set( IS_SW $<BOOL:${ARGS_SW}> )
 
-	add_library( ${ARGS_TARGET} SHARED ${ENGINE_SOURCE_FILES} $<${IS_HW}:${ENGINE_HW_SOURCE_FILES}> $<${IS_SW}:${ENGINE_SW_SOURCE_FILES}> )
+	add_library( ${ARGS_TARGET} SHARED ${ENGINE_SOURCE_FILES} ${ENGINE_HEADER_FILES} $<${IS_HW}:${ENGINE_HW_SOURCE_FILES}> $<${IS_HW}:${ENGINE_HW_HEADER_FILES}> $<${IS_SW}:${ENGINE_SW_SOURCE_FILES}> $<${IS_SW}:${ENGINE_SW_HEADER_FILES}> )
 	install_library( TARGET ${ARGS_TARGET} INSTALL_DEST "${GAMEDIR}" )
 
 	target_compile_definitions(
