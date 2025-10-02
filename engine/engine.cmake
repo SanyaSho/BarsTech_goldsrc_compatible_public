@@ -383,6 +383,7 @@ function( add_engine )
 
 	add_library( ${ARGS_TARGET} SHARED ${ENGINE_SOURCE_FILES} ${ENGINE_HEADER_FILES} $<${IS_HW}:${ENGINE_HW_SOURCE_FILES}> $<${IS_HW}:${ENGINE_HW_HEADER_FILES}> $<${IS_SW}:${ENGINE_SW_SOURCE_FILES}> $<${IS_SW}:${ENGINE_SW_HEADER_FILES}> )
 	install_library( TARGET ${ARGS_TARGET} INSTALL_DEST "${GAMEDIR}" )
+	set_property( TARGET ${ARGS_TARGET} PROPERTY FOLDER "Engine Libraries" )
 
 	target_compile_definitions(
 		${ARGS_TARGET} PRIVATE

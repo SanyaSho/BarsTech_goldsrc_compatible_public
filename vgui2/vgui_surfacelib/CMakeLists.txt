@@ -28,6 +28,10 @@ add_library(
 	vgui2_surfacelib STATIC
 	${VGUI2_SURFACELIB_SOURCE_FILES} ${VGUI2_SURFACELIB_HEADER_FILES}
 )
+set_property(
+	TARGET vgui2_surfacelib
+	PROPERTY FOLDER "Static Libraries"
+)
 
 target_include_directories(
 	vgui2_surfacelib PRIVATE

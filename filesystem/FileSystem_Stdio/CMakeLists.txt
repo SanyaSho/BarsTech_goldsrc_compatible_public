@@ -41,6 +41,10 @@ install_library(
 	TARGET filesystem_stdio
 	INSTALL_DEST "${GAMEDIR}"
 )
+set_property(
+	TARGET filesystem_stdio
+	PROPERTY FOLDER "Shared Libraries"
+)
 
 target_include_directories(
 	filesystem_stdio PRIVATE

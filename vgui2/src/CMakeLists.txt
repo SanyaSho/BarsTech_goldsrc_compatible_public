@@ -72,6 +72,10 @@ install_library(
 	TARGET vgui2
 	INSTALL_DEST "${GAMEDIR}"
 )
+set_property(
+	TARGET vgui2
+	PROPERTY FOLDER "Shared Libraries"
+)
 
 target_include_directories(
 	vgui2 PRIVATE

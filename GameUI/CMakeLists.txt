@@ -223,6 +223,10 @@ install_library(
 	TARGET GameUI
 	INSTALL_DEST "${GAMEDIR}/valve/cl_dlls"
 )
+set_property(
+	TARGET GameUI
+	PROPERTY FOLDER "Shared Libraries"
+)
 
 target_include_directories(
 	GameUI PRIVATE

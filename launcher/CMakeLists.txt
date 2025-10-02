@@ -38,6 +38,10 @@ install_library(
 	INSTALL_OUTNAME "hl"
 	INSTALL_DEST "${GAMEDIR}"
 )
+set_property(
+	TARGET launcher
+	PROPERTY FOLDER "Executables"
+)
 
 target_include_directories(
 	launcher PRIVATE

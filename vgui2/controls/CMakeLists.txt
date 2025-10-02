@@ -150,6 +150,10 @@ add_library(
 	vgui2_controls STATIC
 	${VGUI2_CONTROLS_SOURCE_FILES} ${VGUI2_CONTROLS_HEADER_FILES}
 )
+set_property(
+	TARGET vgui2_controls
+	PROPERTY FOLDER "Static Libraries"
+)
 
 target_include_directories(
 	vgui2_controls PRIVATE

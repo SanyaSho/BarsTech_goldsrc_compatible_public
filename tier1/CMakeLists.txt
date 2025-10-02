@@ -96,6 +96,10 @@ add_library(
 	tier1 STATIC
 	${TIER1_SOURCE_FILES} ${TIER1_HEADER_FILES}
 )
+set_property(
+	TARGET tier1
+	PROPERTY FOLDER "Static Libraries"
+)
 
 target_include_directories(
 	tier1 PRIVATE

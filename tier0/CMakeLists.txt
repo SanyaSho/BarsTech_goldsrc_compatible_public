@@ -84,6 +84,10 @@ install_library(
 	TARGET tier0
 	INSTALL_DEST "${GAMEDIR}"
 )
+set_property(
+	TARGET tier0
+	PROPERTY FOLDER "Shared Libraries"
+)
 
 target_include_directories(
 	tier0 PRIVATE
