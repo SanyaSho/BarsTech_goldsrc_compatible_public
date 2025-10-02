@@ -13,6 +13,15 @@ elseif( POSIX )
 	set( IS_POSIX 1 )
 endif()
 
+set( IS_RELEASE 0 )
+set( IS_DEBUG 0 )
+
+if ( "${CMAKE_BUILD_TYPE}" STREQUAL "Release" )
+	set( IS_RELEASE 1 )
+elseif ( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" )
+	set( IS_DEBUG 1 )
+endif()
+
 if( ${IS_WINDOWS} )
 	string( REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" )
 
