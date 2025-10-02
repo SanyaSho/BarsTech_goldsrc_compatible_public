@@ -741,8 +741,8 @@ void CTaskbar::UpdateGameMenus()
 		isInCareerGame = false;
 	}
 
-	bool isInGame;
-	bool isMulti;
+	bool isInGame = false;
+	bool isMulti = false;
 	
 	auto pszLevelName = engine->pfnGetLevelName();
 
@@ -765,11 +765,6 @@ void CTaskbar::UpdateGameMenus()
 			isMulti = true;
 			isInGame = true;
 		}
-	}
-	else
-	{
-		isMulti = false;
-		isInGame = false;
 	}
 
 	if( TheMusicManager )
@@ -799,7 +794,7 @@ void CTaskbar::UpdateGameMenus()
 
 	const auto bIsSteam = engine->CheckParm( "-steam", 0 ) != 0;
 
-	//Determine which menu items are visible
+	// Determine which menu items are visible
 	for( int i = 0; i < m_pGameMenu->GetChildCount(); ++i )
 	{
 		auto pChild = m_pGameMenu->GetChild( i );
@@ -817,27 +812,30 @@ void CTaskbar::UpdateGameMenus()
 		if( !pData )
 			continue;
 
-		bool bAvailable;
+		bool bAvailable = true;
 
-		if( isInGame )
-		{
-			bAvailable = pData->GetInt( isInCareerGame ? "NotInCareerGame" : "OnlyInCareerGame", 0 ) != 0;
-		}
-		else
-			bAvailable = pData->GetInt( "OnlyInGame", 0 ) == 0;
-
-		if( isMulti && pData->GetInt( "notmulti", 0 ) )
+		if( !isInGame && pData->GetInt( "OnlyInGame" ) )
 		{
 			bAvailable = false;
 		}
-		else if( isInGame && !isMulti && pData->GetInt( "notsingle", 0 ) )
+
+		// CZ: Check for Career game
+		if( isInGame && pData->GetInt( isInCareerGame ? "NotInCareerGame" : "OnlyInCareerGame" ) )
 		{
 			bAvailable = false;
 		}
-		else if( bIsSteam )
+
+		if( isMulti && pData->GetInt( "notmulti" ) )
 		{
-			if( pData->GetInt( "notsteam", 0 ) )
-				bAvailable = false;
+			bAvailable = false;
+		}
+		else if( isInGame && !isMulti && pData->GetInt( "notsingle" ) )
+		{
+			bAvailable = false;
+		}
+		else if( bIsSteam && pData->GetInt( "notsteam" ) )
+		{
+			bAvailable = false;
 		}
 
 		pMenu->SetVisible( bAvailable );
