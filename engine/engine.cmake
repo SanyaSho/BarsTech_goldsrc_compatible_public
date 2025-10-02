@@ -1,0 +1,280 @@
+#-----------------------------------------------------------------------------
+# ENGINE.CMAKE
+#
+# SanyaSho (2025)
+#-----------------------------------------------------------------------------
+
+cmake_minimum_required( VERSION 3.20 FATAL_ERROR )
+
+include_guard( GLOBAL )
+
+set( ENGINE_SOURCE_FILES )
+BEGIN_SRC( ENGINE_SOURCE_FILES "Source Files" )
+	SRC_GRP(
+		SOURCES
+		"${SRCDIR}/common/BaseSystemModule.cpp"
+		"${SRCDIR}/common/FilePaths.cpp"
+		"${SRCDIR}/common/ObjectList.cpp"
+		"${SRCDIR}/common/TokenLine.cpp"
+		"cl_extrap.cpp"
+		"download.cpp"
+		"bitmap_win.cpp"
+		"buildnum.cpp"
+		"cd.cpp"
+		"cdll_exp.cpp"
+		"cdll_int.cpp"
+		"chase.cpp"
+		"CircularBuffer.cpp"
+		"cl_demo.cpp"
+		"cl_draw.cpp"
+		"cl_ents.cpp"
+		"cl_main.cpp"
+		"cl_parse.cpp"
+		"cl_parsefn.cpp"
+		"cl_pmove.cpp"
+		"cl_pred.cpp"
+		"cl_spectator.cpp"
+		"cl_tent.cpp"
+		"cmd.cpp"
+		"cmodel.cpp"
+		"common.cpp"
+		"com_custom.cpp"
+		"console.cpp"
+		"crc.cpp"
+		"cvar.cpp"
+		"decals.cpp"
+		"delta.cpp" # Set opt level to MaxSpeed
+		"DemoPlayerWrapper.cpp"
+		"eventapi.cpp"
+		"filesystem.cpp"
+		"filesystem_internal.cpp"
+		"hashpak.cpp"
+		"host.cpp"
+		"host_cmd.cpp"
+		"HUD.cpp"
+		"info.cpp"
+		"dinput.cpp"
+		"ipratelimit.cpp"
+		"ipratelimitWrapper.cpp"
+		"keys.cpp"
+		"LoadBlob.cpp"
+		"l_studio.cpp"
+		"mathlib.cpp"
+		"mem.cpp"
+		"module.cpp"
+		"net_api.cpp"
+		"net_chan.cpp"
+		"net_ws.cpp"
+		"pe_win32.cpp"
+		"pmove.cpp"
+		"pmovetst.cpp"
+		"pr_cmds.cpp"
+		"pr_edict.cpp"
+		"r_efx.cpp"
+		"r_part.cpp"
+		"r_studio.cpp" # (Don't optimize in Debug)
+		"r_trans.cpp"
+		"r_triangle.cpp"
+		"Sequence.cpp"
+		"snd_dma.cpp"
+		"snd_mem.cpp"
+		"snd_mix.cpp"
+		"snd_sdl.cpp"
+		"sv_remoteaccess.cpp"
+		"sv_user.cpp"
+		"sv_log.cpp"
+		"sv_main.cpp"
+		"sv_phys.cpp"
+		"sv_secure.cpp"
+		"sv_steam3.cpp"
+		"sv_upld.cpp"
+		"SystemWrapper.cpp"
+		"sys_dll.cpp" # BasicRuntimeChecks: EnableFastChecks; BufferSecurityCheck: true
+		"sys_dll2.cpp"
+		"sys_engine.cpp"
+		"sys_getmodes.cpp"
+		"sys_sdlwind.cpp"
+		"textures.cpp"
+		"thread.cpp"
+		"tmessage.cpp"
+		"traceinit.cpp"
+		"vgui2/BaseUISurface.cpp"
+		"vgui2/BaseUISurface_Font.cpp"
+		"vgui2/BaseUI_Interface.cpp"
+		"vgui2/FontTextureCache.cpp"
+		"vgui2/text_draw.cpp"
+		"vgui_EngineSurface.cpp"
+		"VGUI_EngineSurfaceWrap.cpp"
+		"vgui_int.cpp"
+		"vgui_intwrap.cpp"
+		"vgui_intwrap2.cpp"
+		"view.cpp"
+		"voice.cpp"
+		"voice_gain.cpp"
+		"voice_mixer_controls.cpp"
+		"voice_record_dsound.cpp"
+		"voice_record_wavein.cpp"
+		"voice_sound_engine_interface.cpp"
+		"voice_wavefile.cpp"
+		"wad.cpp"
+		"world.cpp"
+		"yuv2rgb.cpp"
+		"zone.cpp"
+		"${SRCDIR}/public/interface.cpp"
+		"${SRCDIR}/public/registry.cpp"
+		"${SRCDIR}/public/steamid.cpp"
+		"${SRCDIR}/public/sys_procinfo.cpp"
+		"${SRCDIR}/public/vgui_controls/vgui_controls.cpp"
+		"snd_win.cpp"
+		"sv_move.cpp"
+		"sv_pmove.cpp"
+		#"webm_video.cpp"
+
+		"engine.rc"
+	)
+END_SRC( ENGINE_SOURCE_FILES "Source Files" )
+
+set( ENGINE_HW_SOURCE_FILES )
+BEGIN_SRC( ENGINE_HW_SOURCE_FILES "HW Source Files" )
+	SRC_GRP(
+		SOURCES
+		"DetailTexture.cpp" # GL
+		"glHud.cpp" # GL
+		"glide2x.cpp" # GL
+		"gl_draw.cpp" # GL
+		"gl_mesh.cpp" # GL
+		"gl_model.cpp" # GL
+		"gl_refrag.cpp" # GL
+		"gl_rlight.cpp" # GL
+		"gl_rmain.cpp" # GL
+		"gl_rmisc.cpp" # GL
+		"gl_rsurf.cpp" # GL
+		"gl_screen.cpp" # GL
+		"gl_vidnt.cpp" # GL
+		"gl_warp.cpp" # GL
+		"qgl.cpp" # GL
+		"vgui_EngineSurfaceHW.cpp" # GL
+	)
+END_SRC( ENGINE_HW_SOURCE_FILES "HW Source Files" )
+
+set( ENGINE_SW_SOURCE_FILES )
+BEGIN_SRC( ENGINE_SW_SOURCE_FILES "SW Source Files" )
+	SRC_GRP(
+		SOURCES
+		"draw.cpp" # !GL
+		"d_fill.cpp" # !GL
+		"d_modech.cpp" # !GL
+		"d_part.cpp" # !GL
+		"d_surf.cpp" # !GL
+		"d_edge.cpp" # !GL
+		"d_init.cpp" # !GL
+		"d_polyse.cpp" # !GL (Don't optimize in Debug)
+		"d_scan.cpp" # !GL
+		"d_sprite.cpp" # !GL
+		"d_vars.cpp" # !GL
+		"model.cpp" # !GL
+		"r_aclip.cpp" # !GL
+		"r_alias.cpp" # !GL
+		"r_bsp.cpp" # !GL
+		"r_draw.cpp" # !GL
+		"r_edge.cpp" # !GL
+		"r_efrag.cpp" # !GL
+		"r_light.cpp" # !GL
+		"r_misc.cpp" # !GL
+		"r_sky.cpp" # !GL
+		"r_sprite.cpp" # !GL
+		"r_surf.cpp" # !GL
+		"r_vars.cpp" # !GL
+		"sys_getmodesdd.cpp" # !GL
+		"vgui_EngineSurfaceWin32.cpp" # !GL
+		"r_main.cpp" # !GL
+		"screen.cpp" # !GL
+		"vid_win.cpp" # !GL
+	)
+END_SRC( ENGINE_SW_SOURCE_FILES "SW Source Files" )
+
+function( add_engine )
+	cmake_parse_arguments(
+		ARGS
+		"HW;SW"
+		"TARGET"
+		""
+		${ARGN}
+	)
+
+	if ( NOT ARGS_HW AND NOT ARGS_SW )
+		message( FATAL_ERROR "add_engine must have HW or SW set!" )
+	endif()
+
+	set( IS_HW $<BOOL:${ARGS_HW}> )
+	set( IS_SW $<BOOL:${ARGS_SW}> )
+
+	add_library( ${ARGS_TARGET} SHARED ${ENGINE_SOURCE_FILES} $<${IS_HW}:${ENGINE_HW_SOURCE_FILES}> $<${IS_SW}:${ENGINE_SW_SOURCE_FILES}> )
+	install_library( TARGET ${ARGS_TARGET} INSTALL_DEST "${GAMEDIR}" )
+
+	target_compile_definitions(
+		${ARGS_TARGET} PRIVATE
+
+		_2020_PATCH
+
+		$<${IS_HW}:GLQUAKE>
+	)
+
+	target_include_directories(
+		${ARGS_TARGET} PRIVATE
+
+		"${SRCDIR}/engine"
+		"${SRCDIR}"
+		"${SRCDIR}/cl_dll"
+		"${SRCDIR}/common"
+		"${SRCDIR}/pm_shared"
+		"${SRCDIR}/public"
+		"${SRCDIR}/public/tier1"
+		"${SRCDIR}/utils/vgui/include"
+
+		"${SRCDIR}/external/SDL2/include"
+		"${SRCDIR}/external/bzip2/include/bzip2"
+		"${SRCDIR}/external/miles"
+		"${SRCDIR}/external/GLEW/include"
+		#"${SRCDIR}/external/libwebm/libwebm"
+		#"${SRCDIR}/external/libwebm"
+		"${SRCDIR}/external/ffmpeg/build_win32/include"
+	)
+
+	target_link_directories(
+		${ARGS_TARGET} PRIVATE
+
+		"$<${IS_HW}:${SRCDIR}/external/GLEW/lib>"
+	)
+
+	target_link_libraries(
+		${ARGS_TARGET} PRIVATE
+
+		winmm
+		ws2_32
+		dinput
+		dxguid
+		ddraw
+		$<${IS_HW}:opengl32>
+		$<${IS_HW}:glew32s>
+
+		tier0
+		tier1
+		vstdlib
+		vgui
+		vgui2_controls
+		vgui2_surfacelib
+
+		bzip2
+		steam_api
+		mss32
+		SDL2
+		game_controls
+		#libogg
+		#libvorbis_static
+		#libvpxd
+		#libvpx
+		#libwebm
+	)
+
+endfunction()

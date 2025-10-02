@@ -1,75 +1,60 @@
+#-----------------------------------------------------------------------------
+# FILESYSTEM_STDIO.CMAKE
 #
-#	FileSystem library
-#	Shared library providing the SteamPipe filesystem. Implements the GoldSource IFileSystem interface.
-#
+# SanyaSho (2025)
+#-----------------------------------------------------------------------------
 
-set( PROJECT_NAME filesystem_stdio )
+cmake_minimum_required( VERSION 3.20 FATAL_ERROR )
 
-#TODO: stringutils.cpp should be removed. - Solokiller
-add_sources(
-	${SRC_DIR}/common/StringUtils.cpp
-	${SRC_DIR}/public/characterset.cpp
-	${SRC_DIR}/public/characterset.h
-	${SRC_DIR}/public/interface.cpp
-	${SRC_DIR}/public/interface.h
-	CFileHandle.cpp
-	CFileHandle.h
-	CFileSystem.cpp
-	CFileSystem.obsolete.cpp
-	CFileSystem.h
-	CPackFileEntry.h
-	CSearchPath.h
-	PackFile.h
-)
-
-preprocess_sources()
-
-add_library( ${PROJECT_NAME} SHARED ${PREP_SRCS} )
-
-#TODO: common is not used by non-temporary code - Solokiller
-target_include_directories( ${PROJECT_NAME} PRIVATE
-	${SRC_DIR}/common
-	${SRC_DIR}/public
-	${SRC_DIR}/public/tier1
-	${SHARED_INCLUDE_PATHS}
-	${SHARED_EXTERNAL_INCLUDE_PATHS}
-)
-
-target_compile_definitions( ${PROJECT_NAME} PRIVATE
-	${SHARED_DEFS}
-)
-
-#Link with dependencies
-target_link_libraries( ${PROJECT_NAME} 
-	${UNIX_FS_LIB}
-)
-
-#CMake places libraries in /Debug or /Release on Windows, so explicitly set the paths for both.
-#On Linux, it uses LIBRARY_OUTPUT_DIRECTORY
-set_target_properties( ${PROJECT_NAME} PROPERTIES
-	LIBRARY_OUTPUT_DIRECTORY "${ENGINE_BASE_PATH}"
-	RUNTIME_OUTPUT_DIRECTORY_DEBUG "${ENGINE_BASE_PATH}"
-	RUNTIME_OUTPUT_DIRECTORY_RELEASE "${ENGINE_BASE_PATH}"
-)
-
-set( PROJECT_LINK_FLAGS )
-
-if( NOT MSVC AND NOT APPLE )
-	#Generate a map file that provides information about the linking stage.
-	set( PROJECT_LINK_FLAGS
-		${PROJECT_LINK_FLAGS} "-Wl,-Map,${PROJECT_NAME}_map.txt "
+set( FILESYSTEM_STDIO_SOURCE_FILES )
+BEGIN_SRC( FILESYSTEM_STDIO_SOURCE_FILES "Source Files" )
+	SRC_GRP(
+		SOURCES
+		"${SRCDIR}/common/StringUtils.cpp"
+		"${SRCDIR}/public/characterset.cpp"
+		"${SRCDIR}/public/interface.cpp"
+		"CFileHandle.cpp"
+		"CFileSystem.cpp"
+		"CFileSystem.obsolete.cpp"
 	)
-endif()
+END_SRC( FILESYSTEM_STDIO_SOURCE_FILES "Source Files" )
 
-set_target_properties( ${PROJECT_NAME} PROPERTIES
-	COMPILE_FLAGS "${LINUX_32BIT_FLAG}"
-	LINK_FLAGS "${SHARED_ENGINE_LINKER_FLAGS} ${PROJECT_LINK_FLAGS} ${LINUX_32BIT_FLAG}"
+set( FILESYSTEM_STDIO_HEADER_FILES )
+BEGIN_SRC( FILESYSTEM_STDIO_HEADER_FILES "Header Files" )
+	SRC_GRP(
+		SOURCES
+		"${SRCDIR}/public/characterset.h"
+		"${SRCDIR}/public/interface.h"
+		"CFileHandle.h"
+		"CFileSystem.h"
+		"CPackFileEntry.h"
+		"CSearchPath.h"
+		"PackFile.h"
+	)
+END_SRC( FILESYSTEM_STDIO_HEADER_FILES "Header Files" )
+
+add_library(
+	filesystem_stdio SHARED
+	${FILESYSTEM_STDIO_SOURCE_FILES} ${FILESYSTEM_STDIO_HEADER_FILES}
+)
+install_library(
+	TARGET filesystem_stdio
+	INSTALL_DEST "${GAMEDIR}"
 )
 
-#No lib prefix
-set_target_properties( ${PROJECT_NAME} PROPERTIES PREFIX "" )
+target_include_directories(
+	filesystem_stdio PRIVATE
 
-#Create filters
-create_source_groups( "${CMAKE_SOURCE_DIR}" )
+	"${SRCDIR}/common"
+	"${SRCDIR}/public"
+	"${SRCDIR}/public/tier1"
+)
 
-clear_sources()
+target_compile_definitions(
+	filesystem_stdio PRIVATE
+
+	_SCL_SECURE_NO_WARNINGS
+
+	NO_MALLOC_OVERRIDE
+	filesystem_stdio_EXPORTS
+)

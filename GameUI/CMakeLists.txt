@@ -1,222 +1,270 @@
-
+#-----------------------------------------------------------------------------
+# GAMEUI.CMAKE
 #
-#	GameUI CMake build file
-#
+# SanyaSho (2025)
+#-----------------------------------------------------------------------------
 
-#On Windows this is capitalized, on other platforms it's all lowercase.
-if( WIN32 )
-	set( PROJECT_NAME GameUI )
-else()
-	set( PROJECT_NAME gameui )
-endif()
+cmake_minimum_required( VERSION 3.20 FATAL_ERROR )
 
-add_sources(
-	${SRC_DIR}/common/BaseUI/IBaseUI.h
-	${SRC_DIR}/common/GameUI/ICareerUI.h
-	${SRC_DIR}/common/GameUI/IClientVGUI.h
-	${SRC_DIR}/common/GameUI/IGameConsole.h
-	${SRC_DIR}/common/GameUI/IGameUI.h
-	${SRC_DIR}/common/GameUI/IMusicManager.h
-	${SRC_DIR}/common/ServerBrowser/IServerBrowser.h
-	${SRC_DIR}/common/IRunGameEngine.h
-	${SRC_DIR}/common/IVGuiModule.h
-	${SRC_DIR}/common/IVGuiModuleLoader.h
-	${SRC_DIR}/common/port.h
-	${SRC_DIR}/common/Random.cpp
-	${SRC_DIR}/common/Random.h
-	${SRC_DIR}/cstrike/dlls/weapontype.h
-	${SRC_DIR}/game_shared/bot/bot_profile.cpp
-	${SRC_DIR}/game_shared/bot/bot_profile.h
-	${SRC_DIR}/game_shared/shared_util.cpp
-	${SRC_DIR}/game_shared/shared_util.h
-	${SRC_DIR}/game_shared/simple_checksum.h
-	${SRC_DIR}/public/steam/friends/IFriendsUser.h
-	${SRC_DIR}/public/igameuifuncs.h
-	${SRC_DIR}/public/interface.cpp
-	${SRC_DIR}/public/interface.h
-	${SRC_DIR}/public/savegame_version.h
-	BackgroundMenuButton.cpp
-	BackgroundMenuButton.h
-	BasePanel.cpp
-	BasePanel.h
-	BitmapButton.cpp
-	BitmapButton.h
-	BitmapImagePanel.cpp
-	BitmapImagePanel.h
-	CareerBaseFrame.cpp
-	CareerBaseFrame.h
-	CareerBox.cpp
-	CareerBox.h
-	CareerGame.cpp
-	CareerGame.h
-	CareerGameTasks.cpp
-	CareerGameTasks.h
-	CareerMapFrame.cpp
-	CareerMapFrame.h
-	CareerProfile.cpp
-	CareerProfile.h
-	CareerProfileFrame.cpp
-	CareerProfileFrame.h
-	CDKeyEntryDialog.cpp
-	CDKeyEntryDialog.h
-	CommandCheckButton.cpp
-	CommandCheckButton.h
-	ContentControlDialog.cpp
-	ContentControlDialog.h
-	CreateMultiplayerGameBotPage.cpp
-	CreateMultiplayerGameBotPage.h
-	CreateMultiplayerGameDialog.cpp
-	CreateMultiplayerGameDialog.h
-	CreateMultiplayerGameGameplayPage.cpp
-	CreateMultiplayerGameGameplayPage.h
-	CreateMultiplayerGameServerPage.cpp
-	CreateMultiplayerGameServerPage.h
-	CvarLatch.cpp
-	CvarLatch.h
-	CvarNegateCheckButton.cpp
-	CvarNegateCheckButton.h
-	CvarSlider.cpp
-	CvarSlider.h
-	CvarTextEntry.cpp
-	CvarTextEntry.h
-	CvarToggleCheckButton.cpp
-	CvarToggleCheckButton.h
-	DottedLabel.cpp
-	DottedLabel.h
-	EngineInterface.h
-	GameConsole.cpp
-	GameConsole.h
-	GameConsoleDialog.cpp
-	GameConsoleDialog.h
-	GameUI_Interface.cpp
-	GameUI_Interface.h
-	HelpDialog.cpp
-	HelpDialog.h
-	ImageButton.cpp
-	ImageButton.h
-	KeyToggleCheckButton.cpp
-	KeyToggleCheckButton.h
-	LabeledCommandComboBox.cpp
-	LabeledCommandComboBox.h
-	labelslidercombo.cpp
-	labelslidercombo.h
-	LoadGameDialog.cpp
-	LoadGameDialog.h
-	LoadingDialog.cpp
-	LoadingDialog.h
-	LogoFile.cpp
-	LogoFile.h
-	ModInfo.cpp
-	ModInfo.h
-	MultiplayerAdvancedDialog.cpp
-	MultiplayerAdvancedDialog.h
-	MusicManager.cpp
-	MusicManager.h
-	NewGameDialog.cpp
-	NewGameDialog.h
-	OptionsDialog.cpp
-	OptionsDialog.h
-	OptionsSubAdvanced.cpp
-	OptionsSubAdvanced.h
-	OptionsSubAudio.cpp
-	OptionsSubAudio.h
-	OptionsSubKeyboard.cpp
-	OptionsSubKeyboard.h
-	OptionsSubMouse.cpp
-	OptionsSubMouse.h
-	OptionsSubMultiplayer.cpp
-	OptionsSubMultiplayer.h
-	OptionsSubVideo.cpp
-	OptionsSubVideo.h
-	OptionsSubVoice.cpp
-	OptionsSubVoice.h
-	PanelListPanel.cpp
-	PanelListPanel.h
-	PlayerListDialog.cpp
-	PlayerListDialog.h
-	RefreshSteamLogin.cpp
-	RefreshSteamLogin.h
-	RunGameEngine.cpp
-	RunGameEngine.h
-	SaveGameDialog.cpp
-	SaveGameDialog.h
-	ScriptObject.cpp
-	ScriptObject.h
-	Sys_Utils.cpp
-	Sys_Utils.h
-	TaskButton.cpp
-	TaskButton.h
-	Taskbar.cpp
-	Taskbar.h
-	taskframe.h
-	TextEntryBox.cpp
-	TextEntryBox.h
-	vcontrolslistpanel.cpp
-	vcontrolslistpanel.h
-	VGuiSystemModuleLoader.cpp
-	VGuiSystemModuleLoader.h
+set( GAMEUI_SOURCE_FILES )
+BEGIN_SRC( GAMEUI_SOURCE_FILES "Source Files" )
+	SRC_GRP(
+		SOURCES
+		"${SRCDIR}/common/Random.cpp"
+
+		"${SRCDIR}/game_shared/bot/bot_profile.cpp"
+		"${SRCDIR}/game_shared/shared_util.cpp"
+
+		"${SRCDIR}/public/interface.cpp"
+
+		"BackgroundMenuButton.cpp"
+		"BasePanel.cpp"
+		"BitmapButton.cpp"
+		"BitmapImagePanel.cpp"
+		"CareerBaseFrame.cpp"
+		"CareerBox.cpp"
+		"CareerGame.cpp"
+		"CareerGameTasks.cpp"
+		"CareerMapFrame.cpp"
+		"CareerProfile.cpp"
+		"CareerProfileFrame.cpp"
+		"CDKeyEntryDialog.cpp"
+		"CommandCheckButton.cpp"
+		"ContentControlDialog.cpp"
+		"CreateMultiplayerGameBotPage.cpp"
+		"CreateMultiplayerGameDialog.cpp"
+		"CreateMultiplayerGameGameplayPage.cpp"
+		"CreateMultiplayerGameServerPage.cpp"
+		"CvarLatch.cpp"
+		"CvarNegateCheckButton.cpp"
+		"CvarSlider.cpp"
+		"CvarTextEntry.cpp"
+		"CvarToggleCheckButton.cpp"
+		"DottedLabel.cpp"
+		"GameConsole.cpp"
+		"GameConsoleDialog.cpp"
+		"GameUI_Interface.cpp"
+		"HelpDialog.cpp"
+		"ImageButton.cpp"
+		"KeyToggleCheckButton.cpp"
+		"LabeledCommandComboBox.cpp"
+		"labelslidercombo.cpp"
+		"LoadGameDialog.cpp"
+		"LoadingDialog.cpp"
+		"LogoFile.cpp"
+		"ModInfo.cpp"
+		"MultiplayerAdvancedDialog.cpp"
+		"MusicManager.cpp"
+		"NewGameDialog.cpp"
+		"OptionsDialog.cpp"
+		"OptionsSubAdvanced.cpp"
+		"OptionsSubAudio.cpp"
+		"OptionsSubKeyboard.cpp"
+		"OptionsSubMouse.cpp"
+		"OptionsSubMultiplayer.cpp"
+		"OptionsSubVideo.cpp"
+		"OptionsSubVoice.cpp"
+		"PanelListPanel.cpp"
+		"PlayerListDialog.cpp"
+		"RefreshSteamLogin.cpp"
+		"RunGameEngine.cpp"
+		"SaveGameDialog.cpp"
+		"ScriptObject.cpp"
+		"Sys_Utils.cpp"
+		"TaskButton.cpp"
+		"Taskbar.cpp"
+		"TextEntryBox.cpp"
+		"vcontrolslistpanel.cpp"
+		"VGuiSystemModuleLoader.cpp"
+
+		"${SRCDIR}/common/randoverride.cpp"
+	)
+END_SRC( GAMEUI_SOURCE_FILES "Source Files" )
+
+set( GAMEUI_HEADER_FILES )
+BEGIN_SRC( GAMEUI_HEADER_FILES "Header Files" )
+	SRC_GRP(
+		SOURCES
+		"${SRCDIR}/common/BaseUI/IBaseUI.h"
+		"${SRCDIR}/common/GameUI/ICareerUI.h"
+		"${SRCDIR}/common/GameUI/IClientVGUI.h"
+		"${SRCDIR}/common/GameUI/IGameConsole.h"
+		"${SRCDIR}/common/GameUI/IGameUI.h"
+		"${SRCDIR}/common/GameUI/IMusicManager.h"
+		"${SRCDIR}/common/ServerBrowser/IServerBrowser.h"
+		"${SRCDIR}/common/IRunGameEngine.h"
+		"${SRCDIR}/common/IVGuiModule.h"
+		"${SRCDIR}/common/IVGuiModuleLoader.h"
+		"${SRCDIR}/common/port.h"
+
+		"${SRCDIR}/common/Random.h"
+		"${SRCDIR}/cstrike/dlls/weapontype.h"
+		"${SRCDIR}/game_shared/bot/bot_profile.h"
+		"${SRCDIR}/game_shared/shared_util.h"
+		"${SRCDIR}/game_shared/simple_checksum.h"
+		"${SRCDIR}/public/steam/friends/IFriendsUser.h"
+		"${SRCDIR}/public/igameuifuncs.h"
+		"${SRCDIR}/public/interface.h"
+		"${SRCDIR}/public/savegame_version.h"
+
+		"${SRCDIR}/common/ifilesystemopendialog.h"
+
+		"${SRCDIR}/common/xbox/xboxstubs.h"
+
+		"${SRCDIR}/public/basetypes.h"
+		"${SRCDIR}/public/commonmacros.h"
+		"${SRCDIR}/public/coordsize.h"
+		"${SRCDIR}/public/datamap.h"
+		"${SRCDIR}/public/FileSystem_Helpers.cpp"
+		"${SRCDIR}/public/FileSystem_Helpers.h"
+		"${SRCDIR}/public/ICVar.h"
+		"${SRCDIR}/public/mathlib.h"
+		"${SRCDIR}/public/OfflineMode.h"
+		"${SRCDIR}/public/SDK_Color.h"
+		"${SRCDIR}/public/Vector.h"
+		"${SRCDIR}/public/Vector2D.h"
+		"${SRCDIR}/public/winlite.h"
+		"${SRCDIR}/public/worldsize.h"
+
+		"${SRCDIR}/public/appframework/AppFramework.h"
+		"${SRCDIR}/public/appframework/IAppSystem.h"
+		"${SRCDIR}/public/appframework/IAppSystemGroup.h"
+		"${SRCDIR}/public/appframework/VguiMatSysApp.h"
+
+		"${SRCDIR}/public/bitmap/Bitmap.h"
+		"${SRCDIR}/public/bitmap/Float_BM.h"
+		"${SRCDIR}/public/bitmap/ImageFormat.h"
+		"${SRCDIR}/public/bitmap/PSD.h"
+		"${SRCDIR}/public/bitmap/TGALoader.h"
+		"${SRCDIR}/public/bitmap/TGAWriter.h"
+
+		"${SRCDIR}/public/mathlib/halton.h"
+		"${SRCDIR}/public/mathlib/lightdesc.h"
+		"${SRCDIR}/public/mathlib/math_base.h"
+		"${SRCDIR}/public/mathlib/ssemath.h"
+
+		"${SRCDIR}/public/vstdlib/cvar.h"
+		"${SRCDIR}/public/vstdlib/ICommandline.h"
+		"${SRCDIR}/public/vstdlib/IKeyValuesSystem.h"
+		"${SRCDIR}/public/vstdlib/pch_vstdlib.h"
+		"${SRCDIR}/public/vstdlib/random.h"
+		"${SRCDIR}/public/vstdlib/strtools.h"
+		"${SRCDIR}/public/vstdlib/vstdlib.h"
+
+		"BackgroundMenuButton.h"
+		"BasePanel.h"
+		"BitmapButton.h"
+		"BitmapImagePanel.h"
+		"CareerBaseFrame.h"
+		"CareerBox.h"
+		"CareerGame.h"
+		"CareerGameTasks.h"
+		"CareerMapFrame.h"
+		"CareerProfile.h"
+		"CareerProfileFrame.h"
+		"CDKeyEntryDialog.h"
+		"CommandCheckButton.h"
+		"ContentControlDialog.h"
+		"CreateMultiplayerGameBotPage.h"
+		"CreateMultiplayerGameDialog.h"
+		"CreateMultiplayerGameGameplayPage.h"
+		"CreateMultiplayerGameServerPage.h"
+		"CvarLatch.h"
+		"CvarNegateCheckButton.h"
+		"CvarSlider.h"
+		"CvarTextEntry.h"
+		"CvarToggleCheckButton.h"
+		"DottedLabel.h"
+		"EngineInterface.h"
+		"GameConsole.h"
+		"GameConsoleDialog.h"
+		"GameUI_Interface.h"
+		"HelpDialog.h"
+		"ImageButton.h"
+		"KeyToggleCheckButton.h"
+		"LabeledCommandComboBox.h"
+		"labelslidercombo.h"
+		"LoadGameDialog.h"
+		"LoadingDialog.h"
+		"LogoFile.h"
+		"ModInfo.h"
+		"MultiplayerAdvancedDialog.h"
+		"MusicManager.h"
+		"NewGameDialog.h"
+		"OptionsDialog.h"
+		"OptionsSubAdvanced.h"
+		"OptionsSubAudio.h"
+		"OptionsSubKeyboard.h"
+		"OptionsSubMouse.h"
+		"OptionsSubMultiplayer.h"
+		"OptionsSubVideo.h"
+		"OptionsSubVoice.h"
+		"PanelListPanel.h"
+		"PlayerListDialog.h"
+		"RefreshSteamLogin.h"
+		"RunGameEngine.h"
+		"SaveGameDialog.h"
+		"ScriptObject.h"
+		"Sys_Utils.h"
+		"TaskButton.h"
+		"Taskbar.h"
+		"taskframe.h"
+		"TextEntryBox.h"
+		"vcontrolslistpanel.h"
+		"VGuiSystemModuleLoader.h"
+	)
+END_SRC( GAMEUI_HEADER_FILES "Header Files" )
+
+add_library(
+	GameUI SHARED
+	${GAMEUI_SOURCE_FILES} ${GAMEUI_HEADER_FILES}
+)
+install_library(
+	TARGET GameUI
+	INSTALL_DEST "${GAMEDIR}/valve/cl_dlls"
 )
 
-add_subdirectory( ${SRC_DIR}/common common )
-add_subdirectory( ${SRC_DIR}/public public )
+target_include_directories(
+	GameUI PRIVATE
 
-preprocess_sources()
+	"${SRCDIR}/engine"
+	"${SRCDIR}/pm_shared"
+	"${SRCDIR}/cl_dll"
+	"${SRCDIR}/game_shared/bot"
+	"${SRCDIR}/game_shared"
 
-add_library( ${PROJECT_NAME} SHARED ${PREP_SRCS} )
+	"${SRCDIR}/common"
+	"${SRCDIR}/public"
+	"${SRCDIR}/public/tier1"
+	"${SRCDIR}" # FIXME(SanyaSho): Some headers want to include "public/"
 
-target_include_directories( ${PROJECT_NAME} PRIVATE
-	${SRC_DIR}/engine
-	${SRC_DIR}/pm_shared
-	${SRC_DIR}/cl_dll
-	${SRC_DIR}/game_shared/bot
-	${SRC_DIR}/game_shared
-	${SRC_DIR}/common
-	${SRC_DIR}/public
-	${SRC_DIR}/public/tier1
-	${SRC_DIR}
-	${EXTERNAL_DIR}/SDL2/include
+	"${SRCDIR}/external/SDL2/include"
 )
 
-#CS_SHIELD_ENABLED turns on code that deals with the shield weapon
-target_compile_definitions( ${PROJECT_NAME} PRIVATE
-	${SHARED_DEFS}
+target_compile_definitions(
+	GameUI PRIVATE
+
+	_SCL_SECURE_NO_WARNINGS
+
 	NO_MALLOC_OVERRIDE
 	GAMEUI_EXPORTS
 	CS_SHIELD_ENABLED
+	GameUI_EXPORTS
 )
 
-set( PROJECT_LIBS )
+target_link_directories(
+	GameUI PRIVATE
 
-#Link with dependencies
-target_link_libraries( ${PROJECT_NAME} 
-	${SDL2}
+	"${SRCDIR}/external/SDL2/lib" # HACK(SanyaSho)
+)
+
+target_link_libraries(
+	GameUI PRIVATE
+
+	SDL2
+
 	vgui2_controls
 	vstdlib
 	tier1
 	tier0
-	${PROJECT_LIBS}
-	${SHARED_DEPENDENCIES}
 )
-
-#CMake places libraries in /Debug or /Release on Windows, so explicitly set the paths for both.
-#On Linux, it uses LIBRARY_OUTPUT_DIRECTORY
-set_target_properties( ${PROJECT_NAME} PROPERTIES
-	LIBRARY_OUTPUT_DIRECTORY "${GAME_BASE_PATH}/cl_dlls"
-	RUNTIME_OUTPUT_DIRECTORY_DEBUG "${GAME_BASE_PATH}/cl_dlls"
-	RUNTIME_OUTPUT_DIRECTORY_RELEASE "${GAME_BASE_PATH}/cl_dlls"
-)
-
-set( PROJECT_LINK_FLAGS )
-
-set_target_properties( ${PROJECT_NAME} PROPERTIES
-	COMPILE_FLAGS "${LINUX_32BIT_FLAG}"
-	LINK_FLAGS "${SHARED_ENGINE_LINKER_FLAGS} ${PROJECT_LINK_FLAGS} ${LINUX_32BIT_FLAG}"
-)
-	
-#No lib prefix
-set_target_properties( ${PROJECT_NAME} PROPERTIES PREFIX "" )
-
-#Create filters
-create_source_groups( "${CMAKE_SOURCE_DIR}" )
-
-clear_sources()
