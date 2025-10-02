@@ -256,19 +256,13 @@ target_compile_definitions(
 	GameUI_EXPORTS
 )
 
-target_link_directories(
-	GameUI PRIVATE
-
-	"${SRCDIR}/external/SDL2/lib" # HACK(SanyaSho)
-)
-
 target_link_libraries(
 	GameUI PRIVATE
-
-	SDL2
 
 	vgui2_controls
 	vstdlib
 	tier1
 	tier0
 )
+
+target_use_sdl2( GameUI )

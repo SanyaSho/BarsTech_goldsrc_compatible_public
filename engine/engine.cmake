@@ -242,7 +242,6 @@ BEGIN_SRC( ENGINE_HEADER_FILES "Header Files" )
 		"vgui2/IMouseControl.h"
 		"vgui2/text_draw.h"
 		"vgui_EngineSurface.h"
-		"vgui_EngineSurfaceWin32.h"
 		"VGUI_EngineSurfaceWrap.h"
 		"vgui_int.h"
 		"vid.h"
@@ -361,6 +360,7 @@ BEGIN_SRC( ENGINE_SW_HEADER_FILES "Header Files" )
 		"r_studio.h"
 		"r_trans.h"
 		"r_triangle.h"
+		"vgui_EngineSurfaceWin32.h"
 		"screen.h"
 	)
 END_SRC( ENGINE_SW_HEADER_FILES "Header Files" )
@@ -405,13 +405,12 @@ function( add_engine )
 		"${SRCDIR}/public/tier1"
 		"${SRCDIR}/utils/vgui/include"
 
-		"${SRCDIR}/external/SDL2/include"
 		"${SRCDIR}/external/bzip2/include/bzip2"
 		"${SRCDIR}/external/miles"
 		"${SRCDIR}/external/GLEW/include"
 		#"${SRCDIR}/external/libwebm/libwebm"
 		#"${SRCDIR}/external/libwebm"
-		"${SRCDIR}/external/ffmpeg/build_win32/include"
+		#"${SRCDIR}/external/ffmpeg/build_win32/include"
 	)
 
 	target_link_directories(
@@ -439,9 +438,7 @@ function( add_engine )
 		vgui2_surfacelib
 
 		bzip2
-		steam_api
 		mss32
-		SDL2
 		game_controls
 		#libogg
 		#libvorbis_static
@@ -449,5 +446,8 @@ function( add_engine )
 		#libvpx
 		#libwebm
 	)
+
+	target_use_steam_api( ${ARGS_TARGET} )
+	target_use_sdl2( ${ARGS_TARGET} )
 
 endfunction()

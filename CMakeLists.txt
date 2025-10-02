@@ -31,4 +31,5 @@ include( "cmake/srcgrp.cmake" )
 
 include( "cmake/base.cmake" )
 include( "cmake/simpleinstall.cmake" )
+include( "external/external.cmake" )
 include( "cmake/projects.cmake" )
