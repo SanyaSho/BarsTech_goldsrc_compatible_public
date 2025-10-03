@@ -20,7 +20,6 @@ BEGIN_SRC( TIER0_SOURCE_FILES "Source Files" )
 		"memvalidate.cpp"
 		"mem_helpers.cpp"
 		"minidump.cpp"
-		"pch_tier0.cpp"
 		"platform.cpp"
 		"pme.cpp"
 		"testthread.cpp"
@@ -87,6 +86,12 @@ install_library(
 set_property(
 	TARGET tier0
 	PROPERTY FOLDER "Shared Libraries"
+)
+
+target_precompile_headers(
+	tier0
+	PRIVATE
+	"${SRCDIR}/public/tier0/platform.h"
 )
 
 target_include_directories(
