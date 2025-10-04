@@ -16,8 +16,8 @@
 #include <GL/glew.h>
 #endif
 
-#include <libwebm/mkvparser/mkvparser.hpp>
-#include <libwebm/mkvparser/mkvreader.hpp>
+#include <mkvparser.hpp>
+#include <mkvreader.hpp>
 
 #include <vorbis/codec.h>
 

@@ -30,4 +30,4 @@ function( is_feature_enabled featureflag retval )
 endfunction()
 
 #set_feature( HL25 )
-#set_feature( HL25_WEBM_PLAYER )
+set_feature( HL25_WEBM_PLAYER )
