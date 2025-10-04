@@ -381,9 +381,9 @@ void CL_UpdateUserinfo(void)
 		CL_PlayerDropped(slot);
 
 	// MARK: HL25
-#if defined(HL25)
+#if defined( FEATURE_HL25 )
 	Steam_UpdateRichPresence();
-#endif
+#endif // FEATURE_HL25
 }
 
 qboolean CL_CheckFile(sizebuf_t *msg, char *filename)
@@ -3035,11 +3035,11 @@ void CL_Parse_VoiceInit()
 	MSG_ReadString();
 
 	quality = MSG_ReadByte();
-#ifdef HL25
+#if defined( FEATURE_HL25 ) // SanyaSho: What's the difference?
 	Voice_Init(empty_string, quality);
 #else
 	Voice_Init("", quality);
-#endif
+#endif // FEATURE_HL25
 }
 
 void CL_Parse_VoiceData()

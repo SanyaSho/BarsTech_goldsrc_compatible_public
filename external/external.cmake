@@ -191,3 +191,27 @@ function( target_use_glew target )
 	target_link_directories( ${target} PRIVATE "${SRCDIR}/external/GLEW/lib" )
 	target_link_libraries( ${target} PRIVATE $<${IS_WINDOWS}:glew32s> $<${IS_POSIX}:GLEW> )
 endfunction()
+
+
+### OGG, Vorbis, VPX, WebM
+
+function( target_use_webm target ) # TODO(SanyaSho): Linux support
+	set( FFMPEG_INCLUDE_DIR "${SRCDIR}/external/ffmpeg/build_win32/include" )
+	set( OGG_INCLUDE_DIR "${FFMPEG_INCLUDE_DIR}/ogg" )
+	set( VORBIS_INCLUDE_DIR "${FFMPEG_INCLUDE_DIR}/vorbis" )
+	set( VPX_INCLUDE_DIR "${FFMPEG_INCLUDE_DIR}/vpx" )
+
+	set( OGG_HEADER_FILES )
+	BEGIN_SRC( OGG_HEADER_FILES "Header Files" )
+		SRC_GRP(
+			SUBGROUP "OGG Header Files"
+			SOURCES
+		)
+	END_SRC( OGG_HEADER_FILES "Header Files" )
+
+	target_sources( ${target} PRIVATE ${OGG_HEADER_FILES} )
+	target_include_directories( ${target} PRIVATE "${OGG_INCLUDE_DIR}" "${VORBIS_INCLUDE_DIR}" "${VPX_INCLUDE_DIR}" )
+	target_link_directories( ${target} PRIVATE "${SRCDIR}/external/ffmpeg/build_win32/lib" )
+	target_link_libraries( ${target} PRIVATE libogg libvorbis libvpx )
+endfunction()
+

@@ -8,6 +8,9 @@ cmake_minimum_required( VERSION 3.20 FATAL_ERROR )
 
 include_guard( GLOBAL )
 
+is_feature_enabled( HL25 HL25 )
+is_feature_enabled( HL25_WEBM_PLAYER HL25_WEBM_PLAYER )
+
 set( ENGINE_SOURCE_FILES )
 BEGIN_SRC( ENGINE_SOURCE_FILES "Source Files" )
 	SRC_GRP(
@@ -118,7 +121,7 @@ BEGIN_SRC( ENGINE_SOURCE_FILES "Source Files" )
 		"voice_wavefile.cpp"
 		"wad.cpp"
 		"world.cpp"
-		"yuv2rgb.cpp"
+		"$<${HL25_WEBM_PLAYER}:yuv2rgb.cpp>"
 		"zone.cpp"
 		"${SRCDIR}/public/interface.cpp"
 		"${SRCDIR}/public/registry.cpp"
@@ -128,7 +131,7 @@ BEGIN_SRC( ENGINE_SOURCE_FILES "Source Files" )
 		"snd_win.cpp"
 		"sv_move.cpp"
 		"sv_pmove.cpp"
-		#"webm_video.cpp"
+		"$<${HL25_WEBM_PLAYER}:webm_video.cpp>"
 
 		"engine.rc"
 	)
@@ -252,10 +255,10 @@ BEGIN_SRC( ENGINE_HEADER_FILES "Header Files" )
 		"voice_sound_engine_interface.h"
 		"voice_wavefile.h"
 		"wad.h"
-		#"webm_video.h"
+		"$<${HL25_WEBM_PLAYER}:webm_video.h>"
 		"winquake.h"
 		"world.h"
-		"yuv2rgb.h"
+		"$<${HL25_WEBM_PLAYER}:yuv2rgb.h>"
 		"zone.h"
 	)
 END_SRC( ENGINE_HEADER_FILES "Header Files" )
@@ -405,18 +408,7 @@ function( add_engine )
 		"${SRCDIR}/public/tier1"
 		"${SRCDIR}/utils/vgui/include"
 
-		"${SRCDIR}/external/bzip2/include/bzip2"
 		"${SRCDIR}/external/miles"
-		"${SRCDIR}/external/GLEW/include"
-		#"${SRCDIR}/external/libwebm/libwebm"
-		#"${SRCDIR}/external/libwebm"
-		#"${SRCDIR}/external/ffmpeg/build_win32/include"
-	)
-
-	target_link_directories(
-		${ARGS_TARGET} PRIVATE
-
-		"$<${IS_HW}:${SRCDIR}/external/GLEW/lib>"
 	)
 
 	target_link_libraries(
@@ -438,18 +430,16 @@ function( add_engine )
 
 		mss32
 		game_controls
-		#libogg
-		#libvorbis_static
-		#libvpxd
-		#libvpx
-		#libwebm
 	)
 
-	if( ${IS_HW} )
+	if( IS_HW )
 		target_use_glew( ${ARGS_TARGET} )
 	endif()
 	target_use_bz2( ${ARGS_TARGET} )
 	target_use_steam_api( ${ARGS_TARGET} )
 	target_use_sdl2( ${ARGS_TARGET} )
+	if ( ${HL25_WEBM_PLAYER} )
+		target_use_webm( ${ARGS_TARGET} )
+	endif()
 
 endfunction()

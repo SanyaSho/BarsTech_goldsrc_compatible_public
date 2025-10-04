@@ -27,6 +27,7 @@ link_directories(
 	"${SRCDIR}/lib/public"
 )
 
+include( "cmake/feature_flags.cmake" )
 include( "cmake/srcgrp.cmake" )
 
 include( "cmake/base.cmake" )

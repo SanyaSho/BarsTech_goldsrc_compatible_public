@@ -160,10 +160,10 @@ cvar_t r_lightmap = { const_cast<char*>("r_lightmap"), const_cast<char*>("-1") }
 cvar_t r_lightstyle = { const_cast<char*>("r_lightstyle"), const_cast<char*>("-1") };
 cvar_t r_wadtextures = { const_cast<char*>("r_wadtextures"), const_cast<char*>("0") };
 cvar_t r_glowshellfreq = { const_cast<char*>("r_glowshellfreq"), const_cast<char*>("2.3") };
-#ifdef HL25
+#if defined( FEATURE_HL25 )
 cvar_t r_prefertexturefiltering = { const_cast<char*>("r_prefertexturefiltering"), const_cast<char*>("1"), FCVAR_ARCHIVE };
 cvar_t gl_widescreen_yfov = { const_cast<char*>("gl_widescreen_yfov"), const_cast<char*>("1"), FCVAR_ARCHIVE };
-#endif
+#endif // FEATURE_HL25
 
 //extern cvar_t	scr_fov;
 
@@ -287,12 +287,12 @@ void R_ViewChanged(vrect_t* pvrect, int lineadj, float aspect)
 
 	verticalFieldOfView = r_refdef.horizontalFieldOfView / screenAspect;
 
-#ifdef HL25
+#if defined( FEATURE_HL25 )
 	if (gl_widescreen_yfov.value != 0 && screenAspect > 1.5)
 	{
 		r_refdef.horizontalFieldOfView = 4 * (atan(tan(verticalFieldOfView * (M_PI / 360.0f)) * (screenAspect * 0.75f)) * (180.0f / M_PI));
 	}
-#endif
+#endif // FEATURE_HL25
 
 	// values for perspective projection
 	// if math were exact, the values would range from 0.5 to to range+0.5
@@ -434,10 +434,10 @@ void R_Init()
 	Cvar_RegisterVariable(&r_reportedgeout);
 	Cvar_RegisterVariable(&r_wadtextures);
 	Cvar_RegisterVariable(&r_glowshellfreq);
-#ifdef HL25
+#if defined( FEATURE_HL25 )
 	Cvar_RegisterVariable(&gl_widescreen_yfov);
 	Cvar_RegisterVariable(&r_prefertexturefiltering);
-#endif
+#endif // FEATURE_HL25
 
 	Cvar_SetValue(const_cast<char*>("r_mmx"), (float)gHasMMXTechnology);
 	Cvar_SetValue(const_cast<char*>("r_maxedges"), (float)NUMSTACKEDGES);

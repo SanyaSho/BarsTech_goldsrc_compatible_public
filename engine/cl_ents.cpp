@@ -55,11 +55,11 @@ qboolean CL_EntityTeleported(cl_entity_t *ent)
 qboolean CL_CompareTimestamps(float t1, float t2)
 {
 	// HL25 -> return (int(t1 * 1000.0) - int(1000.0 * t2) + 1) <= 2;
-#ifdef HL25
+#if defined( FEATURE_HL25 )
 	return (int(t1 * 1000.0) - int(1000.0 * t2) + 1) <= 2;
 #else
 	return abs(int(t1 * -1000.0) - int(-1000.0 * t2)) <= 1;
-#endif
+#endif // FEATURE_HL25
 }
 
 qboolean CL_ParametricMove(cl_entity_t *ent)
