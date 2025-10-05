@@ -6,10 +6,18 @@
 
 include_guard( GLOBAL )
 
+set( LIB_PRECOMP_DIR "${SRCDIR}/external/build_win32" )
+set( LIB_EXTRA_INCLUDE_DIR "${LIB_PRECOMP_DIR}/include" )
+set( LIB_EXTRA_LIB_DIR "${LIB_PRECOMP_DIR}/lib" )
+
+link_directories(
+	"$<$<CONFIG:Release>:${LIB_EXTRA_LIB_DIR}/release>"
+	"$<$<CONFIG:Debug>:${LIB_EXTRA_LIB_DIR}/debug>"
+)
 
 ### SDL2
 
-function( target_use_sdl2 target )
+function( target_use_sdl2 target ) # TODO(SanyaSho): Linux support
 	set( SDL2_INCLUDE_DIR "${SRCDIR}/external/SDL2/include" )
 
 	set( SDL2_HEADER_FILES )
@@ -144,14 +152,9 @@ endfunction()
 
 ### BZIP2
 
-set( BZ_VERSION "1.1.0" )
-configure_file( "${SRCDIR}/external/bzip2/bz_version.h.in" "${CMAKE_CURRENT_BINARY_DIR}/bz_version.h" )
-add_library( bz2 STATIC "${SRCDIR}/external/bzip2/blocksort.c" "${SRCDIR}/external/bzip2/huffman.c" "${SRCDIR}/external/bzip2/crctable.c" "${SRCDIR}/external/bzip2/randtable.c" "${SRCDIR}/external/bzip2/compress.c" "${SRCDIR}/external/bzip2/decompress.c" "${SRCDIR}/external/bzip2/bzlib.c" )
-set_property( TARGET bz2 PROPERTY FOLDER "3rdparty Libraries" )
-target_include_directories( bz2 PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" ) # Include "bz_version.h" from project build folder
-
-function( target_use_bz2 target )
+function( target_use_bz2 target ) # TODO(SanyaSho): Linux support
 	set( BZIP2_INCLUDE_DIR "${SRCDIR}/external/bzip2" )
+	set( BZIP2_EXTRA_INCLUDE_DIR "${LIB_EXTRA_INCLUDE_DIR}/bzip2" )
 
 	set( BZIP2_HEADER_FILES )
 	BEGIN_SRC( BZIP2_HEADER_FILES "Header Files" )
@@ -160,18 +163,20 @@ function( target_use_bz2 target )
 			SOURCES
 			"${BZIP2_INCLUDE_DIR}/bzlib.h"
 			"${BZIP2_INCLUDE_DIR}/bzlib_private.h"
+
+			"${BZIP2_EXTRA_INCLUDE_DIR}/bz_version.h"
 		)
 	END_SRC( BZIP2_HEADER_FILES "Header Files" )
 
 	target_sources( ${target} PRIVATE ${BZIP2_HEADER_FILES} )
-	target_include_directories( ${target} PRIVATE "${BZIP2_INCLUDE_DIR}" )
-	target_link_libraries( ${target} PRIVATE bz2 )
+	target_include_directories( ${target} PRIVATE "${BZIP2_INCLUDE_DIR}" "${BZIP2_EXTRA_INCLUDE_DIR}" )
+	target_link_libraries( ${target} PRIVATE $<${IS_WINDOWS}:bz2_static> )
 endfunction()
 
 
 ### GLEW
 
-function( target_use_glew target )
+function( target_use_glew target ) # TODO(SanyaSho): Linux support
 	set( GLEW_INCLUDE_DIR "${SRCDIR}/external/GLEW/include" )
 
 	set( GLEW_HEADER_FILES )
@@ -196,15 +201,11 @@ endfunction()
 ### OGG, Vorbis, VPX, WebM
 
 function( target_use_webm target ) # TODO(SanyaSho): Linux support
-	set( WEBM_VIDEO_PRECOMP_DIR "${SRCDIR}/external/webm_video/build_win32" )
-	set( WEBM_VIDEO_INCLUDE_DIR "${WEBM_VIDEO_PRECOMP_DIR}/include" )
-	set( WEBM_VIDEO_LIB_DIR "${WEBM_VIDEO_PRECOMP_DIR}/lib" )
-
 	set( OGG_INCLUDE_DIR "${SRCDIR}/external/webm_video/libogg/include" )
-	set( OGG_EXTRA_INCLUDE_DIR "${WEBM_VIDEO_INCLUDE_DIR}/libogg" )
+	set( OGG_EXTRA_INCLUDE_DIR "${LIB_EXTRA_INCLUDE_DIR}/libogg" )
 	set( VORBIS_INCLUDE_DIR "${SRCDIR}/external/webm_video/libvorbis/include" )
 	set( VPX_INCLUDE_DIR "${SRCDIR}/external/webm_video/libvpx" )
-	set( VPX_EXTRA_INCLUDE_DIR "${WEBM_VIDEO_INCLUDE_DIR}/libvpx" )
+	set( VPX_EXTRA_INCLUDE_DIR "${LIB_EXTRA_INCLUDE_DIR}/libvpx" )
 	set( WEBM_INCLUDE_DIR "${SRCDIR}/external/webm_video/libwebm" )
 
 	set( OGG_HEADER_FILES )
@@ -638,8 +639,7 @@ function( target_use_webm target ) # TODO(SanyaSho): Linux support
 	END_SRC( WEBM_HEADER_FILES "Header Files" )
 
 	target_sources( ${target} PRIVATE ${OGG_HEADER_FILES} ${VORBIX_HEADER_FILES} ${VPX_HEADER_FILES} ${WEBM_HEADER_FILES} )
-	target_include_directories( ${target} PRIVATE "${WEBM_VIDEO_INCLUDE_DIR}" "${OGG_INCLUDE_DIR}" "${OGG_EXTRA_INCLUDE_DIR}" "${VORBIS_INCLUDE_DIR}" "${VPX_INCLUDE_DIR}" "${VPX_EXTRA_INCLUDE_DIR}" "${WEBM_INCLUDE_DIR}" )
-	target_link_directories( ${target} PRIVATE "$<$<CONFIG:Release>:${WEBM_VIDEO_LIB_DIR}/release>" "$<$<CONFIG:Debug>:${WEBM_VIDEO_LIB_DIR}/debug>" )
+	target_include_directories( ${target} PRIVATE "${LIB_EXTRA_INCLUDE_DIR}" "${OGG_INCLUDE_DIR}" "${OGG_EXTRA_INCLUDE_DIR}" "${VORBIS_INCLUDE_DIR}" "${VPX_INCLUDE_DIR}" "${VPX_EXTRA_INCLUDE_DIR}" "${WEBM_INCLUDE_DIR}" )
 	target_link_libraries( ${target} PRIVATE ogg vorbis $<$<CONFIG:Release>:vpxmd> $<$<CONFIG:Debug>:vpxmdd> webm )
 endfunction()
 
