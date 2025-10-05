@@ -19,9 +19,9 @@
 - cmake -S . -B build_win32_vs2019 -T v142 -A Win32 -DINSTALL_CMAKE_PACKAGE_MODULE=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOGG_ROOT=$PWD/../libogg -DOGG_LIBRARY=$PWD/../libogg/build_win32_vs2019/Release/ -DOGG_INCLUDE=$PWD/../libogg
 - cmake --build build_win32_vs2019 --config Release
 
-## libvorbis (Release)
+## libvorbis (Debug)
 - cmake -S . -B build_win32_vs2019 -T v142 -A Win32 -DINSTALL_CMAKE_PACKAGE_MODULE=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOGG_ROOT=$PWD/../libogg -DOGG_LIBRARY=$PWD/../libogg/build_win32_vs2019/Debug/ -DOGG_INCLUDE=$PWD/../libogg
-- cmake --build build_win32_vs2019 --config Release
+- cmake --build build_win32_vs2019 --config Debug
 
 ## libvpx
 - Install (MSYS2)[https://www.msys2.org/]
@@ -30,3 +30,8 @@
 - Run `pacman -S base-devel mingw-w64-x86_64-toolchain yasm git`
 - ../configure --disable-examples --disable-tools --disable-docs --target=x86-win32-vs17
 - make
+
+## mss
+- cmake -S . -B build_win32_vs2019 -T v142 -A Win32
+- cmake --build build_win32_vs2019 --config Release
+- cmake --build build_win32_vs2019 --config Debug

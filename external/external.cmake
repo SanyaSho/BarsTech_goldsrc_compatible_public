@@ -174,6 +174,28 @@ function( target_use_bz2 target ) # TODO(SanyaSho): Linux support
 endfunction()
 
 
+### MSS
+
+function( target_use_mss target ) # TODO(SanyaSho): Linux support
+	#set( MSS_INCLUDE_DIR "${SRCDIR}/external/miles/src/include" )
+	set( MSS_INCLUDE_DIR "${SRCDIR}/external/miles" )
+
+	set( MSS_HEADER_FILES )
+	BEGIN_SRC( MSS_HEADER_FILES "Header Files" )
+		SRC_GRP(
+			SUBGROUP "MSS Header Files"
+			SOURCES
+			"${MSS_INCLUDE_DIR}/mss.h"
+			#"${MSS_INCLUDE_DIR}/rrcore.h"
+		)
+	END_SRC( MSS_HEADER_FILES "Header Files" )
+
+	target_sources( ${target} PRIVATE ${MSS_HEADER_FILES} )
+	target_include_directories( ${target} PRIVATE "${MSS_INCLUDE_DIR}" )
+	target_link_libraries( ${target} PRIVATE $<${IS_WINDOWS}:mss32> )
+endfunction()
+
+
 ### GLEW
 
 function( target_use_glew target ) # TODO(SanyaSho): Linux support

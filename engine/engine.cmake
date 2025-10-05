@@ -407,8 +407,6 @@ function( add_engine )
 		"${SRCDIR}/public"
 		"${SRCDIR}/public/tier1"
 		"${SRCDIR}/utils/vgui/include"
-
-		"${SRCDIR}/external/miles"
 	)
 
 	target_link_libraries(
@@ -428,7 +426,6 @@ function( add_engine )
 		vgui2_controls
 		vgui2_surfacelib
 
-		mss32
 		game_controls
 	)
 
@@ -438,6 +435,7 @@ function( add_engine )
 	target_use_bz2( ${ARGS_TARGET} )
 	target_use_steam_api( ${ARGS_TARGET} )
 	target_use_sdl2( ${ARGS_TARGET} )
+	target_use_mss( ${ARGS_TARGET} )
 	if ( ${HL25_WEBM_PLAYER} )
 		target_use_webm( ${ARGS_TARGET} )
 	endif()
