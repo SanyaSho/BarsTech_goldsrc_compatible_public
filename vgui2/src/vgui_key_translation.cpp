@@ -19,6 +19,7 @@
 #define VK_RETURN -1
 #endif
 
+#include <unordered_map>
 #include <external\SDL2\include\SDL2\SDL.h>
 
 #include "vgui/ISystem.h"
@@ -148,52 +149,41 @@ static const vgui_to_virtual_t keyMap[] =
 	{ vgui2::KEY_F12, SDLK_F12 },
 };
 
-static vgui2::KeyCode s_pVirtualKeyToVGUI[ 256 ];
-static int s_pVGUIToVirtualKey[ 256 ];
+static std::unordered_map<int, vgui2::KeyCode> s_pVirtualKeyToVGUI;
+static std::unordered_map<vgui2::KeyCode, int> s_pVGUIToVirtualKey;
 
 namespace vgui2
 {
-void InitKeyTranslationTable()
-{
-	static bool bInitted = false;
-
-	if( !bInitted )
+	void InitKeyTranslationTable()
 	{
-		bInitted = true;
+		if( !s_pVirtualKeyToVGUI.empty() )
+			return;
 
-		memset( s_pVirtualKeyToVGUI, 0, sizeof( s_pVirtualKeyToVGUI ) );
-
-		for( int i = 0; i < ARRAYSIZE( keyMap ); ++i )
+		for( const auto& entry : keyMap )
 		{
-			s_pVirtualKeyToVGUI[ keyMap[ i ].sdlKeyCode ] = keyMap[ i ].vguiKeyCode;
+			s_pVirtualKeyToVGUI[ entry.sdlKeyCode ] = entry.vguiKeyCode;
 		}
 	}
-}
 
-void InitVGUIToVKTranslationTable()
-{
-	static bool bInitted = false;
-
-	if( !bInitted )
+	void InitVGUIToVKTranslationTable()
 	{
-		bInitted = true;
+		if( !s_pVirtualKeyToVGUI.empty() )
+			return;
 
-		memset( s_pVGUIToVirtualKey, 0, sizeof( s_pVGUIToVirtualKey ) );
-
-		for( int i = 0; i < ARRAYSIZE( keyMap ); ++i )
+		for( const auto& entry : keyMap )
 		{
-			s_pVGUIToVirtualKey[ keyMap[ i ].vguiKeyCode ] = keyMap[ i ].sdlKeyCode;
+			s_pVGUIToVirtualKey[ entry.vguiKeyCode ] = entry.sdlKeyCode;
 		}
 	}
-}
 }
 
 vgui2::KeyCode KeyCode_VirtualKeyToVGUI( int key )
 {
 	vgui2::InitKeyTranslationTable();
 
-	if( key >= 0 && key <= 255 )
-		return s_pVirtualKeyToVGUI[ key ];
+	auto it = s_pVirtualKeyToVGUI.find( key );
+	if( it != s_pVirtualKeyToVGUI.end() )
+		return it->second;
 
 	return vgui2::KEY_NONE;
 }
@@ -202,8 +192,9 @@ int KeyCode_VGUIToVirtualKey( vgui2::KeyCode code )
 {
 	vgui2::InitVGUIToVKTranslationTable();
 
-	if( code >= 0 && code <= 255 )
-		return s_pVGUIToVirtualKey[ code ];
+	auto it = s_pVirtualKeyToVGUI.find( code );
+	if( it != s_pVirtualKeyToVGUI.end() )
+		return it->second;
 
 	return -1;
 }
