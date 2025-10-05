@@ -19,7 +19,9 @@
 #include "vgui_int.h"
 #include "cd.h"
 // [HL25]
+#if defined( FEATURE_HL25_WEBM_PLAYER )
 #include "webm_video.h"
+#endif // FEATURE_HL25_WEBM_PLAYER
 
 uint32 mouseCode = 0;
 
@@ -252,7 +254,8 @@ bool CGame::CreateGameWindow()
 	{
 		//Flip the image vertically.
 		// UPD HL25: not needed since valve provided truecolor version of game.tga
-/*		byte* bufferline = ( byte* ) malloc( 4 * width );
+#if !defined( FEATURE_HL25 )
+		byte* bufferline = ( byte* ) malloc( 4 * width );
 
 		for( int i = 0; i < height / 2; ++i )
 		{
@@ -261,7 +264,8 @@ bool CGame::CreateGameWindow()
 			memcpy( &buffer[ width * ( height - i - 1 ) * 4 ], bufferline, width * 4 );
 		}
 
-		free( bufferline );*/
+		free( bufferline );
+#endif // !FEATURE_HL25
 
 		SDL_Surface* pSurface = SDL_CreateRGBSurfaceFrom( buffer, width, height, 32, 4 * width, 0xFF, 0xFF << 8, 0xFF << 16, 0xFF << 24 );
 	
@@ -671,8 +675,10 @@ void CGame::PlayAVIAndWait( const char *fileName )
 {
 #ifndef DEDICATED
 	
+#if defined( FEATURE_HL25_WEBM_PLAYER )
 	WebMPlayer player;
-	player.PlayVideo(fileName, m_hSDLWindow);
+	player.PlayVideo( fileName, m_hSDLWindow );
+#endif // FEATURE_HL25_WEBM_PLAYER
 	
 #endif
 }

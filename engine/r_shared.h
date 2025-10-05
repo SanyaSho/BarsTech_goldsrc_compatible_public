@@ -63,7 +63,7 @@ extern "C"	vec3_t	vpn, base_vpn;
 extern "C" 	vec3_t	vright, base_vright;
 extern "C"	cl_entity_t		*currententity;
 
-#if defined(HL25) || defined(SW_EXTEND_LIMITS)
+#if defined( FEATURE_HL25 ) || defined( SW_EXTEND_LIMITS )
 #define NUMSTACKEDGES		14400
 #define	MINEDGES			NUMSTACKEDGES
 #define NUMSTACKSURFACES	4000
@@ -75,7 +75,7 @@ extern "C"	cl_entity_t		*currententity;
 #define NUMSTACKSURFACES	2000
 #define MINSURFACES			NUMSTACKSURFACES
 #define	MAXSPANS			3000
-#endif
+#endif // FEATURE_HL25 || SW_EXTEND_LIMITS
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct espan_s

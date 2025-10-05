@@ -322,11 +322,11 @@ struct packet_entities_t
 {
 	int num_entities;
 
-#ifdef HL25
+#if defined( FEATURE_HL25 )
 	byte flags[ 128 ];
 #else
 	byte flags[ 32 ];
-#endif
+#endif // FEATURE_HL25
 	entity_state_t* entities;
 };
 

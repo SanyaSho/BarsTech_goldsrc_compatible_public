@@ -1,7 +1,5 @@
 /.vs
-/Debug
-/tier0/Debug
-renderer_sw.vcxproj.user
-/tier1/Debug
-/vgui2/controls/Debug
-/vgui2/src/Debug
+/[Bb]uild
+/game
+/build_*
+

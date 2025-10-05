@@ -68,11 +68,11 @@
 
 #define	PAINTBUFFER_SIZE	512
 
-#ifdef HL25
+#if defined( FEATURE_HL25 )
 #define CVOXFILESENTENCEMAX 2048
 #else
 #define CVOXFILESENTENCEMAX 1536
-#endif
+#endif // FEATURE_HL25
 
 #define CBSENTENCENAME_MAX	16
 
