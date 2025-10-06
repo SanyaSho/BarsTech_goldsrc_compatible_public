@@ -369,7 +369,7 @@ void tri_Soft_End()
 		r_anumverts = 0;
 		break;
 	case TRI_QUAD_STRIP:
-		for (int i = 2; i < r_anumverts; i++)
+		for (int i = 2; i < r_anumverts; i += 2)
 		{
 			R_TriangleDraw(i - 2, i - 1, i);
 			R_TriangleDraw(i - 1, i + 1, i);
