@@ -960,7 +960,7 @@ void WebMPlayer::PlayVideo(const char* szPath, SDL_Window* pSDLWindow)
 						glTexCoord2i(width, 0);
 						glVertex3f((GLfloat)(nSrcVideoW + nVideoW), (GLfloat)nSrcVideoH, 0.0f);
 						glTexCoord2i(width, height);
-						glVertex3f((GLfloat)(nSrcVideoH + nVideoW), (GLfloat)(nSrcVideoH + nVideoH), 0.0f);
+						glVertex3f((GLfloat)(nSrcVideoW + nVideoW), (GLfloat)(nSrcVideoH + nVideoH), 0.0f);
 						glTexCoord2i(0, height);
 						glVertex3f(nSrcVideoW, (GLfloat)(nSrcVideoH + nVideoH), 0.0f);
 						glEnd();
