@@ -773,9 +773,9 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 						unsigned int oldcolor = ((*lpdest & (mask_r_15 | mask_b_15)) << 16) | *lpdest & mask_g_15;
 						unsigned int newcolor = ((r << 23) + (g << 2) + (b << 13)) & (((mask_r_15 | mask_b_15) << 16) | mask_g_15);
 
-						unsigned int blendbits = r_blend & (BYTE)(0xff & ~((1 << 4) - 1)), carrybits = 0;
+						unsigned int blendbits = r_blend & (BYTE)(0xff & lowcleanmask(4)), carrybits = 0;
 
-						if (blendbits < (BYTE)(0xff & ~((1 << 4) - 1)))
+						if (blendbits < (BYTE)(0xff & lowcleanmask(4)))
 						{
 							for (unsigned int mask = 1 << 8, deltacolor = newcolor >> 1; blendbits != 0; deltacolor >>= 1)
 							{
@@ -783,12 +783,12 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 								deltacolor &= ~(overflow15 >> 1);
 								oldcolor &= ~(overflow15);
 
-								carrybits |= (deltacolor + oldcolor) & (overflow15);
 								
 								if (blendbits & mask)
 								{
 									blendbits ^= mask;
 									oldcolor += deltacolor;
+									carrybits |= oldcolor & (overflow15);
 								}
 							}
 						}

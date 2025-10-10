@@ -798,7 +798,7 @@ void D_DrawTranslucentTexture(espan_t *pspan)
 						// разница между исходным и текущим цветами
 						unsigned int newcolor = ((oldcolor | (overflow15)) - prevcolor) >> 1;
 						// поиск переполнения
-						unsigned int carrybits = ~newcolor & ((overflow15) >> 1);
+						unsigned int signbits = ~newcolor & ((overflow15) >> 1);
 
 						// обработка альфа-бит 
 						do
@@ -808,7 +808,7 @@ void D_DrawTranslucentTexture(espan_t *pspan)
 							bitcycle >>= 1;
 
 							// значение исходного цвета с учётом альфа-канала для текущего бита
-							unsigned int alphainc = carrybits | newcolor & ~((overflow15) >> 1);
+							unsigned int alphainc = signbits | newcolor & ~((overflow15) >> 1);
 
 							// проверка его наличия в альфа-канале
 							if (blendalpha & bitcycle)
@@ -846,14 +846,14 @@ void D_DrawTranslucentTexture(espan_t *pspan)
 							((oldcolor & mask_r_16 << 16) >= (highfrac16(*pdest, ~mask_g_16) & mask_r_16 << 16) ? (1 << 31) : 0);
 
 						unsigned int blendalpha = r_blend & lowcleanmask(3);
-						unsigned int carrybits = ~newcolor & (overflow16withred);
+						unsigned int signbits = ~newcolor & (overflow16withred);
 
 						do
 						{
 							prevcolor &= ~overflow16;
 							bitcycle >>= 1;
 
-							unsigned int alphainc = carrybits | newcolor & ~(overflow16withred);
+							unsigned int alphainc = signbits | newcolor & ~(overflow16withred);
 
 							if (blendalpha & bitcycle)
 							{
@@ -863,7 +863,7 @@ void D_DrawTranslucentTexture(espan_t *pspan)
 							newcolor = alphainc >> 1;
 						} while (blendalpha);
 
-						*pdest = (prevcolor >> 16) ^ (prevcolor & 0xFFFF ^ (prevcolor >> 16)) & mask_g_16;
+						*pdest = prevcolor & mask_g_16 | (prevcolor >> 16) & (mask_r_16 | mask_b_16);
 					}
 					pdest++;
 					zbuf++;
@@ -1222,7 +1222,7 @@ void D_DrawTranslucentAdd(espan_t *pspan)
 						}
 
 						if (carrybits)
-							prevcolor |= (carrybits & (overflow15)) - (carrybits >> 5);
+							prevcolor |= (overflow15) - (carrybits >> 5);
 
 						*pdest = prevcolor & mask_g_15 | (prevcolor >> 16) & (mask_r_15 | mask_b_15);
 					}
@@ -1277,11 +1277,12 @@ void D_DrawTranslucentAdd(espan_t *pspan)
 
 						if (carrybits)
 						{
+							// transform 200801 to 80100400
 							carrybits = ROR32(carrybits);
-							prevcolor |= ((carrybits & ROR32(overflow16)) - (carrybits >> 5)) << 1;
+							prevcolor |= ((carrybits | ROR32(overflow16)) - (carrybits >> 5)) << 1; // shl back because we operated with ror-ed values
 						}
 
-						*pdest = (prevcolor >> 16) ^ (prevcolor & 0xFFFF ^ (prevcolor >> 16)) & mask_g_16;
+						*pdest = prevcolor & mask_g_16 | (prevcolor >> 16) & (mask_r_16 | mask_b_16);
 					}
 					pdest++;
 					zbuf++;
