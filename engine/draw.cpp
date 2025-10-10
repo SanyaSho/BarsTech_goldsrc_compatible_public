@@ -841,11 +841,11 @@ void Draw_SpriteFrameAdd15(byte* pSource, word* pPalette, word* pScreen, int wid
 			if (sprpix)
 			{
 				word oldpix = pScreen[j + i * screenwidth];
-				unsigned parts = ((sprpix & mask_g_15) | (sprpix & (mask_r_15 | mask_b_15)) << 16) +
+				unsigned carrybits = ((sprpix & mask_g_15) | (sprpix & (mask_r_15 | mask_b_15)) << 16) +
 					((oldpix & mask_g_15) | (oldpix & (mask_r_15 | mask_b_15)) << 16);
-				if (parts & 0b10000000001000000000010000000000)
-					parts |= 0b10000000001000000000010000000000 - ((parts & 0b10000000001000000000010000000000) >> 5);
-				pScreen[j + i * screenwidth] = parts & mask_g_15 | (parts >> 16) & (mask_r_15 | mask_b_15);
+				if (carrybits & overflow15)
+					carrybits |= overflow15 - ((carrybits & overflow15) >> 5);
+				pScreen[j + i * screenwidth] = carrybits & mask_g_15 | (carrybits >> 16) & (mask_r_15 | mask_b_15);
 			}
 		}
 	}
@@ -862,21 +862,20 @@ void Draw_SpriteFrameAdd16(byte* pSource, word* pPalette, word* pScreen, int wid
 			{
 				word oldpix = pScreen[j + i * screenwidth];
 
-				unsigned srcparts = ((sprpix & mask_g_16) | (sprpix & (mask_r_16 | mask_b_16)) << 16);
-				unsigned parts = srcparts + ((oldpix & mask_g_16) | (oldpix & (mask_r_16 | mask_b_16)) << 16);
+				unsigned newcolor = ((sprpix & mask_g_16) | (sprpix & (mask_r_16 | mask_b_16)) << 16);
+				unsigned prevcolor = newcolor + ((oldpix & mask_g_16) | (oldpix & (mask_r_16 | mask_b_16)) << 16);
 
-				unsigned overflowmask = parts & 0b1000000000100000000000 | srcparts > parts;
+				unsigned carrybits = prevcolor & overflow16 | newcolor > prevcolor;
 
-				if (overflowmask)
+				if (carrybits)
 				{
-					// move low bit(1) into high pos and shr other bits
-					overflowmask = _rotr(overflowmask, 1);
+					carrybits = ROR32(carrybits);
 					// saturate
-					parts |= ((overflowmask | 0b100000000010000000000) - (overflowmask >> 5)) << 1;
+					prevcolor |= ((carrybits | ROR32(overflow16)) - (carrybits >> 5)) << 1;
 				}
 
 				// extract green(6 bits) and merge with high part (5 & 5)
-				pScreen[j + i * screenwidth] = (parts >> 16) & (mask_r_16 | mask_b_16) | parts & mask_g_16;
+				pScreen[j + i * screenwidth] = (prevcolor >> 16) & (mask_r_16 | mask_b_16) | prevcolor & mask_g_16;
 			}
 		}
 	}

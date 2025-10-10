@@ -786,29 +786,29 @@ void D_DrawTranslucentTexture(espan_t *pspan)
 						int bitcycle = 1 << 8;
 
 						WORD srcpix = pbase[(s >> 16) + (t >> 16) * cachewidth];
-						DWORD splitcur = colorsplit(*pdest, mask_r_15, mask_g_15, mask_b_15);
+						unsigned int prevcolor = colorsplit(*pdest, mask_r_15, mask_g_15, mask_b_15);
 						// rrrrrr____bbbbbb
 						// включение в верхнюю часть первого бита из нижней. ошибка оригинала?
 						// сравни конечный результат с colorsplit-реализацией
-						DWORD splitsrc = lowfrac16(srcpix, mask_g_15) | highfrac16(srcpix, ~(mask_g_15 & ~(1 << 5)));
+						unsigned int oldcolor = lowfrac16(srcpix, mask_g_15) | highfrac16(srcpix, ~(mask_g_15 & ~(1 << 5)));
 						// с макросом colorsplit результат эквивалентный, однако в двоичном коде у битовой маски выше 15 бита единицы
 						// такой результат достигается только при помощи побитового отрицания соответствующего набора
 										// colorsplit(srcpix, color6bitmax << 10, mask_g_15, color6bitmax << 0);
-						DWORD blendalpha = r_blend & lowcleanmask(3);
+						unsigned int blendalpha = r_blend & lowcleanmask(3);
 						// разница между исходным и текущим цветами
-						DWORD blendstart = ((splitsrc | (1 << 31 | overflow15)) - splitcur) >> 1;
+						unsigned int newcolor = ((oldcolor | (overflow15)) - prevcolor) >> 1;
 						// поиск переполнения
-						DWORD blendbase = ~blendstart & ((1 << 31 | overflow15) >> 1);
+						unsigned int carrybits = ~newcolor & ((overflow15) >> 1);
 
 						// обработка альфа-бит 
 						do
 						{
-							splitcur &= splitmost15;
+							prevcolor &= ~overflow15;
 							// смещение контрольного бита
 							bitcycle >>= 1;
 
 							// значение исходного цвета с учётом альфа-канала для текущего бита
-							DWORD alphainc = blendbase | blendstart & ~((1 << 31 | overflow15) >> 1);
+							unsigned int alphainc = carrybits | newcolor & ~((overflow15) >> 1);
 
 							// проверка его наличия в альфа-канале
 							if (blendalpha & bitcycle)
@@ -816,12 +816,12 @@ void D_DrawTranslucentTexture(espan_t *pspan)
 								// парсинг бита завершён
 								blendalpha ^= bitcycle;
 								// смешение цветов с альфа каналом...без операций умножения
-								splitcur += alphainc;
+								prevcolor += alphainc;
 							}
-							blendstart = alphainc >> 1;
+							newcolor = alphainc >> 1;
 						} while (blendalpha);
 
-						*pdest = splitcur & mask_g_15 | (splitcur >> 16) & (mask_r_15 | mask_b_15);
+						*pdest = prevcolor & mask_g_15 | (prevcolor >> 16) & (mask_r_15 | mask_b_15);
 					}
 					pdest++;
 					zbuf++;
@@ -838,31 +838,32 @@ void D_DrawTranslucentTexture(espan_t *pspan)
 					{
 						int bitcycle = 1 << 8;
 
-						DWORD splitcur = colorsplitcustom(*pdest, mask_g_16);
-						DWORD splitsrc = colorsplitcustom(pbase[(s >> 16) + (t >> 16) * cachewidth], mask_g_16);
+						unsigned int prevcolor = colorsplitcustom(*pdest, mask_g_16);
+						unsigned int oldcolor = colorsplitcustom(pbase[(s >> 16) + (t >> 16) * cachewidth], mask_g_16);
 
-						DWORD colordiff = (((splitsrc | (overflow16 << 1)) - splitcur) >> 1) |
-							((splitsrc & mask_r_16 << 16) >= (highfrac16(*pdest, ~mask_g_16) & mask_r_16 << 16) ? (1 << 31) : 0);
+						// shr 1 to make visible red overflow
+						unsigned int newcolor = (((oldcolor | (overflow16)) - prevcolor) >> 1) |
+							((oldcolor & mask_r_16 << 16) >= (highfrac16(*pdest, ~mask_g_16) & mask_r_16 << 16) ? (1 << 31) : 0);
 
-						DWORD blendalpha = r_blend & lowcleanmask(3);
-						DWORD blendbase = ~colordiff & (1 << 31 | overflow16);
+						unsigned int blendalpha = r_blend & lowcleanmask(3);
+						unsigned int carrybits = ~newcolor & (overflow16withred);
 
 						do
 						{
-							splitcur &= splitmost16;
+							prevcolor &= ~overflow16;
 							bitcycle >>= 1;
 
-							DWORD alphainc = blendbase | colordiff & ~(1 << 31 | overflow16);
+							unsigned int alphainc = carrybits | newcolor & ~(overflow16withred);
 
 							if (blendalpha & bitcycle)
 							{
 								blendalpha ^= bitcycle;
-								splitcur += alphainc;
+								prevcolor += alphainc;
 							}
-							colordiff = alphainc >> 1;
+							newcolor = alphainc >> 1;
 						} while (blendalpha);
 
-						*pdest = (splitcur >> 16) ^ (splitcur & 0xFFFF ^ (splitcur >> 16)) & mask_g_16;
+						*pdest = (prevcolor >> 16) ^ (prevcolor & 0xFFFF ^ (prevcolor >> 16)) & mask_g_16;
 					}
 					pdest++;
 					zbuf++;
@@ -1186,44 +1187,44 @@ void D_DrawTranslucentAdd(espan_t *pspan)
 					if (*zbuf < zlim >> 16)
 					{
 						WORD srcpix = pbase[(s >> 16) + (t >> 16) * cachewidth];
-						DWORD splitcur = colorsplit(*pdest, mask_r_15, mask_g_15, mask_b_15);
-						DWORD splitsrc = colorsplit(srcpix, mask_r_15, mask_g_15, mask_b_15);
-						DWORD blendmod = 0;
+						unsigned int prevcolor = colorsplit(*pdest, mask_r_15, mask_g_15, mask_b_15);
+						unsigned int oldcolor = colorsplit(srcpix, mask_r_15, mask_g_15, mask_b_15);
+						unsigned int carrybits = 0;
 
 						// пропуск 4 бит
-						DWORD blendalpha = r_blend & lowcleanmask(4);
+						unsigned int blendalpha = r_blend & lowcleanmask(4);
 
 						// высокие значения альфа-канала не требуют проходов умножения
 						if (blendalpha < (BYTE)(MAXBYTE & lowcleanmask(4)))
 						{
-							DWORD blendstart = splitsrc >> 1;
+							unsigned int blendstart = oldcolor >> 1;
 							int bitcycle = 1 << 8;
-							DWORD alphainc;
+							unsigned int alphainc;
 							do
 							{
 								bitcycle >>= 1;
-								alphainc = blendstart & ~((1 << 31 | overflow15) >> 1);
-								splitcur &= splitmost15;
+								alphainc = blendstart & ~((overflow15) >> 1);
+								prevcolor &= ~overflow15;
 
 								if (bitcycle & blendalpha)
 								{
-									splitcur += alphainc;
+									prevcolor += alphainc;
 									blendalpha ^= bitcycle;
-									blendmod |= splitcur & (1 << 31 | overflow15);
+									carrybits |= prevcolor & (overflow15);
 								}
 								blendstart = alphainc >> 1;
 							} while (blendalpha);
 						}
 						else
 						{
-							splitcur = splitsrc + (lowfrac16(*pdest, mask_g_15) | highfrac16(*pdest, mask_r_15 | mask_b_15) & splitmost15);
-							blendmod = splitcur & (1 << 31 | overflow15);
+							prevcolor = oldcolor + ((lowfrac16(*pdest, mask_g_15) | highfrac16(*pdest, mask_r_15 | mask_b_15)) & ~overflow15);
+							carrybits = prevcolor & (overflow15);
 						}
 
-						if (blendmod)
-							splitcur |= (blendmod & (1 << 31 | overflow15)) - (blendmod >> 5);
+						if (carrybits)
+							prevcolor |= (carrybits & (overflow15)) - (carrybits >> 5);
 
-						*pdest = splitcur & mask_g_15 | (splitcur >> 16) & (mask_r_15 | mask_b_15);
+						*pdest = prevcolor & mask_g_15 | (prevcolor >> 16) & (mask_r_15 | mask_b_15);
 					}
 					pdest++;
 					zbuf++;
@@ -1239,53 +1240,48 @@ void D_DrawTranslucentAdd(espan_t *pspan)
 					if (*zbuf < zlim >> 16)
 					{
 						WORD srcpix = pbase[(s >> 16) + (t >> 16) * cachewidth];
-						DWORD splitcur = colorsplitcustom(*pdest, mask_g_16);
-						DWORD splitsrc = colorsplitcustom(srcpix, mask_g_16);
-						DWORD blendmod = 0;
+						unsigned int prevcolor = colorsplitcustom(*pdest, mask_g_16);
+						unsigned int newcolor = colorsplitcustom(srcpix, mask_g_16);
+						unsigned int carrybits = 0;
 
-						DWORD blendalpha = r_blend & lowcleanmask(4);
+						unsigned int blendalpha = r_blend & lowcleanmask(4);
 
 						if (blendalpha < (BYTE)(MAXBYTE & lowcleanmask(4)))
 						{
-							DWORD blendstart = splitsrc >> 1;
+							unsigned int blendstart = newcolor >> 1;
 							int bitcycle = 1 << 8;
-							DWORD alphainc;
+							unsigned int alphainc;
 							do
 							{
 								bitcycle >>= 1;
-								alphainc = blendstart & ~(1 << 31 | overflow16);
-								splitcur &= splitmost16;
+								alphainc = blendstart & ~(overflow16withred);
+								prevcolor &= ~overflow16;
 
 								if (bitcycle & blendalpha)
 								{
-									DWORD oldcur = splitcur;
-									splitcur += alphainc;
+									unsigned int oldcur = prevcolor;
+									prevcolor += alphainc;
 									blendalpha ^= bitcycle;
-									blendmod |= (splitcur & overflow16 << 1) | oldcur > splitcur;
+									carrybits |= 
+										(prevcolor & overflow16) // b & g overflow
+										| (oldcur > prevcolor); // r overflow is not suitable for int32 so detect it by comparing
 								}
 								blendstart = alphainc >> 1;
 							} while (blendalpha);
 						}
 						else
 						{
-							splitcur = splitsrc + (lowfrac16(*pdest, mask_g_16) | highfrac16(*pdest, ~mask_g_16) & splitmost16);
-							blendmod = (splitcur & overflow16 << 1) | colorsplitcustom(*pdest, mask_g_16) > splitcur;
+							prevcolor = newcolor + (lowfrac16(*pdest, mask_g_16) | highfrac16(*pdest, ~mask_g_16) & ~overflow16);
+							carrybits = (prevcolor & overflow16) | colorsplitcustom(*pdest, mask_g_16) > prevcolor;
 						}
 
-						if (blendmod)
+						if (carrybits)
 						{
-							if (blendmod & 1)
-							{
-								blendmod &= ~1;
-								blendmod >>= 1;
-								blendmod |= (1 << 31);
-							}
-							else blendmod >>= 1;
-
-							splitcur |= ((blendmod & overflow16) - (blendmod >> 5)) << 1;
+							carrybits = ROR32(carrybits);
+							prevcolor |= ((carrybits & ROR32(overflow16)) - (carrybits >> 5)) << 1;
 						}
 
-						*pdest = (splitcur >> 16) ^ (splitcur & 0xFFFF ^ (splitcur >> 16)) & mask_g_16;
+						*pdest = (prevcolor >> 16) ^ (prevcolor & 0xFFFF ^ (prevcolor >> 16)) & mask_g_16;
 					}
 					pdest++;
 					zbuf++;

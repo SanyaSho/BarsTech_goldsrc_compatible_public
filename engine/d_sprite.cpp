@@ -108,7 +108,7 @@ void D_SpriteDrawSpans(sspan_t* pspan)
 		do
 		{
 			btemp = pbase[(s >> 16) + (t >> 16) * cachewidth];
-			if (btemp != 0xFF)
+			if (btemp != TRANSPARENT_COLOR)
 			{
 				if (*pz <= izi)
 				{
@@ -359,9 +359,9 @@ void D_SpriteDrawSpansAdd(sspan_t* pspan)
 						unsigned int oldcolor = colorsplit(color, mask_r_15, mask_g_15, mask_b_15) + colorsplit(*pdest, mask_r_15, mask_g_15, mask_b_15);
 
 						// flip overflow bits
-						unsigned int carrybits = (oldcolor & (1 << 31 | overflow15));
+						unsigned int carrybits = (oldcolor & (overflow15));
 						if (carrybits != 0)
-							oldcolor |= (1 << 31 | overflow15) - (carrybits >> 5);	// saturate
+							oldcolor |= (overflow15) - (carrybits >> 5);	// saturate
 
 						// merge parts and mask it
 						*pdest = (oldcolor & 0xFFFF) & mask_g_15 | (oldcolor >> 16) & (mask_r_15 | mask_b_15);
@@ -386,24 +386,16 @@ void D_SpriteDrawSpansAdd(sspan_t* pspan)
 					{
 						// mix green in 0..15, red and blue in 16..31
 						unsigned int prevcolor = colorsplit(*pdest, mask_r_16, mask_g_16, mask_b_16);
-						unsigned int oldcolor = (prevcolor & splitmost16) + colorsplit(color, mask_r_16, mask_g_16, mask_b_16);
+						unsigned int oldcolor = (prevcolor & ~overflow16) + colorsplit(color, mask_r_16, mask_g_16, mask_b_16);
 
 						// make bitmask
-						unsigned int carrybits = (oldcolor & overflow16 << 1) | prevcolor > oldcolor;
+						unsigned int carrybits = (oldcolor & overflow16) | prevcolor > oldcolor;
 
 						if (carrybits)
 						{
-							// move low bit(1) into high pos and shr other bits
-							if (carrybits & 1)
-							{
-								carrybits &= ~1;
-								carrybits >>= 1;
-								carrybits |= (1 << 31);
-							}
-							else carrybits >>= 1;
-
+							carrybits = ROR32(carrybits);
 							// flip overflow bits
-							oldcolor |= ((carrybits | overflow16) - (carrybits >> 5)) << 1;
+							oldcolor |= ((carrybits | ROR32(overflow16)) - (carrybits >> 5)) << 1;
 						}
 
 						// extract green(6 bits) and merge with high part (5 & 5)
@@ -518,9 +510,9 @@ void D_SpriteDrawSpansGlow(sspan_t* pspan)
 					unsigned int oldcolor = (lowfrac16(btemp, mask_g_15) | highfrac16(btemp, mask_r_15 | mask_b_15)) +
 						(lowfrac16(*pdest, mask_g_15) | highfrac16(*pdest, mask_r_15 | mask_b_15));
 
-					unsigned int carrybits = oldcolor & ((1 << 31) | overflow15);
+					unsigned int carrybits = oldcolor & (overflow15);
 					if (carrybits)
-						oldcolor |= ((1 << 31) | overflow15) - (carrybits >> 5); // насыщение цвета
+						oldcolor |= (overflow15) - (carrybits >> 5); // насыщение цвета
 
 					*pdest = oldcolor & mask_g_15 | (oldcolor >> 16) & (mask_r_15 | mask_b_15);
 				}
@@ -539,12 +531,12 @@ void D_SpriteDrawSpansGlow(sspan_t* pspan)
 				{
 					unsigned int prevcolor = *pdest & mask_g_16 | ((*pdest & (mask_r_16 | mask_b_16)) << 16);
 					unsigned int oldcolor = (((btemp & (mask_r_16 | mask_b_16)) << 16) | btemp & mask_g_16) + prevcolor;
-					unsigned int carrybits = (oldcolor & (overflow16 << 1)) | (prevcolor > oldcolor);
+					unsigned int carrybits = (oldcolor & (overflow16)) | (prevcolor > oldcolor);
 
 					if (carrybits)
 					{
-						carrybits = _rotr(carrybits, 1);
-						oldcolor |= ((carrybits | overflow16) - (carrybits >> 5)) << 1;
+						carrybits = ROR32(carrybits);
+						oldcolor |= ((carrybits | ROR32(overflow16)) - (carrybits >> 5)) << 1;
 					}
 
 					*pdest = (oldcolor >> 16) & (mask_r_16 | mask_b_16) | oldcolor & mask_g_16;
@@ -586,8 +578,8 @@ void D_SpriteDrawSpansAlpha(sspan_t* pspan)
 	transparent_split = lowfrac16(r_palette[255], green) | highfrac16(r_palette[255], redblue);
 
 	redpart = transparent_split & (mask_r_16 << 16);
-	newcolor15bit = transparent_split | (overflow15 | (1 << 31));
-	newcolor = transparent_split | (overflow16 << 1);
+	newcolor15bit = transparent_split | (overflow15);
+	newcolor = transparent_split | (overflow16);
 
 	set_fpu_cw();
 
@@ -675,16 +667,16 @@ void D_SpriteDrawSpansAlpha(sspan_t* pspan)
 					int blendbits;
 					unsigned int signbits;
 
-					blendbits = btemp & 0xF0;
+					blendbits = btemp & (0xff & lowcleanmask(4));
 					oldcolor = ((*pdest & redblue) << 16) | *pdest & green;
 					unsigned int cyclebits = 256;
 					deltacolor = (unsigned int)(newcolor15bit - oldcolor) >> 1;
-					signbits = ~deltacolor & ((1 << 31 | overflow15) >> 1);
+					signbits = ~deltacolor & ((overflow15) >> 1);
 					do
 					{
 						cyclebits >>= 1;
-						oldcolor &= ~(1 << 31 | overflow15);
-						unsigned int diff = signbits | deltacolor & ~((1 << 31 | overflow15) >> 1);
+						oldcolor &= ~(overflow15);
+						unsigned int diff = signbits | deltacolor & ~((overflow15) >> 1);
 						if ((blendbits & cyclebits) != 0)
 						{
 							blendbits ^= cyclebits;
@@ -714,23 +706,24 @@ void D_SpriteDrawSpansAlpha(sspan_t* pspan)
 					unsigned int signbits;
 
 					oldcolor = ((*pdest & redblue) << 16) | *pdest & green;
+					// shr by 1 to make visible red overflow bit
 					deltacolor = (unsigned int)(newcolor - oldcolor) >> 1;
 
 					unsigned int cyclebits = 0b100000000;
 
-					// handle overflow
+					// determine red overflow
 					if (redpart >= (oldcolor & (mask_r_16 << 16)))
-						deltacolor = ((unsigned int)(newcolor - oldcolor) >> 1) | (1 << 31);
+						deltacolor |= (1 << 31);
 
-					blendbits = btemp & 0xF0;
+					blendbits = btemp & (0xff & lowcleanmask(4));
 
-					signbits = ~deltacolor & (1 << 31 | overflow16);
+					signbits = ~deltacolor & (overflow16withred);
 
 					do
 					{
 						cyclebits >>= 1;
-						oldcolor &= ~(overflow16 << 1);
-						unsigned int diff = signbits | deltacolor & ~(1 << 31 | overflow16);
+						oldcolor &= ~(overflow16);
+						unsigned int diff = signbits | deltacolor & ~(overflow16withred);
 						if ((cyclebits & blendbits) != 0)
 						{
 							blendbits ^= cyclebits;

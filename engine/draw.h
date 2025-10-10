@@ -31,9 +31,12 @@ typedef struct cachewad_s cachewad_t;
 typedef void (*PFNCACHE)(cachewad_t*, byte*);
 
 #if !defined(GLQUAKE)
-const DWORD overflow15 = 0x200400, overflow16 = 0x100400, splitmost15 = ~(1 << 31 | overflow15), splitmost16 = ~(overflow16 << 1);
+const DWORD overflow15 = 0x80200400, 
+			overflow16 = 0x200800, 
+			overflow16withred = 0x80100400; // shifted right by 1 to handle red overflow
 const WORD mask_r_15 = ((1 << 5) - 1) << 10, mask_g_15 = ((1 << 5) - 1) << 5, mask_b_15 = ((1 << 5) - 1) << 0;
 const DWORD mask_r_16 = ((1 << 5) - 1) << 11, mask_g_16 = ((1 << 6) - 1) << 5, mask_b_16 = ((1 << 5) - 1) << 0;
+#define ROR32(x) (((x & 1) << 31) | (x >> 1))
 #define colorsplit(source, maskr, maskg, maskb) ( (WORD)(source & maskg) | (source & (maskr | maskb)) << 16 )
 #define lowfrac16(color, mask) (color & mask)
 #define highfrac16(color, mask) (color & mask) << 16

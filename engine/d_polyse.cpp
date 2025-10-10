@@ -759,8 +759,17 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 					g = r_lut[r_lut[((PackedColorVec*)r_palette)[*lptex].g + r_icolormix.g] + (llight & 0xFF00)];
 					b = r_lut[r_lut[((PackedColorVec*)r_palette)[*lptex].b + r_icolormix.b] + (llight & 0xFF00)];
 
+					// performing dst = src * alpha + dst * (1 - alpha) without fpu
 					if (is15bit)
 					{
+						// input: rgb888
+						// output (r << 26) | (b << 16) | (g << 5) after masking
+						// _rrrrr0000_ggggg00000_bbbbb00000
+						// O111110000O1111100000O1111100000
+						// hex: 0x7C1F03E0
+						// where O - overflow bits
+						// inverted overflow: 10000000001000000000010000000000
+						// hex: 0x80200400
 						unsigned int oldcolor = ((*lpdest & (mask_r_15 | mask_b_15)) << 16) | *lpdest & mask_g_15;
 						unsigned int newcolor = ((r << 23) + (g << 2) + (b << 13)) & (((mask_r_15 | mask_b_15) << 16) | mask_g_15);
 
@@ -768,16 +777,17 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 
 						if (blendbits < (BYTE)(0xff & ~((1 << 4) - 1)))
 						{
-							for (unsigned int mask = 1 << 8, deltacolor = newcolor & (~(1 << 31 | overflow15)); blendbits != 0; )
+							for (unsigned int mask = 1 << 8, deltacolor = newcolor >> 1; blendbits != 0; deltacolor >>= 1)
 							{
-								deltacolor >>= 1;
 								mask >>= 1;
-								oldcolor &= ~(1 << 31 | overflow15);
+								deltacolor &= ~(overflow15 >> 1);
+								oldcolor &= ~(overflow15);
 
+								carrybits |= (deltacolor + oldcolor) & (overflow15);
+								
 								if (blendbits & mask)
 								{
 									blendbits ^= mask;
-									carrybits |= (deltacolor + oldcolor) & (1 << 31 | overflow15);
 									oldcolor += deltacolor;
 								}
 							}
@@ -785,27 +795,37 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 						else
 						{
 							oldcolor += newcolor;
-							carrybits = oldcolor & (1 << 31 | overflow15);
+							carrybits = oldcolor & (overflow15);
 						}
 
 						if (carrybits)
-							oldcolor |= (1 << 31 | overflow15) - (carrybits >> 5);
+							oldcolor |= (overflow15) - (carrybits >> 5);
 
 						*lpdest = oldcolor & mask_g_15 | (oldcolor >> 16) & (mask_r_15 | mask_b_15);
 					}
 					else
 					{
+						// input: rgb888
+						// output (r << 27) | (b << 16) | (g << 5) after masking
+						// rrrrr00000_bbbbb0000_gggggg00000
+						// 1111100000O111110000O11111100000
+						// hex: 0xF81F07E0
+						// where O - overflow bits
+						// inverted overflow: 00000000001000000000100000000000
+						// hex: 0x200800
+						// shifted color for handling R overflow: 10000000000100000000010000000000
+						// hex: 0x80100400
 						unsigned int newcolor = ((r << 24) + (b << 13) + (g << 3)) & (((mask_r_16 | mask_b_16) << 16) | mask_g_16);
 						unsigned int oldcolor = ((*lpdest & (mask_r_16 | mask_b_16)) << 16) | *lpdest & mask_g_16;
 						
-						int blendalpha = r_blend & (BYTE)(0xff & ~((1 << 4) - 1));
+						int blendalpha = r_blend & (BYTE)(0xff & lowcleanmask(4));
 						
 						unsigned int carrybits, summary;
 
-						if (blendalpha >= (BYTE)(0xff & ~((1 << 4) - 1)))
+						if (blendalpha >= (BYTE)(0xff & lowcleanmask(4)))
 						{
 							summary = oldcolor + newcolor;
-							carrybits = ((summary & (overflow16 << 1)) | (oldcolor > summary));
+							carrybits = ((summary & (overflow16)) | (oldcolor > summary));
 							oldcolor = summary;
 						}
 						else
@@ -817,13 +837,13 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 							{
 								maskBit >>= 1;
 								// бит 0 сдвинулся на позицию 31
-								newcolor &= ~(1 << 31 | overflow16);
-								oldcolor &= ~(overflow16 << 1);
+								newcolor &= ~(overflow16withred);
+								oldcolor &= ~(overflow16);
 								if ((maskBit & blendalpha) != 0)
 								{
 									summary = newcolor + oldcolor;
 									blendalpha ^= maskBit;
-									carrybits |= ((summary & (overflow16 << 1)) | (oldcolor > summary));
+									carrybits |= ((summary & (overflow16)) | (oldcolor > summary));
 									oldcolor += newcolor;
 								}
 								newcolor >>= 1;
@@ -832,8 +852,8 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 
 						if (carrybits)
 						{
-							carrybits = _rotr(carrybits, 1);
-							oldcolor |= ((carrybits | overflow16) - (carrybits >> 5)) << 1;
+							carrybits = ROR32(carrybits);
+							oldcolor |= ((carrybits | ROR32(overflow16)) - (carrybits >> 5)) << 1;
 						}
 						*lpdest = (oldcolor >> 16) & (mask_r_16 | mask_b_16) | oldcolor & mask_g_16;
 
