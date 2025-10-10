@@ -148,7 +148,6 @@ BEGIN_SRC( ENGINE_HEADER_FILES "Header Files" )
 		"bitmap_win.h"
 		"buildnum.h"
 		"cd.h"
-		"cdaudio.h"
 		"cdll_exp.h"
 		"cdll_int.h"
 		"cd_internal.h"
