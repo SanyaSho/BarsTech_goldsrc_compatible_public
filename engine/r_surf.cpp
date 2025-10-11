@@ -794,101 +794,64 @@ word* R_DecalLightSurfaceMMX(byte* psource, word* prowdest)
 	{
 		lightleft = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
 		lightright = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
+		
+		r_lightptr += r_lightwidth;
 
-		if (is15bit)
+		lightleftnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
+		lightrightnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
+		lightleftstep = _m_psraw(_m_psubw(lightleftnext, lightleft), _mm_cvtsi32_si64(blockdivshift));
+		lightrightstep = _m_psraw(_m_psubw(lightrightnext, lightright), _mm_cvtsi32_si64(blockdivshift));
+
+		for (i = 0; i < blocksize; i++)
 		{
-			r_lightptr += r_lightwidth;
+			lightfracstep = _m_psrawi(_m_psubw(lightright, lightleft), blockdivshift);
+			lightfrac = lightleft;
 
-			lightleftnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
-			lightrightnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
-			lightleftstep = _m_psraw(_m_psubw(lightleftnext, lightleft), _mm_cvtsi32_si64(blockdivshift));
-			lightrightstep = _m_psraw(_m_psubw(lightrightnext, lightright), _mm_cvtsi32_si64(blockdivshift));
-
-			for (i = 0; i < blocksize; i++)
+			for (b = 0; b < blocksize; b += 2)
 			{
-				lightfracstep = _m_psrawi(_m_psubw(lightright, lightleft), blockdivshift);
-				lightfrac = lightleft;
+				int idx = (b) << 2;
+				int idx2 = (b + 1) << 2;
 
-				for (b = 0; b < blocksize; b += 2)
+				if (r_drawsurf.texture->name[2] == '~' && psource[idx + 3] >= 0b11100000)
 				{
-					int idx = (b) << 2;
-					int idx2 = (b + 1) << 2;
-
-					if (r_drawsurf.texture->name[2] == '~' && psource[idx + 3] >= 0b11100000)
-					{
-						prowdest[b] = PACKEDRGB555(psource[idx], psource[idx + 1], psource[idx + 2]);
-						prowdest[b + 1] = PACKEDRGB555(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
-					}
-					else
-					{
-						c1 = { psource[idx + 2], psource[idx + 1], psource[idx + 0], 0 };
-						c2 = { psource[idx2 + 2], psource[idx2 + 1], psource[idx2 + 0], 0 };
-
-						litBlock1 = _m_pmulhw(_m_psllwi(*(__m64*)&c1, 3), lightfrac);
-						lightfrac2 = _m_paddw(lightfrac, lightfracstep);
-						litBlock2 = _m_pmulhw(_m_psllwi(*(__m64*)&c2, 3), lightfrac2);
-						lightfrac = _m_paddw(lightfrac2, lightfracstep);
-						mergedBlocks = _m_packuswb(litBlock1, litBlock2);
-						finalColor = _m_psrldi(_m_por(_m_pmaddwd(_m_pand(mergedBlocks, MMX1615REDBLUE), MMX15MULFACT), _m_pand(mergedBlocks, MMX15GREEN)), 6);
-						*(unsigned int*)&prowdest[b] = _mm_cvtsi64_si32(_m_packssdw(finalColor, finalColor));
-					}
-				}
-
-				lightleft = _m_paddw(lightleft, lightleftstep);
-				lightright = _m_paddw(lightright, lightrightstep);
-
-				psource += blocksize << 2;
-				prowdest += surfrowbytes >> 1;
-			}
-			
-		}
-		else
-		{
-			r_lightptr += r_lightwidth;
-
-			lightleftnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
-			lightrightnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
-			lightleftstep = _m_psraw(_m_psubw(lightleftnext, lightleft), _mm_cvtsi32_si64(blockdivshift));
-			lightrightstep = _m_psraw(_m_psubw(lightrightnext, lightright), _mm_cvtsi32_si64(blockdivshift));
-
-			for (i = 0; i < blocksize; i++)
-			{
-				lightfracstep = _m_psrawi(_m_psubw(lightright, lightleft), blockdivshift);
-				lightfrac = lightleft;
-
-				for (b = 0; b < blocksize; b += 2)
-				{
-					int idx = (b) << 2;
-					int idx2 = (b + 1) << 2;
-
-					if (r_drawsurf.texture->name[2] == '~' && psource[idx + 3] >= 0b11100000)
+					if (is15bit)
 					{
 						prowdest[b] = PACKEDRGB565(psource[idx], psource[idx + 1], psource[idx + 2]);
 						prowdest[b + 1] = PACKEDRGB565(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
 					}
 					else
 					{
-						c1 = { psource[idx + 2], psource[idx + 1], psource[idx + 0], 0 };
-						c2 = { psource[idx2 + 2], psource[idx2 + 1], psource[idx2 + 0], 0 };
-
-						litBlock1 = _m_pmulhw(_m_psllwi(*(__m64*)&c1, 3), lightfrac);
-						lightfrac2 = _m_paddw(lightfrac, lightfracstep);
-						litBlock2 = _m_pmulhw(_m_psllwi(*(__m64*)&c2, 3), lightfrac2);
-						lightfrac = _m_paddw(lightfrac2, lightfracstep);
-						mergedBlocks = _m_packuswb(litBlock1, litBlock2);
-						finalColor = _m_psradi(_m_pslldi(_m_por(_m_pmaddwd(_m_pand(mergedBlocks, MMX1615REDBLUE), MMX16MULFACT), _m_pand(mergedBlocks, MMX16GREEN)), 11), 16);
-						*(unsigned int*)&prowdest[b] = _mm_cvtsi64_si32(_m_packssdw(finalColor, finalColor));
+						prowdest[b] = PACKEDRGB565(psource[idx], psource[idx + 1], psource[idx + 2]);
+						prowdest[b + 1] = PACKEDRGB565(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
 					}
 				}
+				else
+				{
+					c1 = { psource[idx + 2], psource[idx + 1], psource[idx + 0], 0 };
+					c2 = { psource[idx2 + 2], psource[idx2 + 1], psource[idx2 + 0], 0 };
 
-				lightleft = _m_paddw(lightleft, lightleftstep);
-				lightright = _m_paddw(lightright, lightrightstep);
+					litBlock1 = _m_pmulhw(_m_psllwi(*(__m64*)&c1, 3), lightfrac);
+					lightfrac2 = _m_paddw(lightfrac, lightfracstep);
+					litBlock2 = _m_pmulhw(_m_psllwi(*(__m64*)&c2, 3), lightfrac2);
+					lightfrac = _m_paddw(lightfrac2, lightfracstep);
+					mergedBlocks = _m_packuswb(litBlock1, litBlock2);
 
-				psource += blocksize << 2;
-				prowdest += surfrowbytes >> 1;
+					if (is15bit)
+						finalColor = _m_psradi(_m_pslldi(_m_por(_m_pmaddwd(_m_pand(mergedBlocks, MMX1615REDBLUE), MMX16MULFACT), _m_pand(mergedBlocks, MMX16GREEN)), 11), 16);
+					else
+						finalColor = _m_psradi(_m_pslldi(_m_por(_m_pmaddwd(_m_pand(mergedBlocks, MMX1615REDBLUE), MMX16MULFACT), _m_pand(mergedBlocks, MMX16GREEN)), 11), 16);
+					
+					*(unsigned int*)&prowdest[b] = _mm_cvtsi64_si32(_m_packssdw(finalColor, finalColor));
+				}
 			}
 
+			lightleft = _m_paddw(lightleft, lightleftstep);
+			lightright = _m_paddw(lightright, lightrightstep);
+
+			psource += blocksize << 2;
+			prowdest += surfrowbytes >> 1;
 		}
+
 		_m_empty();
 	}
 
