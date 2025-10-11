@@ -48,7 +48,7 @@ word			fpu_cw;
 double 			lut_8byte_aligner;
 word 			lut_realigner1[256];
 word 			lut_realigner2[256];
-__m64			MMXBUF0, MMXBUF1;
+__m64			lightleftnext, lightrightnext;
 decal_t			gDecalPool[MAX_DECALS];
 int				gDecalCount;
 int				gDecalFlags;
@@ -72,6 +72,7 @@ void 			R_DrawSurfaceBlock16Fullbright5(void);
 void 			R_DrawSurfaceBlock16MMX(void);
 void 			R_DrawSurfaceBlock16(void);
 word* 			R_DecalLightSurface(byte* psource, word* prowdest);
+word* 			R_DecalLightSurfaceMMX(byte* psource, word* prowdest);
 
 void 			R_DecalPickRow(byte* data, PackedColorVec* pal, byte* row);
 void 			R_DecalResolution(decal_t* pdecals, int* scaleinfo, int miplevel);
@@ -444,13 +445,16 @@ void R_DrawSurface(void)
 			pdecals = NULL;
 			break;
 		default:
+			pdecaldrawer = R_DecalLightSurface;
 #if defined(_WIN32) || defined(_WIN64)
 			if (r_mmx.value)
+			{
 				pblockdrawer = R_DrawSurfaceBlock16MMX;
+				pdecaldrawer = R_DecalLightSurfaceMMX;
+			}
 			else
 #endif
 				pblockdrawer = R_DrawSurfaceBlock16;
-			pdecaldrawer = R_DecalLightSurface;
 		}
 	}
 
@@ -655,13 +659,14 @@ void R_DrawSurfaceBlock16(void)
 /*
  REFERENCE: INTEL APPNOTE #553
 */
+
+static __m64 MMXMULTIPLIER = { 0x555555555555 };
+static __m64 MMX1615REDBLUE = { 0x00f800f800f800f8 };	// masks out all but the 5MSBits of red and blue
+static __m64 MMX16GREEN = { 0x0000fC000000fC00 }, MMX15GREEN = { 0x0000f8000000f800 };	// masks out all but the 5MSBits of green
+static __m64 MMX16MULFACT = { 0x2000000420000004 }, MMX15MULFACT = { 0x2000000820000008 };	// multiply each word by 2**13, 2**3, 2**13, 2**3 and add results
+
 void R_DrawSurfaceBlock16MMX(void)
 {
-	static __m64 MMXMULTIPLIER = { 0x555555555555 };
-	static __m64 MMX1615REDBLUE = { 0x00f800f800f800f8 };	// masks out all but the 5MSBits of red and blue
-	static __m64 MMX16GREEN = { 0x0000fC000000fC00 }, MMX15GREEN = { 0x0000f8000000f800 };	// masks out all but the 5MSBits of green
-	static __m64 MMX16MULFACT = { 0x2000000420000004 }, MMX15MULFACT = { 0x2000000820000008 };	// multiply each word by 2**13, 2**3, 2**13, 2**3 and add results
-
 	__m64 lightleft, lightright;
 	__m64 lightleftstep, lightrightstep;
 	__m64 lightfrac, lightfracstep;
@@ -689,10 +694,10 @@ void R_DrawSurfaceBlock16MMX(void)
 
 				r_lightptr += r_lightwidth;
 
-				MMXBUF0 = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
-				MMXBUF1 = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
-				lightleftstep = _m_psraw(_m_psubw(MMXBUF0, lightleft), _mm_cvtsi32_si64(blockdivshift));
-				lightrightstep = _m_psraw(_m_psubw(MMXBUF1, lightright), _mm_cvtsi32_si64(blockdivshift));
+				lightleftnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
+				lightrightnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
+				lightleftstep = _m_psraw(_m_psubw(lightleftnext, lightleft), _mm_cvtsi32_si64(blockdivshift));
+				lightrightstep = _m_psraw(_m_psubw(lightrightnext, lightright), _mm_cvtsi32_si64(blockdivshift));
 
 				for (i = 0; i < blocksize; i++)
 				{
@@ -717,8 +722,8 @@ void R_DrawSurfaceBlock16MMX(void)
 					prowdest += surfrowbytes >> 1;
 				}
 
-				lightleft = MMXBUF0;
-				lightright = MMXBUF1;
+				lightleft = lightleftnext;
+				lightright = lightrightnext;
 
 				r_offset += sourcevstep;
 				if (r_offset >= r_stepback)
@@ -735,10 +740,10 @@ void R_DrawSurfaceBlock16MMX(void)
 
 				r_lightptr += r_lightwidth;
 
-				MMXBUF0 = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
-				MMXBUF1 = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
-				lightleftstep = _m_psraw(_m_psubw(MMXBUF0, lightleft), _mm_cvtsi32_si64(blockdivshift));
-				lightrightstep = _m_psraw(_m_psubw(MMXBUF1, lightright), _mm_cvtsi32_si64(blockdivshift));
+				lightleftnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
+				lightrightnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
+				lightleftstep = _m_psraw(_m_psubw(lightleftnext, lightleft), _mm_cvtsi32_si64(blockdivshift));
+				lightrightstep = _m_psraw(_m_psubw(lightrightnext, lightright), _mm_cvtsi32_si64(blockdivshift));
 
 				for (i = 0; i < blocksize; i++)
 				{
@@ -763,8 +768,8 @@ void R_DrawSurfaceBlock16MMX(void)
 					prowdest += surfrowbytes >> 1;
 				}
 
-				lightleft = MMXBUF0;
-				lightright = MMXBUF1;
+				lightleft = lightleftnext;
+				lightright = lightrightnext;
 
 				r_offset += sourcevstep;
 				if (r_offset >= r_stepback)
@@ -774,6 +779,120 @@ void R_DrawSurfaceBlock16MMX(void)
 		}
 		_m_empty();
 	}
+}
+
+word* R_DecalLightSurfaceMMX(byte* psource, word* prowdest)
+{
+	__m64 lightleft, lightright;
+	__m64 lightleftstep, lightrightstep;
+	__m64 lightfrac, lightfracstep;
+	__m64 litBlock1, litBlock2, mergedBlocks, lightfrac2, finalColor;
+	int i, b;
+	PackedColorVec c1, c2;
+
+	if (gHasMMXTechnology)
+	{
+		lightleft = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
+		lightright = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
+
+		if (is15bit)
+		{
+			r_lightptr += r_lightwidth;
+
+			lightleftnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
+			lightrightnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
+			lightleftstep = _m_psraw(_m_psubw(lightleftnext, lightleft), _mm_cvtsi32_si64(blockdivshift));
+			lightrightstep = _m_psraw(_m_psubw(lightrightnext, lightright), _mm_cvtsi32_si64(blockdivshift));
+
+			for (i = 0; i < blocksize; i++)
+			{
+				lightfracstep = _m_psrawi(_m_psubw(lightright, lightleft), blockdivshift);
+				lightfrac = lightleft;
+
+				for (b = 0; b < blocksize; b += 2)
+				{
+					int idx = (b) << 2;
+					int idx2 = (b + 1) << 2;
+
+					if (r_drawsurf.texture->name[2] == '~' && psource[idx + 3] >= 0b11100000)
+					{
+						prowdest[b] = PACKEDRGB555(psource[idx], psource[idx + 1], psource[idx + 2]);
+						prowdest[b + 1] = PACKEDRGB555(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
+					}
+					else
+					{
+						c1 = { psource[idx + 2], psource[idx + 1], psource[idx + 0], 0 };
+						c2 = { psource[idx2 + 2], psource[idx2 + 1], psource[idx2 + 0], 0 };
+
+						litBlock1 = _m_pmulhw(_m_psllwi(*(__m64*)&c1, 3), lightfrac);
+						lightfrac2 = _m_paddw(lightfrac, lightfracstep);
+						litBlock2 = _m_pmulhw(_m_psllwi(*(__m64*)&c2, 3), lightfrac2);
+						lightfrac = _m_paddw(lightfrac2, lightfracstep);
+						mergedBlocks = _m_packuswb(litBlock1, litBlock2);
+						finalColor = _m_psrldi(_m_por(_m_pmaddwd(_m_pand(mergedBlocks, MMX1615REDBLUE), MMX15MULFACT), _m_pand(mergedBlocks, MMX15GREEN)), 6);
+						*(unsigned int*)&prowdest[b] = _mm_cvtsi64_si32(_m_packssdw(finalColor, finalColor));
+					}
+				}
+
+				lightleft = _m_paddw(lightleft, lightleftstep);
+				lightright = _m_paddw(lightright, lightrightstep);
+
+				psource += blocksize << 2;
+				prowdest += surfrowbytes >> 1;
+			}
+			
+		}
+		else
+		{
+			r_lightptr += r_lightwidth;
+
+			lightleftnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[0].b), _mm_cvtsi32_si64(r_lightptr[0].g)), _mm_cvtsi32_si64(r_lightptr[0].r)), 1u), MMXMULTIPLIER);
+			lightrightnext = _m_pmulhw(_m_psrlwi(_m_punpckldq(_m_punpcklwd(_mm_cvtsi32_si64(r_lightptr[1].b), _mm_cvtsi32_si64(r_lightptr[1].g)), _mm_cvtsi32_si64(r_lightptr[1].r)), 1u), MMXMULTIPLIER);
+			lightleftstep = _m_psraw(_m_psubw(lightleftnext, lightleft), _mm_cvtsi32_si64(blockdivshift));
+			lightrightstep = _m_psraw(_m_psubw(lightrightnext, lightright), _mm_cvtsi32_si64(blockdivshift));
+
+			for (i = 0; i < blocksize; i++)
+			{
+				lightfracstep = _m_psrawi(_m_psubw(lightright, lightleft), blockdivshift);
+				lightfrac = lightleft;
+
+				for (b = 0; b < blocksize; b += 2)
+				{
+					int idx = (b) << 2;
+					int idx2 = (b + 1) << 2;
+
+					if (r_drawsurf.texture->name[2] == '~' && psource[idx + 3] >= 0b11100000)
+					{
+						prowdest[b] = PACKEDRGB565(psource[idx], psource[idx + 1], psource[idx + 2]);
+						prowdest[b + 1] = PACKEDRGB565(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
+					}
+					else
+					{
+						c1 = { psource[idx + 2], psource[idx + 1], psource[idx + 0], 0 };
+						c2 = { psource[idx2 + 2], psource[idx2 + 1], psource[idx2 + 0], 0 };
+
+						litBlock1 = _m_pmulhw(_m_psllwi(*(__m64*)&c1, 3), lightfrac);
+						lightfrac2 = _m_paddw(lightfrac, lightfracstep);
+						litBlock2 = _m_pmulhw(_m_psllwi(*(__m64*)&c2, 3), lightfrac2);
+						lightfrac = _m_paddw(lightfrac2, lightfracstep);
+						mergedBlocks = _m_packuswb(litBlock1, litBlock2);
+						finalColor = _m_psradi(_m_pslldi(_m_por(_m_pmaddwd(_m_pand(mergedBlocks, MMX1615REDBLUE), MMX16MULFACT), _m_pand(mergedBlocks, MMX16GREEN)), 11), 16);
+						*(unsigned int*)&prowdest[b] = _mm_cvtsi64_si32(_m_packssdw(finalColor, finalColor));
+					}
+				}
+
+				lightleft = _m_paddw(lightleft, lightleftstep);
+				lightright = _m_paddw(lightright, lightrightstep);
+
+				psource += blocksize << 2;
+				prowdest += surfrowbytes >> 1;
+			}
+
+		}
+		_m_empty();
+	}
+
+	return prowdest;
 }
 #endif
 
