@@ -812,23 +812,18 @@ word* R_DecalLightSurfaceMMX(byte* psource, word* prowdest)
 				int idx = (b) << 2;
 				int idx2 = (b + 1) << 2;
 
-				if (r_drawsurf.texture->name[2] == '~' && psource[idx + 3] >= 0b11100000)
+				if (r_drawsurf.texture->name[2] == '~')
 				{
-					if (is15bit)
-					{
-						prowdest[b] = PACKEDRGB565(psource[idx], psource[idx + 1], psource[idx + 2]);
-						prowdest[b + 1] = PACKEDRGB565(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
-					}
-					else
-					{
-						prowdest[b] = PACKEDRGB565(psource[idx], psource[idx + 1], psource[idx + 2]);
-						prowdest[b + 1] = PACKEDRGB565(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
-					}
+					if (psource[idx + 3] >= 0b11100000)
+						prowdest[b] = is15bit ? PACKEDRGB555(psource[idx], psource[idx + 1], psource[idx + 2]) : PACKEDRGB565(psource[idx], psource[idx + 1], psource[idx + 2]);
+					
+					if (psource[idx2 + 3] >= 0b11100000)
+						prowdest[b + 1] = is15bit ? PACKEDRGB555(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]) : PACKEDRGB565(psource[idx2], psource[idx2 + 1], psource[idx2 + 2]);
 				}
 				else
 				{
-					c1 = { psource[idx + 2], psource[idx + 1], psource[idx + 0], 0 };
-					c2 = { psource[idx2 + 2], psource[idx2 + 1], psource[idx2 + 0], 0 };
+					c1 = { psource[idx + 2], psource[idx + 1], psource[idx + 0], psource[idx + 3] };
+					c2 = { psource[idx2 + 2], psource[idx2 + 1], psource[idx2 + 0], psource[idx2 + 3] };
 
 					litBlock1 = _m_pmulhw(_m_psllwi(*(__m64*)&c1, 3), lightfrac);
 					lightfrac2 = _m_paddw(lightfrac, lightfracstep);
