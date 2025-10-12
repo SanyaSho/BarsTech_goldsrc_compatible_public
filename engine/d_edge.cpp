@@ -131,6 +131,36 @@ void D_DrawSolidSurface(surf_t *surf, unsigned short color)
 	}
 }
 
+void D_DrawSolidSurface32(surf_t *surf, unsigned int color)
+{
+	espan_t	*span;
+	unsigned int *pdest;
+	int		u, u2, pix;
+
+	pix = color;
+	for (span = surf->spans; span; span = span->pnext)
+	{
+		pdest = (unsigned int *)(d_viewbuffer + screenwidth*span->v);
+		u = span->u;
+		u2 = span->u + span->count - 1;
+		pdest[u] = pix;
+
+		if (u2 - u < 8)
+		{
+			for (u++; u <= u2; u++)
+				pdest[u] = pix;
+		}
+		else
+		{
+			for (u++; u & 1; u++)
+				pdest[u] = pix;
+
+			for (; u <= u2; u++)
+				pdest[u] = pix;
+		}
+	}
+}
+
 /*
 ==============
 D_CalcGradients
@@ -232,34 +262,70 @@ void D_DrawSurfaces(void)
 			d_zistepv = s->d_zistepv;
 			d_ziorigin = s->d_ziorigin;
 
-			if (s->flags & SURF_DRAWBACKGROUND)
+			if (r_pixbytes == 1)
 			{
-				D_DrawSolidSurface(s, (uintptr_t)s->data & 0xFF);
-			}
-			else
-			{
-				if (r_drawflat.value != 2)
+				if (s->flags & SURF_DRAWBACKGROUND)
 				{
-					D_DrawSolidSurface(s, hlRGB(flatcolors, (((uintptr_t)s->data) >> 4) % 0xff));
-				}
-				else if (!s->insubmodel)
-				{
-					int Leaf = LeafId((msurface_t*)s->data);
-
-					if (Leaf > 2)
-					{
-						// ограничение до максимально возможного индекса 8-битной палитры
-						Leaf %= 0xff;
-						// предотвращение использования зарезервированных 0 и 1 цветов
-						if (Leaf < 2)
-							Leaf += 2;
-					}
-
-					D_DrawSolidSurface(s, hlRGB(flatcolors, Leaf));
+					D_DrawSolidSurface(s, (uintptr_t)s->data & 0xFF);
 				}
 				else
 				{
-					D_DrawSolidSurface(s, hlRGB(flatcolors, 0));
+					if (r_drawflat.value != 2)
+					{
+						D_DrawSolidSurface(s, hlRGB(flatcolors, (((uintptr_t)s->data) >> 4) % 0xff));
+					}
+					else if (!s->insubmodel)
+					{
+						int Leaf = LeafId((msurface_t*)s->data);
+
+						if (Leaf > 2)
+						{
+							// ограничение до максимально возможного индекса 8-битной палитры
+							Leaf %= 0xff;
+							// предотвращение использования зарезервированных 0 и 1 цветов
+							if (Leaf < 2)
+								Leaf += 2;
+						}
+
+						D_DrawSolidSurface(s, hlRGB(flatcolors, Leaf));
+					}
+					else
+					{
+						D_DrawSolidSurface(s, hlRGB(flatcolors, 0));
+					}
+				}
+			}
+			else
+			{
+				if (s->flags & SURF_DRAWBACKGROUND)
+				{
+					D_DrawSolidSurface32(s, 0xFF000000 | ((uintptr_t)s->data & 0xFF));
+				}
+				else
+				{
+					if (r_drawflat.value != 2)
+					{
+						D_DrawSolidSurface32(s, hlRGB32(flatcolors, (((uintptr_t)s->data) >> 4) % 0xff));
+					}
+					else if (!s->insubmodel)
+					{
+						int Leaf = LeafId((msurface_t*)s->data);
+
+						if (Leaf > 2)
+						{
+							// ограничение до максимально возможного индекса 8-битной палитры
+							Leaf %= 0xff;
+							// предотвращение использования зарезервированных 0 и 1 цветов
+							if (Leaf < 2)
+								Leaf += 2;
+						}
+
+						D_DrawSolidSurface32(s, hlRGB32(flatcolors, Leaf));
+					}
+					else
+					{
+						D_DrawSolidSurface32(s, hlRGB32(flatcolors, 0));
+					}
 				}
 			}
 
@@ -311,7 +377,10 @@ void D_DrawSurfaces(void)
 				d_zistepv = 0;
 				d_ziorigin = -0.9;
 
-				D_DrawSolidSurface(s, 0);
+				if (r_pixbytes == 1)
+					D_DrawSolidSurface(s, 0);
+				else
+					D_DrawSolidSurface32(s, 0xFF000000);
 				D_DrawZSpans(s->spans);
 			}
 			else if (s->flags & SURF_DRAWTILED)

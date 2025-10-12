@@ -832,7 +832,7 @@ void Key_Event( int key, qboolean down )
 
 	RecEngKey_Event( key, down /*iDown*/ );
 
-	Con_Printf(const_cast<char*>("got key %d -> %s\n"), key, Key_KeynumToString(key));
+	//Con_Printf(const_cast<char*>("got key %d -> %s\n"), key, Key_KeynumToString(key));
 
 	keydown[ key ] = down;
 

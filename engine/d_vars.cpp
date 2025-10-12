@@ -23,6 +23,7 @@ pixel_t			*cacheblock;
 int				cachewidth;
 pixel_t			*d_viewbuffer;
 short			*d_pzbuffer;
+int				*d_pzbuffer32;
 unsigned int	d_zrowbytes;
 unsigned int	d_zwidth;
 

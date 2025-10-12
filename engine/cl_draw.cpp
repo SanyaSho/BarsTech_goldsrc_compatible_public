@@ -32,6 +32,10 @@ static SPRITELIST* gSpriteList = nullptr;
 
 word gSpritePalette[256];
 
+#if !defined(GLQUAKE)
+unsigned int gSpritePalette32[256];
+#endif
+
 void SetCrosshair(HSPRITE hspr, wrect_t rc, int r, int g, int b)
 {
 	RecEngSetCrosshair(hspr, rc, r, g, b);
@@ -202,13 +206,29 @@ int SPR_Width( HSPRITE hSprite, int frame )
 void UnpackPalette(unsigned short* pDest, word* pSource, int r, int g, int b)
 {
 #if !defined ( GLQUAKE )
-	word* rangeR = &red_64klut[(r * 192) & 0xFF00];
-	word* rangeG = &green_64klut[(g * 192) & 0xFF00];
-	word* rangeB = &blue_64klut[(b * 192) & 0xFF00];
+	if (r_pixbytes == 1)
+	{
+		word* rangeR = &red_64klut[(r * 192) & 0xFF00];
+		word* rangeG = &green_64klut[(g * 192) & 0xFF00];
+		word* rangeB = &blue_64klut[(b * 192) & 0xFF00];
 
+		for (int i = 0; i < 256; i++)
+		{
+			pDest[i] = rangeR[((PackedColorVec*)pSource)[i].r] | rangeG[((PackedColorVec*)pSource)[i].g] | rangeB[((PackedColorVec*)pSource)[i].b];
+		}
+	}
+#endif
+}
+
+void UnpackPalette32(unsigned int* pDest, word* pSource, int r, int g, int b)
+{
+#if !defined ( GLQUAKE )
 	for (int i = 0; i < 256; i++)
 	{
-		pDest[i] = rangeR[((PackedColorVec*)pSource)[i].r] | rangeG[((PackedColorVec*)pSource)[i].g] | rangeB[((PackedColorVec*)pSource)[i].b];
+		int r2 = (((PackedColorVec*)pSource)[i].r * r) >> 8;
+		int g2 = (((PackedColorVec*)pSource)[i].g * g) >> 8;
+		int b2 = (((PackedColorVec*)pSource)[i].b * b) >> 8;
+		pDest[i] = mask_a_32 | PACKEDRGB888(r2, g2, b2);
 	}
 #endif
 }
@@ -235,7 +255,10 @@ void SPR_Set( HSPRITE hSprite, int r, int g, int b )
 #if defined ( GLQUAKE )
 			qglColor4f((GLfloat)r / 255.0, (GLfloat)g / 255.0, (GLfloat)b / 255.0, 1.0);
 #else
-			UnpackPalette(gSpritePalette, (word*)((byte*)gpSprite + gpSprite->paloffset), r, g, b);
+			if (r_pixbytes == 1)
+				UnpackPalette(gSpritePalette, (word*)((byte*)gpSprite + gpSprite->paloffset), r, g, b);
+			else
+				UnpackPalette32(gSpritePalette32, (word*)((byte*)gpSprite + gpSprite->paloffset), r, g, b);
 #endif
 		}
 	}
@@ -272,6 +295,11 @@ void SPR_Draw( int frame, int x, int y, const wrect_t* prc )
 		return;
 	}
 
+#if !defined(GLQUAKE)
+	if (r_pixbytes != 1)
+		Draw_SpriteFrame32(pFrame, gSpritePalette32, x, y, prc);
+	else
+#endif
 	Draw_SpriteFrame(pFrame, gSpritePalette, x, y, prc);
 }
 
@@ -294,6 +322,11 @@ void SPR_DrawHoles( int frame, int x, int y, const wrect_t* prc )
 		return;
 	}
 
+#if !defined(GLQUAKE)
+	if (r_pixbytes != 1)
+		Draw_SpriteFrameHoles32(pFrame, gSpritePalette32, x, y, prc);
+	else
+#endif
 	Draw_SpriteFrameHoles(pFrame, gSpritePalette, x, y, prc);
 }
 
@@ -316,6 +349,11 @@ void SPR_DrawAdditive( int frame, int x, int y, const wrect_t* prc )
 		return;
 	}
 
+#if !defined(GLQUAKE)
+	if (r_pixbytes != 1)
+		Draw_SpriteFrameAdditive32(pFrame, gSpritePalette32, x, y, prc);
+	else
+#endif
 	Draw_SpriteFrameAdditive(pFrame, gSpritePalette, x, y, prc);
 }
 
@@ -337,7 +375,11 @@ void SPR_DrawGeneric( int frame, int x, int y, const wrect_t* prc, int src, int 
 		Con_DPrintf(const_cast<char*>("Client.dll SPR_DrawGeneric error: invalid frame\n"));
 		return;
 	}
-
+#if !defined(GLQUAKE)
+	if (r_pixbytes != 1)
+		Draw_SpriteFrameGeneric32(pFrame, gSpritePalette32, x, y, prc, src, dest, width, height);
+	else
+#endif
 	Draw_SpriteFrameGeneric(pFrame, gSpritePalette, x, y, prc, src, dest, width, height);
 }
 

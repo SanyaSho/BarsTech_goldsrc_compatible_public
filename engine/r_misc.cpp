@@ -295,17 +295,34 @@ void R_ScreenLuminance(void)
 	{
 		for (j = 0; (j & MAXWORD) < (int)vid.width; j++)
 		{
-			z = d_pzbuffer[i * vid.width + j];
-
-			if (z < ZISCALE)
+			if (r_pixbytes == 1)
 			{
-				if (zmin > z)
-					zmin = z;
-				if (zmax < z)
-					zmax = z;
-			}
+				z = d_pzbuffer[i * vid.width + j];
 
-			((word*)vid.buffer)[i * vid.width + j] = z;
+				if (z < ZISCALE)
+				{
+					if (zmin > z)
+						zmin = z;
+					if (zmax < z)
+						zmax = z;
+				}
+
+				((word*)vid.buffer)[i * vid.width + j] = z;
+			}
+			else
+			{
+				int z32 = d_pzbuffer32[i * vid.width + j];
+
+				if (z32 < ZISCALE)
+				{
+					if (zmin > z32)
+						zmin = z32;
+					if (zmax < z32)
+						zmax = z32;
+				}
+
+				((unsigned int*)vid.buffer)[i * vid.width + j] = z32;
+			}
 		}
 	}
 

@@ -127,7 +127,7 @@ Adds command text at the end of the rgba
 */
 void Cbuf_AddText(char* text)
 {
-	Con_SafePrintf("adding %s to cmd_text\r\n", text);
+	//Con_SafePrintf("adding %s to cmd_text\r\n", text);
 	Cbuf_AddTextToBuffer((char*)text, &cmd_text);
 }
 
@@ -225,7 +225,7 @@ void Cbuf_InsertTextLines( char* text )
 
 	SZ_Write( &cmd_text, pBuffer, oldBufSize );
 	Z_Free( pBuffer );*/
-	Con_SafePrintf("inserting line %s to cmd_text\r\n", text);
+	//Con_SafePrintf("inserting line %s to cmd_text\r\n", text);
 	Cbuf_InsertTextToBuffer((char*)text, &cmd_text, true);
 }
 

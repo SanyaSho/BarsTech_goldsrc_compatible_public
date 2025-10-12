@@ -11,6 +11,7 @@ int	d_y_aspect_shift, d_pix_min, d_pix_max, d_pix_shift;
 
 int		d_scantable[MAXHEIGHT];
 short* zspantable[MAXHEIGHT];
+int* zspantable32[MAXHEIGHT];
 
 // вертикальные коэффициенты
 int d_vox_min, d_vox_max, d_vrectright_vox, d_vrectbottom_vox;
@@ -36,7 +37,12 @@ void D_ViewChanged(void)
 	int rowbytes;
 
 	if (r_dowarp)
-		rowbytes = WARP_WIDTH * sizeof(word);
+	{
+		if (r_pixbytes == 1)
+			rowbytes = WARP_WIDTH * sizeof(word);
+		else
+			rowbytes = WARP_WIDTH * r_pixbytes;
+	}
 	else
 		rowbytes = vid.rowbytes;
 
@@ -77,7 +83,10 @@ void D_ViewChanged(void)
 		for (i = 0; i < vid.height; i++)
 		{
 			d_scantable[i] = i * rowbytes;
-			zspantable[i] = d_pzbuffer + i * d_zwidth;
+			if (r_pixbytes == 1)
+				zspantable[i] = d_pzbuffer + i * d_zwidth;
+			else
+				zspantable32[i] = d_pzbuffer32 + i * d_zwidth;
 		}
 	}
 

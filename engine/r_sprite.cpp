@@ -221,6 +221,7 @@ R_DrawSprite
 void R_DrawSprite(void)
 {
 	unsigned short palette[256];
+	unsigned int palette32[256];
 	colorVec color;
 	msprite_t* psprite;
 
@@ -236,8 +237,16 @@ void R_DrawSprite(void)
 	// Get sprite color
 	R_SpriteColor(&color, currententity, r_blend);
 
-	UnpackPalette(palette, (word*)((byte*)psprite + psprite->paloffset), color.r, color.g, color.b);
-	r_palette = palette;
+	if (r_pixbytes == 1)
+	{
+		UnpackPalette(palette, (word*)((byte*)psprite + psprite->paloffset), color.r, color.g, color.b);
+		r_palette = palette;
+	}
+	else
+	{
+		UnpackPalette32(palette32, (word*)((byte*)psprite + psprite->paloffset), color.r, color.g, color.b);
+		r_palette32 = palette32;
+	}
 
 	sprite_width = r_spritedesc.pspriteframe->width;
 	sprite_height = r_spritedesc.pspriteframe->height;

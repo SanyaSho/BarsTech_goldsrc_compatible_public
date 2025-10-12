@@ -1361,7 +1361,10 @@ bool CVideoMode_SoftwareFullScreen::DDRAW_PreInit( void )
 		return false;
 	}
 
-	mode->bpp = 16;
+	if (r_pixbytes == 1)
+		mode->bpp = 16;
+	else
+		mode->bpp = r_pixbytes * 8;
 
 	if (m_bWindowed)
 	{
@@ -1431,7 +1434,11 @@ bool CVideoMode_SoftwareFullScreen::DDRAW_Init( void )
 	}
 
 	vmode_t* mode = GetCurrentMode();
-	mode->bpp = 16;
+
+	if (r_pixbytes == 1)
+		mode->bpp = 16;
+	else
+		mode->bpp = r_pixbytes * 8;
 
 	ReleaseSurfaces();
 
@@ -1516,8 +1523,15 @@ bool CVideoMode_SoftwareFullScreen::DDRAW_Init( void )
 		return false;
 	}
 
-	// Figure out bpp (RGB555 or RGB565)
-	vid.is15bit = ddpf.dwGBitMask == 0x3E0;
+	if (r_pixbytes == 1)
+	{
+		// Figure out bpp (RGB555 or RGB565)
+		vid.is15bit = ddpf.dwGBitMask == 0x3E0;
+	}
+	else
+	{
+		vid.is15bit = false;
+	}
 
 	// Initialize width/height/BPP for the global VID state
 	vid.width = vid.conwidth = mode->width;
@@ -1528,8 +1542,15 @@ bool CVideoMode_SoftwareFullScreen::DDRAW_Init( void )
 	vid.rowbytes = ddsd.dwLinearSize;
 	vid.buffer = vid.conbuffer = vid.direct = (pixel_t*)ddsd.lpSurface;
 
-	// Clear screen buffer
-	memset(vid.buffer, 0, mode->height * mode->width * 2);
+	if (r_pixbytes == 1)
+	{
+		// Clear screen buffer
+		memset(vid.buffer, 0, mode->height * mode->width * 2);
+	}
+	else
+	{
+		memset(vid.buffer, 0, mode->height * mode->width * r_pixbytes);
+	}
 
 	vid.direct = vid.buffer;
 	vid.conbuffer = vid.buffer;
@@ -1699,7 +1720,7 @@ void CVideoMode_SoftwareWindowed::DIB_Shutdown( void )
 //-----------------------------------------------------------------------------
 // Purpose: Builds our DIB section
 //-----------------------------------------------------------------------------
-bool CVideoMode_SoftwareWindowed::DIB_Init( void )
+bool CVideoMode_SoftwareWindowed::DIB_Init(void)
 {
 	int		width, height, bpp;
 
@@ -1737,7 +1758,12 @@ bool CVideoMode_SoftwareWindowed::DIB_Init( void )
 	m_pDIBHeader.header.biWidth = vid.width;
 	m_pDIBHeader.header.biHeight = vid.height;
 	m_pDIBHeader.header.biPlanes = 1;
-	m_pDIBHeader.header.biBitCount = 16;
+
+	if (r_pixbytes == 1)
+		m_pDIBHeader.header.biBitCount = 16;
+	else
+		m_pDIBHeader.header.biBitCount = r_pixbytes * 8;
+
 	m_pDIBHeader.header.biCompression = BI_BITFIELDS;
 	m_pDIBHeader.header.biSizeImage = 0;
 	m_pDIBHeader.header.biXPelsPerMeter = 0;
@@ -1748,9 +1774,18 @@ bool CVideoMode_SoftwareWindowed::DIB_Init( void )
 	/*
 	** fill in the palette
 	*/
-	m_pDIBHeader.acolors[0] = 63488;
-	m_pDIBHeader.acolors[1] = 2016;
-	m_pDIBHeader.acolors[2] = 31;
+	if (r_pixbytes == 1)
+	{
+		m_pDIBHeader.acolors[0] = 63488;
+		m_pDIBHeader.acolors[1] = 2016;
+		m_pDIBHeader.acolors[2] = 31;
+	}
+	else
+	{
+		m_pDIBHeader.acolors[0] = 0xff0000;
+		m_pDIBHeader.acolors[1] = 0x00ff00;
+		m_pDIBHeader.acolors[2] = 0x0000ff;
+	}
 
 	/*
 	** create the DIB section
@@ -1762,13 +1797,27 @@ bool CVideoMode_SoftwareWindowed::DIB_Init( void )
 
 	vid.buffer = (pixel_t*)m_pDIBBase;
 	vid.is15bit = false;
-	vid.rowbytes = 2 * vid.width;
-	vid.conrowbytes = 2 * vid.width;
 
-	/*
-	** clear the DIB memory buffer
-	*/
-	memset(vid.buffer, 0xFF, vid.width * vid.height);
+	if (r_pixbytes == 1)
+	{
+		vid.rowbytes = 2 * vid.width;
+		vid.conrowbytes = 2 * vid.width;
+
+		/*
+		** clear the DIB memory buffer
+		*/
+		memset(vid.buffer, 0xFF, vid.width * vid.height);
+	}
+	else
+	{
+		vid.rowbytes = r_pixbytes * vid.width;
+		vid.conrowbytes = r_pixbytes * vid.width;
+
+		/*
+		** clear the DIB memory buffer
+		*/
+		memset(vid.buffer, 0xFF, vid.width * vid.height);
+	}
 
 	m_hdcDIBSection = CreateCompatibleDC(ghdcDIB);
 	

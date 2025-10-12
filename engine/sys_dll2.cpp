@@ -376,6 +376,13 @@ int RunListenServer( void *instance, char *basedir, char *cmdline, char *postRes
 	TraceInit( "Sys_InitArgv( OrigCmd )", "Sys_ShutdownArgv()", 0 );
 	Sys_InitArgv( OrigCmd );
 
+#if !defined(GLQUAKE)
+	int is32bit = COM_CheckParm(const_cast<char*>("-32bit"));
+
+	if (is32bit != 0)
+		r_pixbytes = 4;
+#endif
+
 	eng->SetQuitting( IEngine::QUIT_NOTQUITTING );
 	registry->Init();
 	Steam_InitClient();
@@ -452,9 +459,20 @@ int Sys_GetSurfaceCacheSize( int width, int height )
 
 	size = SURFCACHE_SIZE_AT_320X200 * sizeof(color24);
 
-	pix = width*height*sizeof(WORD);
-	if( pix > 64000 )
-		size += ( pix - 64000 ) * sizeof(color24);
+	if (r_pixbytes == 1)
+	{
+		pix = width * height * sizeof(WORD);
+		if (pix > 64000)
+			size += (pix - 64000) * sizeof(color24);
+	}
+	else
+	{
+		//size += SURFCACHE_SIZE_AT_320X200;
+
+		pix = width * height * r_pixbytes;
+		if (pix > 128000)
+			size += (pix - 128000) * sizeof(color24);
+	}
 
 	return size;
 }

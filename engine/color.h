@@ -25,6 +25,7 @@
 
 #define PACKEDRGB565(r,g,b)	(unsigned short) ( (((r)<<8) & 0xF800) | (((g)<<3) & 0x07E0) | (((b)>>3)) )
 #define PACKEDRGB555(r,g,b)	(unsigned short) ( (((r)<<7) & 0x7C00) | (((g)<<2) & 0x03E0) | (((b)>>3)) )
+#define PACKEDRGB888(r,g,b)	(unsigned int)	 ( (((r)&0xFF) << 16 ) | (((g)&0xFF) << 8 ) | (((b)&0xff)))
 #define PALETTE24( dest, p, i )			( (dest)->r = (p)[ (i)*4 + 2 ], (dest)->g = (p)[ (i)*4 + 1 ], (dest)->b = (p)[ (i)*4 + 0 ] )
 #define RGB_RED565( c )			( ((c) & 0xF800) >> 11 )
 #define RGB_GREEN565( c )		( ((c) & 0x07E0) >> 5 )
@@ -34,11 +35,17 @@
 #define RGB_GREEN555( c )		( ((c) & 0x03E0) >> 5 )
 #define RGB_BLUE555( c )		( ((c) & 0x001F) )
 
+#define RGB_RED888( c )			( ((c) >> 16) & 0xFF )
+#define RGB_GREEN888( c )		( ((c) >> 8) & 0xFF )
+#define RGB_BLUE888( c )		( ((c) >> 0) & 0xFF )
+
 #define RGBPAL(p,i)		( ( ( (short) *(((p)+((i)*4)) + 2) << 8 ) & 0xf800 ) | ( ( (short) *(((p)+((i)*4)) + 1) << 3 ) & 0x07e0 ) | ( (short) *(((p)+((i)*4)) + 0) >> 3 ) )
 #define RGBPAL555(p,i)	( ( ( (short) *(((p)+((i)*4)) + 2) << 7 ) & 0x7C00 ) | ( ( (short) *(((p)+((i)*4)) + 1) << 2 ) & 0x03e0 ) | ( (short) *(((p)+((i)*4)) + 0) >> 3 ) )
+#define RGBPAL888(p,i)	( ( (unsigned char) *(((p)+((i)*4)) + 2) ) | ( (unsigned char) *(((p)+((i)*4)) + 1) ) << 8 | ( (unsigned char) *(((p)+((i)*4)) + 0) ) << 16 )
 
 extern "C" qboolean is15bit;
 extern "C" word *r_palette;
+extern "C" unsigned int *r_palette32;
 extern byte r_lut[65536];
 extern byte t_lut[65536];
 extern "C" word red_64klut[65536];

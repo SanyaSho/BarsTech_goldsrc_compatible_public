@@ -91,8 +91,16 @@ surfcache_t* D_SCAlloc(int width, int size)
 	if ((width < 0) || (width > 256))
 		Sys_Error("D_SCAlloc: bad cache width %d\n", width);
 
-	if ((size <= 0) || (size > 0x20000))
-		Sys_Error("D_SCAlloc: bad cache size %d\n", size);
+	if (r_pixbytes == 1)
+	{
+		if ((size <= 0) || (size > 0x20000))
+			Sys_Error("D_SCAlloc: bad cache size %d\n", size);
+	}
+	else
+	{
+		if ((size <= 0) || (size > 0x40000))
+			Sys_Error("D_SCAlloc: bad cache size %d\n", size);
+	}
 
 #ifdef __alpha__
 	size = (uintptr_t)((uintptr_t)&((surfcache_t*)0)->data[size]);
@@ -260,7 +268,12 @@ surfcache_t* D_CacheSurface(msurface_t* surface, int miplevel)
 	surfscale = 1.0 / (1 << miplevel);
 	r_drawsurf.surfmip = miplevel;
 	r_drawsurf.surfwidth = surface->extents[0] >> miplevel;
-	r_drawsurf.rowbytes = r_drawsurf.surfwidth * 2;
+	
+	if (r_pixbytes == 1)
+		r_drawsurf.rowbytes = r_drawsurf.surfwidth * 2;
+	else
+		r_drawsurf.rowbytes = r_drawsurf.surfwidth * r_pixbytes;
+
 	r_drawsurf.surfheight = surface->extents[1] >> miplevel;
 
 	//
@@ -291,7 +304,11 @@ surfcache_t* D_CacheSurface(msurface_t* surface, int miplevel)
 	r_drawsurf.surf = surface;
 
 	c_surf++;
-	R_DrawSurface();
+
+	if (r_pixbytes == 1)
+		R_DrawSurface();
+	else
+		R_DrawSurface32();
 
 	return surface->cachespots[miplevel];
 }

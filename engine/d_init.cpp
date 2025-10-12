@@ -29,6 +29,7 @@ word * gWaterLastPalette;
 short watertex[CYCLE * CYCLE], watertex2[CYCLE * CYCLE];
 
 colorVec d_fogtable[64][64];
+colorVec d_fogtable32[64][256];
 
 void D_BuildFogTable(qboolean blend)
 {
@@ -76,31 +77,43 @@ void D_BuildFogTable(qboolean blend)
 			// 16b warp unit
 			if (blend != 0)
 			{
-				int colorinc = level * (-8), colorinc_g = level * (-4);
+				int colorinc = level * (-8), colorinc_g = level * (-4), colorinc32 = -level;
 				startR = level * d_fader;
 				startG = level * d_fadeg;
 				startB = level * d_fadeb;
 
-				if (is15bit)
+				if (r_pixbytes == 1)
 				{
-					for (int j = 0; j < 32; j++)
+					if (is15bit)
 					{
-						d_fogtable[i][j].r = ((j * 8 + ((startR + j * colorinc) >> 8)) >> 3) << 10;
-						d_fogtable[i][j].g = ((j * 8 + ((startG + j * colorinc) >> 8)) >> 3) << 5;
-						d_fogtable[i][j].b = ((j * 8 + ((startB + j * colorinc) >> 8)) >> 3) << 0;
+						for (int j = 0; j < 32; j++)
+						{
+							d_fogtable[i][j].r = ((j * 8 + ((startR + j * colorinc) >> 8)) >> 3) << 10;
+							d_fogtable[i][j].g = ((j * 8 + ((startG + j * colorinc) >> 8)) >> 3) << 5;
+							d_fogtable[i][j].b = ((j * 8 + ((startB + j * colorinc) >> 8)) >> 3) << 0;
+						}
+					}
+					else
+					{
+						for (int j = 0; j < 32; j++)
+						{
+							d_fogtable[i][j].r = ((j * 8 + ((startR + j * colorinc) >> 8)) >> 3) << 11;
+							d_fogtable[i][j].b = ((j * 8 + ((startB + j * colorinc) >> 8)) >> 3) << 0;
+						}
+
+						for (int j = 0; j < 64; j++)
+						{
+							d_fogtable[i][j].g = ((j * 4 + ((startG + j * colorinc_g) >> 8)) >> 2) << 5;
+						}
 					}
 				}
 				else
 				{
-					for (int j = 0; j < 32; j++)
+					for (int j = 0; j < 256; j++)
 					{
-						d_fogtable[i][j].r = ((j * 8 + ((startR + j * colorinc) >> 8)) >> 3) << 11;
-						d_fogtable[i][j].b = ((j * 8 + ((startB + j * colorinc) >> 8)) >> 3) << 0;
-					}
-
-					for (int j = 0; j < 64; j++)
-					{
-						d_fogtable[i][j].g = ((j * 4 + ((startG + j * colorinc_g) >> 8)) >> 2) << 5;
+						d_fogtable32[i][j].r = ((j + ((startR + j * colorinc32) >> 8)) & 0xFF);
+						d_fogtable32[i][j].g = ((j + ((startG + j * colorinc32) >> 8)) & 0xFF);
+						d_fogtable32[i][j].b = ((j + ((startB + j * colorinc32) >> 8)) & 0xFF);
 					}
 				}
 			}
@@ -111,26 +124,38 @@ void D_BuildFogTable(qboolean blend)
 				startG = (255 * (255 - level) + level * d_fadeg) >> 8;
 				startB = (255 * (255 - level) + level * d_fadeb) >> 8;
 
-				if (is15bit)
+				if (r_pixbytes == 1)
 				{
-					for (int j = 0; j < 32; j++)
+					if (is15bit)
 					{
-						d_fogtable[i][j].r = ((8 * j * startR) >> 11) << 10;
-						d_fogtable[i][j].g = ((8 * j * startG) >> 11) << 5;
-						d_fogtable[i][j].b = ((8 * j * startB) >> 11) << 0;
+						for (int j = 0; j < 32; j++)
+						{
+							d_fogtable[i][j].r = (((8 * j * startR) >> 8) >> 3) << 10;
+							d_fogtable[i][j].g = (((8 * j * startG) >> 8) >> 3) << 5;
+							d_fogtable[i][j].b = (((8 * j * startB) >> 8) >> 3) << 0;
+						}
+					}
+					else
+					{
+						for (int j = 0; j < 32; j++)
+						{
+							d_fogtable[i][j].r = (((8 * j * startR) >> 8) >> 3) << 11;
+							d_fogtable[i][j].b = (((8 * j * startB) >> 8) >> 3) << 0;
+						}
+
+						for (int j = 0; j < 64; j++)
+						{
+							d_fogtable[i][j].g = (((4 * j * startG) >> 8) >> 2) << 5;
+						}
 					}
 				}
 				else
 				{
-					for (int j = 0; j < 32; j++)
+					for (int j = 0; j < 256; j++)
 					{
-						d_fogtable[i][j].r = ((8 * j * startR) >> 11) << 11;
-						d_fogtable[i][j].b = ((8 * j * startB) >> 11) << 0;
-					}
-
-					for (int j = 0; j < 64; j++)
-					{
-						d_fogtable[i][j].g = ((4 * j * startG) >> 10) << 5;
+						d_fogtable32[i][j].r = (((j * startR) >> 8) & 0xFF);
+						d_fogtable32[i][j].g = (((j * startG) >> 8) & 0xFF);
+						d_fogtable32[i][j].b = (((j * startB) >> 8) & 0xFF);
 					}
 				}
 
@@ -209,7 +234,7 @@ void D_Init(void)
 	r_worldpolysbacktofront = false;
 	r_aliasuvscale = 1.0;
 	r_recursiveaffinetriangles = true;
-	r_pixbytes = 1;
+	//r_pixbytes = 4;
 
 	D_InitFade();
 }
@@ -244,7 +269,12 @@ void D_SetupFrame(void)
 		d_viewbuffer = vid.buffer;
 
 	if (r_dowarp)
-		screenwidth = WARP_WIDTH * sizeof(word);
+	{
+		if (r_pixbytes == 1)
+			screenwidth = WARP_WIDTH * sizeof(word);
+		else
+			screenwidth = WARP_WIDTH * sizeof(unsigned int);
+	}
 	else
 		screenwidth = vid.rowbytes;
 

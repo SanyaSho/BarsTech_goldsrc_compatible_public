@@ -394,11 +394,19 @@ void tri_Soft_Color4f( float r, float g, float b, float a )
 		g = filterBrightness * filterColorGreen;
 		b = filterBrightness * filterColorBlue;
 	}
+
+	if (r_pixbytes != 1)
+	{
+		if (r > 1) r /= 255.0f;
+		if (g > 1) g /= 255.0f;
+		if (b > 1) b /= 255.0f;
+		if (a > 1) a /= 255.0f;
+	}
+
 	r_icolormix.r = (int)(r * 49280.0f) & 0xFF00;
 	r_icolormix.g = (int)(g * 49280.0f) & 0xFF00;
 	r_icolormix.b = (int)(b * 49280.0f) & 0xFF00;
 	r_blend = (int)(a * 255.0f);
-
 }
 
 void tri_Soft_Color4ub( byte r, byte g, byte b, byte a )

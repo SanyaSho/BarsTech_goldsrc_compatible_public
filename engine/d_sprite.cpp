@@ -12,6 +12,120 @@ static sspan_t	*sprite_spans;
 
 void (*spritedraw)(sspan_t* pspan) = D_SpriteDrawSpans;
 
+
+void D_SpriteDrawSpans32(sspan_t* pspan)
+{
+	int			count, spancount;
+	int			izi;
+	byte* pbase;
+	unsigned int *pdest;
+	fixed16_t	s, t, snext, tnext, sstep, tstep;
+	float		sdivz, tdivz, z, du, dv, spancountminus1;
+	byte		btemp;
+	int* pz;
+
+	set_fpu_cw();
+
+	sstep = 0;	// keep compiler happy
+	tstep = 0;	// ditto
+
+	pbase = cacheblock;
+
+	z = (float)INFINITE_DISTANCE / d_ziorigin;
+	d_spanzi = (int)(d_ziorigin * (float)ZISCALE * (float)INFINITE_DISTANCE);
+
+	izi = d_spanzi;
+
+	do
+	{
+		pdest = (unsigned int*)&d_viewbuffer[sizeof(unsigned int) * pspan->u + screenwidth * pspan->v];
+		pz = &zspantable32[pspan->v][pspan->u];
+
+		count = pspan->count;
+
+		if (count <= 0)
+			goto NextSpan;
+
+		// calculate the initial s/z, t/z, 1/z, s, and t and clamp
+		du = (float)pspan->u;
+		dv = (float)pspan->v;
+
+		sdivz = d_sdivzorigin + dv * d_sdivzstepv + du * d_sdivzstepu;
+		tdivz = d_tdivzorigin + dv * d_tdivzstepv + du * d_tdivzstepu;
+		d_spanzi = (int)(sdivz * z);
+
+		s = d_spanzi + sadjust;
+		if (s > bbextents)
+			s = bbextents;
+		else if (s < 0)
+			s = 0;
+
+		d_spanzi = (int)(tdivz * z);
+
+		t = d_spanzi + tadjust;
+		if (t > bbextentt)
+			t = bbextentt;
+		else if (t < 0)
+			t = 0;
+
+		spancount = count;
+
+		// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
+		// can't step off polygon), clamp, calculate s and t steps across
+		// span by division, biasing steps low so we don't run off the
+		// texture
+		spancountminus1 = (float)(spancount - 1);
+		sdivz += d_sdivzstepu * spancountminus1;
+		tdivz += d_tdivzstepu * spancountminus1;
+		d_spanzi = (int)(sdivz * z);
+
+		snext = d_spanzi + sadjust;
+		if (snext > bbextents)
+			snext = bbextents;
+		else if (snext < 8)
+			snext = 8;	// prevent round-off error on <0 steps from
+		//  from causing overstepping & running off the
+		//  edge of the texture
+
+		d_spanzi = (int)(tdivz * z);
+
+		tnext = d_spanzi + tadjust;
+		if (tnext > bbextentt)
+			tnext = bbextentt;
+		else if (tnext < 8)
+			tnext = 8;	// guard against round-off error on <0 steps
+
+		if (spancount > 1)
+		{
+			sstep = (snext - s) / (spancount - 1);
+			tstep = (tnext - t) / (spancount - 1);
+		}
+
+		do
+		{
+			btemp = pbase[(s >> 16) + (t >> 16) * cachewidth];
+			if (btemp != TRANSPARENT_COLOR)
+			{
+				if (*pz <= izi)
+				{
+					*pz = izi;
+					*pdest = r_palette32[btemp];
+				}
+			}
+
+			pdest++;
+			pz++;
+			s += sstep;
+			t += tstep;
+		} while (--spancount > 0);
+
+	NextSpan:
+		pspan++;
+
+	} while (pspan->count != DS_SPAN_LIST_END);
+	restore_fpu_cw();
+}
+
 /*
 =====================
 D_SpriteDrawSpans
@@ -27,6 +141,12 @@ void D_SpriteDrawSpans(sspan_t* pspan)
 	float		sdivz, tdivz, z, du, dv, spancountminus1;
 	byte		btemp;
 	short* pz;
+
+	if (r_pixbytes != 1)
+	{
+		D_SpriteDrawSpans32(pspan);
+		return;
+	}
 
 	set_fpu_cw();
 
@@ -130,6 +250,117 @@ void D_SpriteDrawSpans(sspan_t* pspan)
 	restore_fpu_cw();
 }
 
+void D_SpriteDrawSpansTrans32(sspan_t* pspan)
+{
+	int			count, spancount;
+	int			izi;
+	byte		*pbase;
+	unsigned int*pdest;
+	fixed16_t	s, t, snext, tnext, sstep, tstep;
+	float		sdivz, tdivz, zi, z, du, dv, spancountminus1;
+	float		sdivz8stepu, tdivz8stepu, zi8stepu;
+	byte		btemp;
+	int			*pz;
+
+	set_fpu_cw();
+
+	sstep = 0;
+	tstep = 0;
+	pbase = cacheblock;
+
+	z = (float)INFINITE_DISTANCE / d_ziorigin;
+	d_spanzi = (int)(d_ziorigin * (float)ZISCALE * (float)INFINITE_DISTANCE);
+
+	izi = d_spanzi;
+
+	do
+	{
+		pdest = (unsigned int*)((byte *)d_viewbuffer + (screenwidth * pspan->v) + pspan->u * sizeof(unsigned int));
+		pz = &zspantable32[pspan->v][pspan->u];
+
+		count = pspan->count;
+
+		if (count <= 0)
+			goto NextSpan;
+
+		// calculate the initial s/z, t/z, 1/z, s, and t and clamp
+		du = (float)pspan->u;
+		dv = (float)pspan->v;
+
+		sdivz = d_sdivzorigin + dv*d_sdivzstepv + du*d_sdivzstepu;
+		tdivz = d_tdivzorigin + dv*d_tdivzstepv + du*d_tdivzstepu;
+
+		d_spanzi = sdivz * z;
+		s = (int)(sdivz * z) + sadjust;
+		if (s > bbextents)
+			s = bbextents;
+		else if (s < 0)
+			s = 0;
+
+		d_spanzi = z * tdivz;
+		t = (int)(tdivz * z) + tadjust;
+		if (t > bbextentt)
+			t = bbextentt;
+		else if (t < 0)
+			t = 0;
+
+		spancount = count;
+
+		// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
+		// can't step off polygon), clamp, calculate s and t steps across
+		// span by division, biasing steps low so we don't run off the
+		// texture
+		spancountminus1 = (float)(spancount - 1);
+		sdivz += d_sdivzstepu * spancountminus1;
+		tdivz += d_tdivzstepu * spancountminus1;
+
+		d_spanzi = (int)(sdivz * z);
+		snext = (int)(sdivz * z) + sadjust;
+		if (snext > bbextents)
+			snext = bbextents;
+		else if (snext < 8)
+			snext = 8;	// prevent round-off error on <0 steps from
+		//  from causing overstepping & running off the
+		//  edge of the texture
+
+		d_spanzi = (int)(tdivz * z);
+		tnext = (int)(tdivz * z) + tadjust;
+		if (tnext > bbextentt)
+			tnext = bbextentt;
+		else if (tnext < 8)
+			tnext = 8;	// guard against round-off error on <0 steps
+
+		if (spancount > 1)
+		{
+			sstep = (snext - s) / (spancount - 1);
+			tstep = (tnext - t) / (spancount - 1);
+		}
+
+		do
+		{
+			btemp = pbase[(s >> 16) + (t >> 16) * cachewidth];
+			if (btemp != TRANSPARENT_COLOR && *pz <= izi)
+			{
+				int r = ScaleToColor(RGB_RED888(*pdest), RGB_RED888(r_palette32[btemp]), 0xFF, r_blend) & 0xFF;
+				int g = ScaleToColor(RGB_GREEN888(*pdest), RGB_GREEN888(r_palette32[btemp]), 0xFF, r_blend) & 0xFF;
+				int b = ScaleToColor(RGB_BLUE888(*pdest), RGB_BLUE888(r_palette32[btemp]), 0xFF, r_blend) & 0xFF;
+
+				*pdest = mask_a_32 | PACKEDRGB888(r, g, b);
+			}
+
+			pdest++;
+			pz++;
+			s += sstep;
+			t += tstep;
+		} while (--spancount > 0);
+
+	NextSpan:
+		pspan++;
+
+	} while (pspan->count != DS_SPAN_LIST_END);
+	restore_fpu_cw();
+}
+
 void D_SpriteDrawSpansTrans(sspan_t* pspan)
 {
 	int			count, spancount;
@@ -141,6 +372,12 @@ void D_SpriteDrawSpansTrans(sspan_t* pspan)
 	float		sdivz8stepu, tdivz8stepu, zi8stepu;
 	byte		btemp;
 	short		*pz;
+
+	if (r_pixbytes != 1)
+	{
+		D_SpriteDrawSpansTrans32(pspan);
+		return;
+	}
 
 	set_fpu_cw();
 
@@ -250,6 +487,134 @@ void D_SpriteDrawSpansTrans(sspan_t* pspan)
 	restore_fpu_cw();
 }
 
+void D_SpriteDrawSpansAdd32(sspan_t* pspan)
+{
+	int			count, spancount;
+	int			izi;
+	byte* pbase;
+	unsigned int *pdest;
+	fixed16_t	s, t, snext, tnext, sstep, tstep;
+	float		sdivz, tdivz, z, du, dv, spancountminus1;
+	byte		btemp;
+	unsigned int color;
+	int* pz;
+
+	set_fpu_cw();
+
+	sstep = 0;	// keep compiler happy
+	tstep = 0;	// ditto
+
+	pbase = cacheblock;
+
+	z = (float)INFINITE_DISTANCE / d_ziorigin;
+	d_spanzi = (int)(d_ziorigin * (float)ZISCALE * (float)INFINITE_DISTANCE);
+
+	izi = d_spanzi;
+
+	do
+	{
+		pdest = (unsigned int*)&d_viewbuffer[sizeof(unsigned int) * pspan->u + screenwidth * pspan->v];
+		pz = &zspantable32[pspan->v][pspan->u];
+
+		count = pspan->count;
+
+		if (count <= 0)
+			goto NextSpan;
+
+		// calculate the initial s/z, t/z, 1/z, s, and t and clamp
+		du = (float)pspan->u;
+		dv = (float)pspan->v;
+
+		sdivz = d_sdivzorigin + dv * d_sdivzstepv + du * d_sdivzstepu;
+		tdivz = d_tdivzorigin + dv * d_tdivzstepv + du * d_tdivzstepu;
+		d_spanzi = (int)(sdivz * z);
+
+		s = d_spanzi + sadjust;
+		if (s > bbextents)
+			s = bbextents;
+		else if (s < 0)
+			s = 0;
+
+		d_spanzi = (int)(tdivz * z);
+
+		t = d_spanzi + tadjust;
+		if (t > bbextentt)
+			t = bbextentt;
+		else if (t < 0)
+			t = 0;
+
+		spancount = count;
+
+		// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
+		// can't step off polygon), clamp, calculate s and t steps across
+		// span by division, biasing steps low so we don't run off the
+		// texture
+		spancountminus1 = (float)(spancount - 1);
+		sdivz += d_sdivzstepu * spancountminus1;
+		tdivz += d_tdivzstepu * spancountminus1;
+		d_spanzi = (int)(sdivz * z);
+
+		snext = d_spanzi + sadjust;
+		if (snext > bbextents)
+			snext = bbextents;
+		else if (snext < 8)
+			snext = 8;	// prevent round-off error on <0 steps from
+		//  from causing overstepping & running off the
+		//  edge of the texture
+
+		d_spanzi = (int)(tdivz * z);
+
+		tnext = d_spanzi + tadjust;
+		if (tnext > bbextentt)
+			tnext = bbextentt;
+		else if (tnext < 8)
+			tnext = 8;	// guard against round-off error on <0 steps
+
+		if (spancount > 1)
+		{
+			sstep = (snext - s) / (spancount - 1);
+			tstep = (tnext - t) / (spancount - 1);
+		}
+
+		do
+		{
+			btemp = pbase[(s >> 16) + (t >> 16) * cachewidth];
+			color = r_palette32[btemp];
+			if (color & 0x00FFFFFF)
+			{
+				if (*pz <= izi)
+				{
+					int r_result = RGB_RED888(color) + RGB_RED888(*pdest);
+					int g_result = RGB_GREEN888(color) + RGB_GREEN888(*pdest);
+					int b_result = RGB_BLUE888(color) + RGB_BLUE888(*pdest);
+
+					if (r_result > 255 || g_result > 255 || b_result > 255)
+					{
+						int max_comp = max(max(r_result, g_result), b_result);
+						float scale = 255.0f / (float)max_comp;
+						// saturate
+						r_result = (int)((float)r_result * scale);
+						g_result = (int)((float)g_result * scale);
+						b_result = (int)((float)b_result * scale);
+					}
+
+					*pdest = mask_a_32 | PACKEDRGB888(r_result, g_result, b_result);
+				}
+			}
+
+			pdest++;
+			pz++;
+			s += sstep;
+			t += tstep;
+		} while (--spancount > 0);
+
+	NextSpan:
+		pspan++;
+
+	} while (pspan->count != DS_SPAN_LIST_END);
+	restore_fpu_cw();
+}
+
 /*
 =====================
 D_SpriteDrawSpansAdd
@@ -267,7 +632,12 @@ void D_SpriteDrawSpansAdd(sspan_t* pspan)
 	short       color;
 	short* pz;
 
-	//    new_cw = old_cw | 0xC00;
+	if (r_pixbytes != 1)
+	{
+		D_SpriteDrawSpansAdd32(pspan);
+		return;
+	}
+
 	set_fpu_cw();
 
 	sstep = 0;	// keep compiler happy
@@ -417,6 +787,120 @@ void D_SpriteDrawSpansAdd(sspan_t* pspan)
 	restore_fpu_cw();
 }
 
+void D_SpriteDrawSpansGlow32(sspan_t* pspan)
+{
+	int			count, spancount;
+	byte		*pbase;
+	unsigned int*pdest;
+	fixed16_t	s, t, snext, tnext, sstep, tstep;
+	float		sdivz, tdivz, zi, z, du, dv, spancountminus1;
+	float		sdivz8stepu, tdivz8stepu, zi8stepu;
+	unsigned int btemp;
+
+	set_fpu_cw();
+
+	sstep = 0;
+	tstep = 0;
+	pbase = cacheblock;
+
+	z = (float)INFINITE_DISTANCE / d_ziorigin;
+	d_spanzi = (int)(d_ziorigin * (float)ZISCALE * (float)INFINITE_DISTANCE);
+
+	do
+	{
+		pdest = (unsigned int*)((byte *)d_viewbuffer + (screenwidth * pspan->v) + pspan->u * sizeof(unsigned int));
+		count = pspan->count;
+
+		if (count <= 0)
+			goto NextSpan;
+
+		// calculate the initial s/z, t/z, 1/z, s, and t and clamp
+		du = (float)pspan->u;
+		dv = (float)pspan->v;
+
+		sdivz = d_sdivzorigin + dv*d_sdivzstepv + du*d_sdivzstepu;
+		tdivz = d_tdivzorigin + dv*d_tdivzstepv + du*d_tdivzstepu;
+
+		d_spanzi = sdivz * z;
+		s = (int)(sdivz * z) + sadjust;
+		if (s > bbextents)
+			s = bbextents;
+		else if (s < 0)
+			s = 0;
+
+		d_spanzi = z * tdivz;
+		t = (int)(tdivz * z) + tadjust;
+		if (t > bbextentt)
+			t = bbextentt;
+		else if (t < 0)
+			t = 0;
+
+		spancount = count;
+
+		// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
+		// can't step off polygon), clamp, calculate s and t steps across
+		// span by division, biasing steps low so we don't run off the
+		// texture
+		spancountminus1 = (float)(spancount - 1);
+		sdivz += d_sdivzstepu * spancountminus1;
+		tdivz += d_tdivzstepu * spancountminus1;
+
+		d_spanzi = (int)(sdivz * z);
+		snext = (int)(sdivz * z) + sadjust;
+		if (snext > bbextents)
+			snext = bbextents;
+		else if (snext < 8)
+			snext = 8;	// prevent round-off error on <0 steps from
+		//  from causing overstepping & running off the
+		//  edge of the texture
+
+		d_spanzi = (int)(tdivz * z);
+		tnext = (int)(tdivz * z) + tadjust;
+		if (tnext > bbextentt)
+			tnext = bbextentt;
+		else if (tnext < 8)
+			tnext = 8;	// guard against round-off error on <0 steps
+
+		if (spancount > 1)
+		{
+			sstep = (snext - s) / (spancount - 1);
+			tstep = (tnext - t) / (spancount - 1);
+		}
+
+		do
+		{
+			btemp = r_palette32[pbase[(s >> 16) + (t >> 16) * cachewidth]];
+			if ((btemp & 0x00FFFFFF) != 0)
+			{
+				int r_result = RGB_RED888(btemp) + RGB_RED888(*pdest);
+				int g_result = RGB_GREEN888(btemp) + RGB_GREEN888(*pdest);
+				int b_result = RGB_BLUE888(btemp) + RGB_BLUE888(*pdest);
+
+				if (r_result > 255 || g_result > 255 || b_result > 255)
+				{
+					int max_comp = max(max(r_result, g_result), b_result);
+					float scale = 255.0f / (float)max_comp;
+					// saturate
+					r_result = (int)((float)r_result * scale);
+					g_result = (int)((float)g_result * scale);
+					b_result = (int)((float)b_result * scale);
+				}
+
+				*pdest = mask_a_32 | PACKEDRGB888(r_result, g_result, b_result);
+			}
+
+			pdest++;
+			s += sstep;
+			t += tstep;
+		} while (--spancount > 0);
+
+	NextSpan:
+		pspan++;
+
+	} while (pspan->count != DS_SPAN_LIST_END);
+	restore_fpu_cw();
+}
+
 void D_SpriteDrawSpansGlow(sspan_t* pspan)
 {
 	int			count, spancount;
@@ -427,6 +911,12 @@ void D_SpriteDrawSpansGlow(sspan_t* pspan)
 	float		sdivz, tdivz, zi, z, du, dv, spancountminus1;
 	float		sdivz8stepu, tdivz8stepu, zi8stepu;
 	word		btemp;
+
+	if (r_pixbytes != 1)
+	{
+		D_SpriteDrawSpansGlow32(pspan);
+		return;
+	}
 
 	set_fpu_cw();
 
@@ -555,6 +1045,129 @@ void D_SpriteDrawSpansGlow(sspan_t* pspan)
 	restore_fpu_cw();
 }
 
+void D_SpriteDrawSpansAlpha32(sspan_t* pspan)
+{
+	int			count, spancount;
+	int			izi;
+	byte		*pbase;
+	unsigned int*pdest;
+	fixed16_t	s, t, snext, tnext, sstep, tstep;
+	float		sdivz, tdivz, zi, z, du, dv, spancountminus1;
+	float		sdivz8stepu, tdivz8stepu, zi8stepu;
+	byte		btemp;
+	int			*pz;
+	int src_r, src_g, src_b;
+
+	src_r = RGB_RED888(r_palette32[255]);
+	src_g = RGB_GREEN888(r_palette32[255]);
+	src_b = RGB_BLUE888(r_palette32[255]);
+
+	set_fpu_cw();
+
+	sstep = 0;
+	tstep = 0;
+	pbase = cacheblock;
+
+	z = (float)INFINITE_DISTANCE / d_ziorigin;
+	d_spanzi = (int)(d_ziorigin * (float)ZISCALE * (float)INFINITE_DISTANCE);
+
+	izi = d_spanzi;
+
+	do
+	{
+		pdest = (unsigned int*)((byte *)d_viewbuffer + (screenwidth * pspan->v) + pspan->u * sizeof(unsigned int));
+		pz = &zspantable32[pspan->v][pspan->u];
+
+		count = pspan->count;
+
+		if (count <= 0)
+			goto NextSpan;
+
+		// calculate the initial s/z, t/z, 1/z, s, and t and clamp
+		du = (float)pspan->u;
+		dv = (float)pspan->v;
+
+		sdivz = d_sdivzorigin + dv*d_sdivzstepv + du*d_sdivzstepu;
+		tdivz = d_tdivzorigin + dv*d_tdivzstepv + du*d_tdivzstepu;
+
+		d_spanzi = sdivz * z;
+		s = (int)(sdivz * z) + sadjust;
+		if (s > bbextents)
+			s = bbextents;
+		else if (s < 0)
+			s = 0;
+
+		d_spanzi = z * tdivz;
+		t = (int)(tdivz * z) + tadjust;
+		if (t > bbextentt)
+			t = bbextentt;
+		else if (t < 0)
+			t = 0;
+
+		spancount = count;
+
+		// calculate s/z, t/z, zi->fixed s and t at last pixel in span (so
+		// can't step off polygon), clamp, calculate s and t steps across
+		// span by division, biasing steps low so we don't run off the
+		// texture
+		spancountminus1 = (float)(spancount - 1);
+		sdivz += d_sdivzstepu * spancountminus1;
+		tdivz += d_tdivzstepu * spancountminus1;
+
+		d_spanzi = (int)(sdivz * z);
+		snext = (int)(sdivz * z) + sadjust;
+		if (snext > bbextents)
+			snext = bbextents;
+		else if (snext < 8)
+			snext = 8;	// prevent round-off error on <0 steps from
+		//  from causing overstepping & running off the
+		//  edge of the texture
+
+		d_spanzi = (int)(tdivz * z);
+		tnext = (int)(tdivz * z) + tadjust;
+		if (tnext > bbextentt)
+			tnext = bbextentt;
+		else if (tnext < 8)
+			tnext = 8;	// guard against round-off error on <0 steps
+
+		if (spancount > 1)
+		{
+			sstep = (snext - s) / (spancount - 1);
+			tstep = (tnext - t) / (spancount - 1);
+		}
+		
+		do
+		{
+			btemp = pbase[(s >> 16) + (t >> 16) * cachewidth];
+			if (btemp != 0 && *pz <= izi)
+			{
+				int r = RGB_RED888(*pdest);
+				int g = RGB_GREEN888(*pdest);
+				int b = RGB_BLUE888(*pdest);
+
+				int alpha = btemp & lowcleanmask(4);
+				int inv_alpha = 255 - alpha;
+
+				int r_result = (src_r * alpha + r * inv_alpha) / 255;
+				int g_result = (src_g * alpha + g * inv_alpha) / 255;
+				int b_result = (src_b * alpha + b * inv_alpha) / 255;
+
+				*pdest = mask_a_32 | PACKEDRGB888(r_result, g_result, b_result);
+			}
+
+			pdest++;
+			pz++;
+			s += sstep;
+			t += tstep;
+		} while (--spancount > 0);
+
+	NextSpan:
+		pspan++;
+
+	} while (pspan->count != DS_SPAN_LIST_END);
+	restore_fpu_cw();
+}
+
 void D_SpriteDrawSpansAlpha(sspan_t* pspan)
 {
 	int			count, spancount;
@@ -570,6 +1183,12 @@ void D_SpriteDrawSpansAlpha(sspan_t* pspan)
 	DWORD transparent_split;
 	int newcolor;
 	unsigned int redpart, newcolor15bit;
+
+	if (r_pixbytes != 1)
+	{
+		D_SpriteDrawSpansAlpha32(pspan);
+		return;
+	}
 
 	redblue = is15bit != 0 ? mask_r_15 | mask_b_15 : mask_r_16 | mask_b_16;
 	green = is15bit != 0 ? mask_g_15 : mask_g_16;

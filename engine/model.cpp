@@ -1743,11 +1743,11 @@ void* Mod_LoadAliasSkin( void* pin, int* pskinindex, int skinsize,
 {
 	byte* pskin, * pinskin;
 
-	pskin = (byte*)Hunk_AllocName(skinsize * r_pixbytes, loadname);
+	pskin = (byte*)Hunk_AllocName(skinsize * (r_pixbytes == 4 ? 1 : r_pixbytes), loadname);
 	pinskin = (byte*)pin;
 	*pskinindex = (byte*)pskin - (byte*)pheader;
 
-	if (r_pixbytes == 1)
+	if (r_pixbytes == 1 || r_pixbytes == 4)
 	{
 		Q_memcpy(pskin, pinskin, skinsize);
 	}
@@ -2049,7 +2049,7 @@ void Mod_LoadAliasModel( model_t* mod, void* buffer )
 		pSource++;
 	}
 
-	/*pheader->palette*/*(int*)((byte*)pheader + 16) = (byte*)pPalette - (byte*)pheader;
+	pheader->palette = (byte*)pPalette - (byte*)pheader;
 
 	//
 	// move the complete, relocatable alias model to the cache
@@ -2084,10 +2084,10 @@ void* Mod_LoadSpriteFrame( void* pin, mspriteframe_t** ppframe )
 	height = LittleLong(pinframe->height);
 	size = width * height;
 
-	pspriteframe = (mspriteframe_t*)Hunk_AllocName(sizeof(mspriteframe_t) + size * r_pixbytes,
+	pspriteframe = (mspriteframe_t*)Hunk_AllocName(sizeof(mspriteframe_t) + size * (r_pixbytes == 4 ? 1 : r_pixbytes),
 		loadname);
 
-	Q_memset(pspriteframe, 0, sizeof(mspriteframe_t) + size * r_pixbytes);
+	Q_memset(pspriteframe, 0, sizeof(mspriteframe_t) + size * (r_pixbytes == 4 ? 1 : r_pixbytes));
 	*ppframe = pspriteframe;
 
 	pspriteframe->width = width;
@@ -2100,7 +2100,7 @@ void* Mod_LoadSpriteFrame( void* pin, mspriteframe_t** ppframe )
 	pspriteframe->left = (float)origin[0];
 	pspriteframe->right = (float)(width + origin[0]);
 
-	if (r_pixbytes == 1)
+	if (r_pixbytes == 1 || r_pixbytes == 4)
 	{
 		Q_memcpy(&pspriteframe->pixels[0], (byte*)(pinframe + 1), size);
 	}

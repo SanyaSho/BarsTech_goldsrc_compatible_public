@@ -3,6 +3,7 @@
 #include "quakedef.h"
 #include "d_local.h"
 #include "r_local.h"
+#include "host.h"
 
 /*
 ==============
@@ -35,9 +36,12 @@ void D_DrawParticle(particle_t *pparticle)
 	vec3_t	local, transformed;
 	float	zi;
 	byte	*pdest;
+	unsigned int* pdest32;
 	short	*pz;
-	int		i, izi, pix, count, u, v;
+	int		*pz32;
+	int		i, izi, izi32, pix, count, u, v;
 	short packed;
+	unsigned int packed32;
 
 	// transform point
 	VectorSubtract(pparticle->org, r_origin, local);
@@ -78,9 +82,20 @@ void D_DrawParticle(particle_t *pparticle)
 
 	packed = pparticle->packedColor;
 
-	pz = zspantable[v] + u;
-	pdest = d_viewbuffer + d_scantable[v] + u * sizeof(word);
+	if (r_pixbytes == 1)
+	{
+		pz = zspantable[v] + u;
+		pdest = d_viewbuffer + d_scantable[v] + u * sizeof(word);
+	}
+	else
+	{
+		packed32 = hlRGB32(host_basepal, pparticle->color);
+		pz32 = zspantable32[v] + u;
+		pdest32 = (unsigned int*)(d_viewbuffer + d_scantable[v] + u * sizeof(unsigned int));
+	}
+
 	izi = (int)(zi * ZISCALE);
+	izi32 = (int)(zi * ZISCALE * INFINITE_DISTANCE);
 
 	pix = izi >> d_pix_shift;
 
@@ -99,110 +114,222 @@ void D_DrawParticle(particle_t *pparticle)
 			pix = d_pix_max;
 	}
 
-	switch (pix)
+	if (r_pixbytes == 1)
 	{
-	case 1:
-		count = 1 << d_y_aspect_shift;
-
-		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+		switch (pix)
 		{
-			if (pz[0] <= izi)
+		case 1:
+			count = 1 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
 			{
-				pz[0] = izi;
-				((WORD*)pdest)[0] = pparticle->packedColor;
-			}
-		}
-		break;
-
-	case 2:
-		count = 2 << d_y_aspect_shift;
-
-		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
-		{
-			if (pz[0] <= izi)
-			{
-				pz[0] = izi;
-				((WORD*)pdest)[0] = pparticle->packedColor;
-			}
-
-			if (pz[1] <= izi)
-			{
-				pz[1] = izi;
-				((WORD*)pdest)[1] = pparticle->packedColor;
-			}
-		}
-		break;
-
-	case 3:
-		count = 3 << d_y_aspect_shift;
-
-		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
-		{
-			if (pz[0] <= izi)
-			{
-				pz[0] = izi;
-				((WORD*)pdest)[0] = pparticle->packedColor;
-			}
-
-			if (pz[1] <= izi)
-			{
-				pz[1] = izi;
-				((WORD*)pdest)[1] = pparticle->packedColor;
-			}
-
-			if (pz[2] <= izi)
-			{
-				pz[2] = izi;
-				((WORD*)pdest)[2] = pparticle->packedColor;
-			}
-		}
-		break;
-
-	case 4:
-		count = 4 << d_y_aspect_shift;
-
-		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
-		{
-			if (pz[0] <= izi)
-			{
-				pz[0] = izi;
-				((WORD*)pdest)[0] = pparticle->packedColor;
-			}
-
-			if (pz[1] <= izi)
-			{
-				pz[1] = izi;
-				((WORD*)pdest)[1] = pparticle->packedColor;
-			}
-
-			if (pz[2] <= izi)
-			{
-				pz[2] = izi;
-				((WORD*)pdest)[2] = pparticle->packedColor;
-			}
-
-			if (pz[3] <= izi)
-			{
-				pz[3] = izi;
-				((WORD*)pdest)[3] = pparticle->packedColor;
-			}
-		}
-		break;
-
-	default:
-		count = pix << d_y_aspect_shift;
-
-		for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
-		{
-			for (i=0 ; i<pix ; i++)
-			{
-				if (pz[i] <= izi)
+				if (pz[0] <= izi)
 				{
-					pz[i] = izi;
-					((WORD*)pdest)[i] = pparticle->packedColor;
+					pz[0] = izi;
+					((WORD*)pdest)[0] = pparticle->packedColor;
 				}
 			}
+			break;
+
+		case 2:
+			count = 2 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+			{
+				if (pz[0] <= izi)
+				{
+					pz[0] = izi;
+					((WORD*)pdest)[0] = pparticle->packedColor;
+				}
+
+				if (pz[1] <= izi)
+				{
+					pz[1] = izi;
+					((WORD*)pdest)[1] = pparticle->packedColor;
+				}
+			}
+			break;
+
+		case 3:
+			count = 3 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+			{
+				if (pz[0] <= izi)
+				{
+					pz[0] = izi;
+					((WORD*)pdest)[0] = pparticle->packedColor;
+				}
+
+				if (pz[1] <= izi)
+				{
+					pz[1] = izi;
+					((WORD*)pdest)[1] = pparticle->packedColor;
+				}
+
+				if (pz[2] <= izi)
+				{
+					pz[2] = izi;
+					((WORD*)pdest)[2] = pparticle->packedColor;
+				}
+			}
+			break;
+
+		case 4:
+			count = 4 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+			{
+				if (pz[0] <= izi)
+				{
+					pz[0] = izi;
+					((WORD*)pdest)[0] = pparticle->packedColor;
+				}
+
+				if (pz[1] <= izi)
+				{
+					pz[1] = izi;
+					((WORD*)pdest)[1] = pparticle->packedColor;
+				}
+
+				if (pz[2] <= izi)
+				{
+					pz[2] = izi;
+					((WORD*)pdest)[2] = pparticle->packedColor;
+				}
+
+				if (pz[3] <= izi)
+				{
+					pz[3] = izi;
+					((WORD*)pdest)[3] = pparticle->packedColor;
+				}
+			}
+			break;
+
+		default:
+			count = pix << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz += d_zwidth, pdest += screenwidth)
+			{
+				for (i=0 ; i<pix ; i++)
+				{
+					if (pz[i] <= izi)
+					{
+						pz[i] = izi;
+						((WORD*)pdest)[i] = pparticle->packedColor;
+					}
+				}
+			}
+			break;
 		}
-		break;
+	}
+	else
+	{
+		switch (pix)
+		{
+		case 1:
+			count = 1 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz32 += d_zwidth, pdest32 += screenwidth >> 2)
+			{
+				if (pz32[0] <= izi32)
+				{
+					pz32[0] = izi32;
+					pdest32[0] = packed32;
+				}
+			}
+			break;
+
+		case 2:
+			count = 2 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz32 += d_zwidth, pdest32 += screenwidth >> 2)
+			{
+				if (pz32[0] <= izi32)
+				{
+					pz32[0] = izi32;
+					pdest32[0] = packed32;
+				}
+
+				if (pz32[1] <= izi32)
+				{
+					pz32[1] = izi32;
+					pdest32[1] = packed32;
+				}
+			}
+			break;
+
+		case 3:
+			count = 3 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz32 += d_zwidth, pdest32 += screenwidth >> 2)
+			{
+				if (pz32[0] <= izi32)
+				{
+					pz32[0] = izi32;
+					pdest32[0] = packed32;
+				}
+
+				if (pz32[1] <= izi32)
+				{
+					pz32[1] = izi32;
+					pdest32[1] = packed32;
+				}
+
+				if (pz32[2] <= izi32)
+				{
+					pz32[2] = izi32;
+					pdest32[2] = packed32;
+				}
+			}
+			break;
+
+		case 4:
+			count = 4 << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz32 += d_zwidth, pdest32 += screenwidth >> 2)
+			{
+				if (pz32[0] <= izi32)
+				{
+					pz32[0] = izi32;
+					pdest32[0] = packed32;
+				}
+
+				if (pz32[1] <= izi32)
+				{
+					pz32[1] = izi32;
+					pdest32[1] = packed32;
+				}
+
+				if (pz32[2] <= izi32)
+				{
+					pz32[2] = izi32;
+					pdest32[2] = packed32;
+				}
+
+				if (pz32[3] <= izi32)
+				{
+					pz32[3] = izi32;
+					pdest32[3] = packed32;
+				}
+			}
+			break;
+
+		default:
+			count = pix << d_y_aspect_shift;
+
+			for ( ; count ; count--, pz32 += d_zwidth, pdest32 += screenwidth >> 2)
+			{
+				for (i=0 ; i<pix ; i++)
+				{
+					if (pz32[i] <= izi32)
+					{
+						pz32[i] = izi32;
+						pdest32[i] = packed32;
+					}
+				}
+			}
+			break;
+		}
 	}
 }

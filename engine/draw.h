@@ -36,6 +36,7 @@ const DWORD overflow15 = 0x80200400,
 			overflow16withred = 0x80100400; // shifted right by 1 to handle red overflow
 const WORD mask_r_15 = ((1 << 5) - 1) << 10, mask_g_15 = ((1 << 5) - 1) << 5, mask_b_15 = ((1 << 5) - 1) << 0;
 const DWORD mask_r_16 = ((1 << 5) - 1) << 11, mask_g_16 = ((1 << 6) - 1) << 5, mask_b_16 = ((1 << 5) - 1) << 0;
+const unsigned int mask_r_32 = 0x00FF0000, mask_g_32 = 0x0000FF00, mask_b_32 = 0x000000FF, mask_a_32 = 0xFF000000;
 #define ROR32(x) (((x & 1) << 31) | (x >> 1))
 #define colorsplit(source, maskr, maskg, maskb) ( (WORD)(source & maskg) | (source & (maskr | maskb)) << 16 )
 #define lowfrac16(color, mask) (color & mask)
@@ -124,6 +125,18 @@ short	RGBToPacked( byte* col );
 void	Draw_FadeScreen( );
 
 extern "C" short hlRGB(word* p, int i);
+
+// 32-bit software stuff
+unsigned int hlRGB32(word* p, int i);
+unsigned int PutRGB32(colorVec* pcv);
+unsigned int RGBToPacked32(byte* p);
+unsigned int PackedRGB32(byte* p, unsigned char i);
+void	GetRGB32( unsigned int c, colorVec* pcv );
+
+void	Draw_SpriteFrame32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect);
+void	Draw_SpriteFrameHoles32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect);
+void	Draw_SpriteFrameAdditive32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect);
+void	Draw_SpriteFrameGeneric32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect, int src, int dest, int width, int height);
 #endif
 
 extern qboolean m_bDrawInitialized;

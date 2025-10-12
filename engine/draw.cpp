@@ -41,6 +41,11 @@ int scissor_y2 = 0;
 bool giScissorTest = false;
 extern wrect_t scissor_rect;
 
+unsigned int hlRGB32(word* p, int i)
+{
+	return 0xFF000000 | RGBPAL888(p, i);
+}
+
 EXTERN_C short hlRGB(word* p, int i)
 {
 	return is15bit ? RGBPAL555(p, i) : RGBPAL(p, i);
@@ -51,9 +56,24 @@ short PutRGB(colorVec* pcv)
 	return is15bit ? PACKEDRGB555(pcv->r, pcv->g, pcv->b) : PACKEDRGB565(pcv->r, pcv->g, pcv->b);
 }
 
+unsigned int PutRGB32(colorVec* pcv)
+{
+	return 0xFF000000 | PACKEDRGB888(pcv->r, pcv->g, pcv->b);
+}
+
+unsigned int RGBToPacked32(byte* p)
+{
+	return 0xFF000000 | PACKEDRGB888(p[0], p[1], p[2]);
+}
+
 short RGBToPacked(byte* p)
 {
 	return is15bit ? PACKEDRGB555(p[0], p[1], p[2]) : PACKEDRGB565(p[0], p[1], p[2]);
+}
+
+unsigned int PackedRGB32(byte* p, unsigned char i)
+{
+	return 0xFF000000 | PACKEDRGB888(p[i * 3 + 0], p[i * 3 + 1], p[i * 3 + 2]);
 }
 
 short PackedRGB(byte* p, unsigned char i)
@@ -75,6 +95,14 @@ void GetRGB(short s, colorVec* pcv)
 		pcv->g = RGB_GREEN565(s);
 		pcv->b = RGB_BLUE565(s);
 	}
+}
+
+void GetRGB32(unsigned int c, colorVec* pcv)
+{
+	pcv->r = RGB_RED888(c);
+	pcv->g = RGB_GREEN888(c);
+	pcv->b = RGB_BLUE888(c);
+	pcv->a = 255;
 }
 
 //-----------------------------------------------------------------------------
@@ -177,6 +205,7 @@ void	Draw_TransPic(int x, int y, qpic_t* pic)
 {
 	byte* dest, * source;
 	unsigned short* pusdest;
+	unsigned int* puidest;
 	int				v, u;
 
 
@@ -191,6 +220,7 @@ void	Draw_TransPic(int x, int y, qpic_t* pic)
 	source = pic->data;
 
 	pusdest = (unsigned short*)vid.buffer + y * (vid.rowbytes >> 1) + x;
+	puidest = (unsigned int*)vid.buffer + y * (vid.rowbytes >> 2) + x;
 
 	for (v = 0; v < pic->height; v++)
 	{
@@ -203,11 +233,22 @@ void	Draw_TransPic(int x, int y, qpic_t* pic)
 			* 08	colorsused
 			* 0A	pPalette
 			*/
-			if (source[u] != TRANSPARENT_COLOR)
-				pusdest[u] = PackedRGB(&pic->data[pic->width * pic->height + 2], source[u]);
+			if (r_pixbytes == 1)
+			{
+				if (source[u] != TRANSPARENT_COLOR)
+					pusdest[u] = PackedRGB(&pic->data[pic->width * pic->height + 2], source[u]);
+			}
+			else
+			{
+				if (source[u] != TRANSPARENT_COLOR)
+					puidest[u] = PackedRGB32(&pic->data[pic->width * pic->height + 2], source[u]);
+			}
 		}
 
-		pusdest += vid.rowbytes >> 1;
+		if (r_pixbytes == 1)
+			pusdest += vid.rowbytes >> 1;
+		else
+			puidest += vid.rowbytes >> 2;
 		source += pic->width;
 	}
 
@@ -237,7 +278,7 @@ int Draw_String(int x, int y, char* str)
 
 void Draw_SetTextColor(float r, float g, float b)
 {
-	g_engdstAddrs.pfnDrawSetTextColor(&r, &g, &b);
+	RecEngDrawSetTextColor(r, g, b);
 
 	VGUI2_Draw_SetTextColor(
 		static_cast<int>(r * 255.0),
@@ -295,26 +336,51 @@ void Draw_RGBAImage(int x, int y, int srcx, int srcy, int srcw, int srch, int te
 		{
 			byte* src = &rgba[4 * (srcx + u) + 4 * (srcy + v) * texw + coeff];
 			word* pusdest = (word*)&vid.buffer[2 * (x + u) + 2 * (y + v) * (vid.rowbytes >> 1)];
+			unsigned int* puidest = (unsigned int*)&vid.buffer[4 * (x + u) + 4 * (y + v) * (vid.rowbytes >> 2)];
 			
 			if (*(unsigned*)src != 0)
 			{
 				byte blend_a = (src[3] * globalAlphaScale) >> 8;
 
-				word r = (256 - blend_a) * RGB_RED565(*pusdest);
-				word g = (256 - blend_a) * RGB_GREEN565(*pusdest);
-				word b = (256 - blend_a) * RGB_BLUE565(*pusdest);
-				
-				if (istext)
+				if (r_pixbytes == 1)
 				{
-					*pusdest = ( ((long)(r)+(long)(textr >> 3) * (unsigned char)blend_a) >> 8 ) << 11 |
-						( ((long)(g)+(long)(textg >> 2) * (unsigned char)blend_a) >> 8 ) << 5 |
-						( ((long)(b)+(long)(textb >> 3) * (unsigned char)blend_a) >> 8 );
+					word r = (256 - blend_a) * RGB_RED565(*pusdest);
+					word g = (256 - blend_a) * RGB_GREEN565(*pusdest);
+					word b = (256 - blend_a) * RGB_BLUE565(*pusdest);
+					
+					if (istext)
+					{
+						*pusdest = ( ((long)(r)+(long)(textr >> 3) * (unsigned char)blend_a) >> 8 ) << 11 |
+							( ((long)(g)+(long)(textg >> 2) * (unsigned char)blend_a) >> 8 ) << 5 |
+							( ((long)(b)+(long)(textb >> 3) * (unsigned char)blend_a) >> 8 );
+					}
+					else
+					{
+						*pusdest = ( ((long)(r)+(long)(src[0] >> 3) * (unsigned char)blend_a) >> 8 ) << 11 |
+							( ((long)(g)+(long)(src[1] >> 2) * (unsigned char)blend_a) >> 8 ) << 5 |
+							( ((long)(b)+(long)(src[2] >> 3) * (unsigned char)blend_a) >> 8 );
+					}
 				}
 				else
 				{
-					*pusdest = ( ((long)(r)+(long)(src[0] >> 3) * (unsigned char)blend_a) >> 8 ) << 11 |
-						( ((long)(g)+(long)(src[1] >> 2) * (unsigned char)blend_a) >> 8 ) << 5 |
-						( ((long)(b)+(long)(src[2] >> 3) * (unsigned char)blend_a) >> 8 );
+					int r = (256 - blend_a) * RGB_RED888(*puidest);
+					int g = (256 - blend_a) * RGB_GREEN888(*puidest);
+					int b = (256 - blend_a) * RGB_BLUE888(*puidest);
+
+					if (istext)
+					{
+						*puidest = 0xFF000000 | 
+							(((long)(r)+(long)(textr) * (unsigned char)blend_a) >> 8) << 16 |
+							(((long)(g)+(long)(textg) * (unsigned char)blend_a) >> 8) << 8 |
+							(((long)(b)+(long)(textb) * (unsigned char)blend_a) >> 8);
+					}
+					else
+					{
+						*puidest = 0xFF000000 | 
+							(((long)(r)+(long)(src[0]) * (unsigned char)blend_a) >> 8) << 16 |
+							(((long)(g)+(long)(src[1]) * (unsigned char)blend_a) >> 8) << 8 |
+							(((long)(b)+(long)(src[2]) * (unsigned char)blend_a) >> 8);
+					}
 				}
 			}
 		}
@@ -360,6 +426,7 @@ void Draw_ScaledRGBAImage(int x, int y, int wide, int tall, int srcx, int srxy, 
 
 		byte* source = &rgba[(srcx + texw * srxy) * 4];
 		unsigned short* pusdest = &((word*)vid.buffer)[(x + dx) + (y + dy) * (vid.rowbytes >> 1)];
+		unsigned int* puidest = &((unsigned int*)vid.buffer)[(x + dx) + (y + dy) * (vid.rowbytes >> 2)];
 
 		int uOffset = (1.0f / xcoeff) * (float)dx;
 		int vOffset = (1.0f / ycoeff) * (float)dy;
@@ -372,7 +439,51 @@ void Draw_ScaledRGBAImage(int x, int y, int wide, int tall, int srcx, int srxy, 
 				{
 					byte *pix = &source[4 * texw * int(i * ycoeff) + 4 * (int(j * (xcoeff * 256.0f)) >> 8)];
 					if (pix[3] != 0)
-						pusdest[(i - vOffset) * (vid.rowbytes >> 1) + (j - uOffset)] = RGBToPacked(pix);
+					{
+						if (r_pixbytes == 1)
+							pusdest[(i - vOffset) * (vid.rowbytes >> 1) + (j - uOffset)] = RGBToPacked(pix);
+						else
+							puidest[(i - vOffset) * (vid.rowbytes >> 2) + (j - uOffset)] = RGBToPacked32(pix);
+					}
+				}
+			}
+		}
+	}
+}
+
+void Draw_RGBAImageAdd32(int x, int y, int srcx, int srcy, int srcw, int srch, int texw, int texh, byte* rgba, int istext, byte textr, byte textg, byte textb, byte globalAlphaScale)
+{
+	if (rgba == NULL || globalAlphaScale == 0)
+		return;
+
+	if (x < 0 || x + srcw > vid.width || y < 0 || y + srch > vid.height)
+		return;
+
+	unsigned int* pScreen32 = &((unsigned int*)vid.buffer)[x + y * (vid.rowbytes >> 2)];
+	byte* sourceLine = &rgba[(srcx + texw * srcy) * 4];
+
+	for (int i = 0; i < srch; i++)
+	{
+		for (int j = 0; j < srcw; j++)
+		{
+			byte* colors = &sourceLine[(j + i * texw) * 4];
+			if (colors[3] != 0)
+			{
+				// c*a+dest*(1-a)
+				int srcB = (colors[0] * textr) >> 8;
+				int srcG = (colors[1] * textg) >> 8;
+				int srcR = (colors[2] * textb) >> 8;
+
+				int a = colors[3]; // (colors[3] * globalAlphaScale) >> 8;
+
+				if (srcR || srcG || srcB)
+				{
+					color32* pScreenRGB = (color32*)&pScreen32[i * (vid.rowbytes >> 2) + j];
+
+					pScreenRGB->r = (srcR * a + pScreenRGB->r * (255 - a)) / 255;
+					pScreenRGB->g = (srcG * a + pScreenRGB->g * (255 - a)) / 255;
+					pScreenRGB->b = (srcB * a + pScreenRGB->b * (255 - a)) / 255;
+					pScreenRGB->a = 255;
 				}
 			}
 		}
@@ -455,6 +566,9 @@ void Draw_RGBAImageAdd16(int x, int y, int srcx, int srcy, int srcw, int srch, i
 
 void Draw_RGBAImageAdditive(int x, int y, int srcx, int srcy, int srcw, int srch, int texw, int texh, byte* rgba, int istext, byte textr, byte textg, byte textb, byte globalAlphaScale)
 {
+	if (r_pixbytes != 1)
+		return Draw_RGBAImageAdd32(x, y, srcx, srcy, srcw, srch, texw, texh, rgba, istext, textr, textg, textb, globalAlphaScale);
+
 	if (is15bit)
 		return Draw_RGBAImageAdd15(x, y, srcx, srcy, srcw, srch, texw, texh, rgba, istext, textr, textg, textb, globalAlphaScale);
 	else
@@ -473,10 +587,11 @@ void Draw_FillRGB(int x, int y, int width, int height, int r, int g, int b)
 			colorVec color{ r, g, b, 255 };
 
 			unsigned short* pdestbuf = &((WORD*)vid.buffer)[screenborders.left + screenborders.top * step];
+			unsigned int* pdestbuf32 = &((unsigned int*)vid.buffer)[screenborders.left + screenborders.top * step / 2];
 
 			int dx = screenborders.right - screenborders.left, dy = screenborders.bottom - screenborders.top;
 
-			if (is15bit)
+			if (r_pixbytes == 1)
 			{
 				for (int i = 0; i < dy; i++)
 				{
@@ -489,7 +604,7 @@ void Draw_FillRGB(int x, int y, int width, int height, int r, int g, int b)
 				for (int i = 0; i < dy; i++)
 				{
 					for (int j = 0; j < dx; j++)
-						pdestbuf[i * step + j] = PutRGB(&color);
+						pdestbuf32[i * step / 2 + j] = PutRGB32(&color);
 				}
 			}
 		}
@@ -509,21 +624,40 @@ void Draw_FillRGBABlend(int x, int y, int width, int height, int r, int g, int b
 				int alphachan = (192 * a) & 0xFF00;
 				int step = vid.rowbytes >> 1;
 				unsigned short* pdestbuf = &((WORD*)vid.buffer)[screenborders.left + screenborders.top * step];
+				unsigned int* pdestbuf32 = &((unsigned int*)vid.buffer)[screenborders.left + screenborders.top * step / 2];
 				int dx = screenborders.right - screenborders.left, dy = screenborders.bottom - screenborders.top;
 
-				word newcolor = blue_64klut[alphachan + b] | green_64klut[alphachan + g] | red_64klut[alphachan + r];
-				if (is15bit)
+				if (r_pixbytes == 1)
 				{
-					for (int i = 0; i < dy; i++)
+					word newcolor = blue_64klut[alphachan + b] | green_64klut[alphachan + g] | red_64klut[alphachan + r];
+					if (is15bit)
 					{
-						for (int j = 0; j < dx; j++)
+						for (int i = 0; i < dy; i++)
 						{
-							word srcpix = pdestbuf[i * step + j];
-							pdestbuf[i * step + j] = newcolor + (
-								((dalpha * (srcpix & 0x7C00)) >> 8) & 0x7C00 |	// red
-								((dalpha * (srcpix & 0x1F)) >> 8) & 0x1F |		// blue
-								((dalpha * (srcpix & 0x3E0)) >> 8) & 0x3E0		// green
-								);
+							for (int j = 0; j < dx; j++)
+							{
+								word srcpix = pdestbuf[i * step + j];
+								pdestbuf[i * step + j] = newcolor + (
+									((dalpha * (srcpix & 0x7C00)) >> 8) & 0x7C00 |	// red
+									((dalpha * (srcpix & 0x1F)) >> 8) & 0x1F |		// blue
+									((dalpha * (srcpix & 0x3E0)) >> 8) & 0x3E0		// green
+									);
+							}
+						}
+					}
+					else
+					{
+						for (int i = 0; i < dy; i++)
+						{
+							for (int j = 0; j < dx; j++)
+							{
+								word srcpix = pdestbuf[i * step + j];
+								pdestbuf[i * step + j] = newcolor + (
+									((dalpha * (srcpix & 0xF800)) >> 8) & 0xF800 |	// red
+									((dalpha * (srcpix & 0x1F)) >> 8) & 0x1F |		// blue
+									((dalpha * (srcpix & 0x7E0)) >> 8) & 0x7E0		// green
+									);
+							}
 						}
 					}
 				}
@@ -533,12 +667,16 @@ void Draw_FillRGBABlend(int x, int y, int width, int height, int r, int g, int b
 					{
 						for (int j = 0; j < dx; j++)
 						{
-							word srcpix = pdestbuf[i * step + j];
-							pdestbuf[i * step + j] = newcolor + (
-								((dalpha * (srcpix & 0xF800)) >> 8) & 0xF800 |	// red
-								((dalpha * (srcpix & 0x1F)) >> 8) & 0x1F |		// blue
-								((dalpha * (srcpix & 0x7E0)) >> 8) & 0x7E0		// green
-								);
+							color32* pScreenRGB = (color32*)&pdestbuf32[i * step / 2 + j];
+
+							// src + dst * (1 - alpha)
+							//pScreenRGB->r = min(255, (r * a) / 255 + (pScreenRGB->r * dalpha) / 255);
+							//pScreenRGB->g = min(255, (g * a) / 255 + (pScreenRGB->g * dalpha) / 255);
+							//pScreenRGB->b = min(255, (b * a) / 255 + (pScreenRGB->b * dalpha) / 255);
+							pScreenRGB->r = min(255, b + (pScreenRGB->r * dalpha) / 255);
+							pScreenRGB->g = min(255, g + (pScreenRGB->g * dalpha) / 255);
+							pScreenRGB->b = min(255, r + (pScreenRGB->b * dalpha) / 255);
+							pScreenRGB->a = 255;
 						}
 					}
 				}
@@ -561,6 +699,7 @@ void Draw_LineRGB(int x1, int y1, int x2, int y2, int r, int g, int b)
 		if (!giScissorTest || IntersectWRect(&scissor_rect, &screenborders, &screenborders))
 		{
 			word* pdestbuf = &((word*)vid.buffer)[x1 + y1 * (vid.rowbytes >> 1)];
+			unsigned int* pdestbuf32 = &((unsigned int*)vid.buffer)[x1 + y1 * (vid.rowbytes >> 2)];
 			colorVec lineColor{ r, g, b, 255 };
 
 			if (dx < dy)
@@ -568,7 +707,10 @@ void Draw_LineRGB(int x1, int y1, int x2, int y2, int r, int g, int b)
 				int queue = dx << 1 - dy;
 				for (int i = 0; i < dy; i++)
 				{
-					pdestbuf[i * (queue <= 0 ? yinc : axisalign + yinc)] = PutRGB(&lineColor);
+					if (r_pixbytes == 1)
+						pdestbuf[i * (queue <= 0 ? yinc : axisalign + yinc)] = PutRGB(&lineColor);
+					else
+						pdestbuf32[i * (queue <= 0 ? yinc : axisalign + yinc)] = PutRGB32(&lineColor);
 					queue += (queue <= 0 ? dx : dx - dy) << 1;
 				}
 			}
@@ -577,7 +719,10 @@ void Draw_LineRGB(int x1, int y1, int x2, int y2, int r, int g, int b)
 				int queue = dy << 1 - dx;
 				for (int i = 0; i < dx; i++)
 				{
-					pdestbuf[i * (queue <= 0 ? axisalign : axisalign + yinc)] = PutRGB(&lineColor);
+					if (r_pixbytes == 1)
+						pdestbuf[i * (queue <= 0 ? axisalign : axisalign + yinc)] = PutRGB(&lineColor);
+					else
+						pdestbuf32[i * (queue <= 0 ? axisalign : axisalign + yinc)] = PutRGB32(&lineColor);
 					queue += (queue <= 0 ? dy : dy - dx) << 1;
 				}
 			}
@@ -597,30 +742,53 @@ void Draw_FillRGBA(int x, int y, int width, int height, int r, int g, int b, int
 		{
 			int step = vid.rowbytes >> 1;
 			word* pdestbuf = &((word*)vid.buffer)[screenborders.left + screenborders.top * step];
+			unsigned int* pdestbuf32 = &((unsigned int*)vid.buffer)[screenborders.left + screenborders.top * step / 2];
 			int dx = screenborders.right - screenborders.left, dy = screenborders.bottom - screenborders.top;
 			int alphachan = (192 * a) & 0xFF00;
 
-			word newcolor = blue_64klut[alphachan + b] | green_64klut[alphachan + g] | red_64klut[alphachan + r];
-
-			if (is15bit)
+			if (r_pixbytes == 1)
 			{
-				for (int i = 0; i < dy; i++)
+				word newcolor = blue_64klut[alphachan + b] | green_64klut[alphachan + g] | red_64klut[alphachan + r];
+
+				if (is15bit)
 				{
-					for (int j = 0; j < dx; j++)
+					for (int i = 0; i < dy; i++)
 					{
-						word srcpix = pdestbuf[i * step + j];
-						pdestbuf[i * step + j] = min(AddColor(srcpix, newcolor, 0x7C00), (long)0x7C00) | min(AddColor(srcpix, newcolor, 0x3E0), (long)0x3E0) | min(AddColor(srcpix, newcolor, 0x1F), (long)0x1F);
+						for (int j = 0; j < dx; j++)
+						{
+							word srcpix = pdestbuf[i * step + j];
+							pdestbuf[i * step + j] = min(AddColor(srcpix, newcolor, 0x7C00), (long)0x7C00) | min(AddColor(srcpix, newcolor, 0x3E0), (long)0x3E0) | min(AddColor(srcpix, newcolor, 0x1F), (long)0x1F);
+						}
+					}
+				}
+				else
+				{
+					for (int i = 0; i < dy; i++)
+					{
+						for (int j = 0; j < dx; j++)
+						{
+							word srcpix = pdestbuf[i * step + j];
+							pdestbuf[i * step + j] = min(AddColor(srcpix, newcolor, 0xF800), (long)0xF800) | min(AddColor(srcpix, newcolor, 0x7E0), (long)0x7E0) | min(AddColor(srcpix, newcolor, 0x1F), (long)0x1F);
+						}
 					}
 				}
 			}
 			else
 			{
+				int final_b = (r * a) / 255;
+				int final_g = (g * a) / 255;
+				int final_r = (b * a) / 255;
+
 				for (int i = 0; i < dy; i++)
 				{
 					for (int j = 0; j < dx; j++)
 					{
-						word srcpix = pdestbuf[i * step + j];
-						pdestbuf[i * step + j] = min(AddColor(srcpix, newcolor, 0xF800), (long)0xF800) | min(AddColor(srcpix, newcolor, 0x7E0), (long)0x7E0) | min(AddColor(srcpix, newcolor, 0x1F), (long)0x1F);
+						color32* pScreenRGB = (color32*)&pdestbuf32[i * step / 2 + j];
+
+						pScreenRGB->r = min(255, pScreenRGB->r + final_r);
+						pScreenRGB->g = min(255, pScreenRGB->g + final_g);
+						pScreenRGB->b = min(255, pScreenRGB->b + final_b);
+						pScreenRGB->a = 255;
 					}
 				}
 			}
@@ -632,6 +800,7 @@ void Draw_Pic(int x, int y, qpic_t* pic)
 {
 	byte *source;
 	pixel_t* dest;
+	pixel_t* dest32;
 	int				v, u;
 
 
@@ -647,13 +816,20 @@ void Draw_Pic(int x, int y, qpic_t* pic)
 	source = pic->data;
 
 	dest = &vid.buffer[(y * (vid.rowbytes >> 1) + x) * 2];
+	dest32 = &vid.buffer[(y * (vid.rowbytes >> 2) + x) * 4];
 
 	for (v = 0; v < pic->height; v++)
 	{
 		for (u = 0; u < pic->width; u++)
+			if (r_pixbytes == 1)
 				*(word*)&dest[u] = PackedRGB((byte*)&pic[pic->width * pic->height + 2], source[u]);
+			else
+				*(unsigned int*)&dest32[u] = PackedRGB32((byte*)&pic[pic->width * pic->height + 2], source[u]);
 
-		dest += (vid.rowbytes >> 1) * 2;
+		if (r_pixbytes == 1)
+			dest += vid.rowbytes;
+		else
+			dest32 += vid.rowbytes;
 		source += pic->width;
 	}
 }
@@ -814,6 +990,20 @@ void Draw_SpriteFrame(mspriteframe_t* pFrame, unsigned short* pPalette, int x, i
 	}
 }
 
+void Draw_SpriteFrame32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect)
+{
+	int width, height;
+	byte* pframedata = &pFrame->pixels[SpriteFrameClip(pFrame, &x, &y, &width, &height, prcSubRect)];
+	int step = vid.rowbytes >> 2;
+	pixel_t* pdestbuf = &vid.buffer[(x + y * step) * 4];
+	
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+			*(unsigned int*)&pdestbuf[(j + i * step) * 4] = pPalette[pframedata[j + i * pFrame->width]];
+	}
+}
+
 void Draw_SpriteFrameHoles(mspriteframe_t* pFrame, unsigned short* pPalette, int x, int y, const wrect_t* prcSubRect)
 {
 	int width, height;
@@ -827,6 +1017,23 @@ void Draw_SpriteFrameHoles(mspriteframe_t* pFrame, unsigned short* pPalette, int
 		{
 			if (pframedata[j + i * pFrame->width] != TRANSPARENT_COLOR)
 				*(word*)&pdestbuf[(j + i * step) * 2] = pPalette[pframedata[j + i * pFrame->width]];
+		}
+	}
+}
+
+void Draw_SpriteFrameHoles32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect)
+{
+	int width, height;
+	byte* pframedata = &pFrame->pixels[SpriteFrameClip(pFrame, &x, &y, &width, &height, prcSubRect)];
+	int step = vid.rowbytes >> 2;
+	pixel_t* pdestbuf = &vid.buffer[(x + y * step) * 4];
+
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			if (pframedata[j + i * pFrame->width] != TRANSPARENT_COLOR)
+				*(unsigned int*)&pdestbuf[(j + i * step) * 4] = pPalette[pframedata[j + i * pFrame->width]];
 		}
 	}
 }
@@ -881,6 +1088,40 @@ void Draw_SpriteFrameAdd16(byte* pSource, word* pPalette, word* pScreen, int wid
 	}
 }
 
+void Draw_SpriteFrameAdd32(byte* pSource, unsigned int* pPalette, unsigned int* pScreen, int width, int height, int screenwidth, int sourcewidth)
+{
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			color32* sprpix = (color32*)&pPalette[pSource[j + sourcewidth * i]];
+			if (pPalette[pSource[j + sourcewidth * i]] & 0x00FFFFFF)
+			{
+				color32* oldpix = (color32*)&pScreen[j + i * screenwidth];
+
+				int r_result = sprpix->r + oldpix->r;
+				int g_result = sprpix->g + oldpix->g;
+				int b_result = sprpix->b + oldpix->b;
+
+				if (r_result > 255 || g_result > 255 || b_result > 255) 
+				{
+					int max_comp = max(max(r_result, g_result), b_result);
+					float scale = 255.0f / (float)max_comp;
+					// saturate
+					r_result = (int)((float)r_result * scale);
+					g_result = (int)((float)g_result * scale);
+					b_result = (int)((float)b_result * scale);
+				}
+
+				oldpix->r = r_result;
+				oldpix->g = g_result;
+				oldpix->b = b_result;
+				oldpix->a = 255;
+			}
+		}
+	}
+}
+
 void Draw_SpriteFrameAdditive(mspriteframe_t* pFrame, unsigned short* pPalette, int x, int y, const wrect_t* prcSubRect)
 {
 	int width, height;
@@ -892,6 +1133,16 @@ void Draw_SpriteFrameAdditive(mspriteframe_t* pFrame, unsigned short* pPalette, 
 		Draw_SpriteFrameAdd15(pframedata, pPalette, (word*)pdestbuf, width, height, step, pFrame->width);
 	else 
 		Draw_SpriteFrameAdd16(pframedata, pPalette, (word*)pdestbuf, width, height, step, pFrame->width);
+}
+
+void Draw_SpriteFrameAdditive32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect)
+{
+	int width, height;
+	byte* pframedata = &pFrame->pixels[SpriteFrameClip(pFrame, &x, &y, &width, &height, prcSubRect)];
+	int step = vid.rowbytes >> 2;
+	pixel_t* pdestbuf = &vid.buffer[(x + y * step) * 4];
+
+	Draw_SpriteFrameAdd32(pframedata, pPalette, (unsigned int*)pdestbuf, width, height, step, pFrame->width);
 }
 
 void Draw_SpriteFrameGeneric(mspriteframe_t* pFrame, unsigned short* pPalette, int x, int y, const wrect_t* prcSubRect, int src, int dest, int swidth, int sheight)
@@ -928,6 +1179,41 @@ void Draw_SpriteFrameGeneric(mspriteframe_t* pFrame, unsigned short* pPalette, i
 				Draw_SpriteFrameAdd15(pframedata, pPalette, (word*)pdestbuf, width, height, step, pFrame->width);
 			else
 				Draw_SpriteFrameAdd16(pframedata, pPalette, (word*)pdestbuf, width, height, step, pFrame->width);
+		}
+	}
+}
+
+void Draw_SpriteFrameGeneric32(mspriteframe_t* pFrame, unsigned int* pPalette, int x, int y, const wrect_t* prcSubRect, int src, int dest, int swidth, int sheight)
+{
+	int numRows = ceil((float)sheight / (float)pFrame->height);
+	int numCols = ceil((float)swidth / (float)pFrame->width);
+
+	int clipHeight = sheight % pFrame->height;
+	int clipWidth = swidth % pFrame->width;
+
+	wrect_t subRect;
+
+	subRect.left = 0;
+	subRect.top = 0;
+
+	for (int i = 0; i < numRows; i++)
+	{
+		for (int j = 0; j < numCols; j++)
+		{
+			if (j == numCols - 1)
+				subRect.right = clipWidth;
+			else subRect.right = pFrame->width;
+
+			if (i == numRows - 1)
+				subRect.bottom = clipHeight;
+			else subRect.bottom = pFrame->height;
+
+			int width, height;
+			byte* pframedata = &pFrame->pixels[SpriteFrameClip(pFrame, &x, &y, &width, &height, &subRect)];
+			int step = vid.rowbytes >> 2;
+			pixel_t* pdestbuf = &vid.buffer[(x + y * step) * 4];
+
+			Draw_SpriteFrameAdd32(pframedata, pPalette, (unsigned int*)pdestbuf, width, height, step, pFrame->width);
 		}
 	}
 }
@@ -999,6 +1285,7 @@ void Draw_ConsoleBackground(int lines)
 	int				f, fstep;
 	qpic_t* pConBack;
 	short colors[256];
+	unsigned int colors32[256];
 	char			ver[100];
 
 	pConBack = Draw_SetupConback(vid.width);
@@ -1006,6 +1293,7 @@ void Draw_ConsoleBackground(int lines)
 	for (i = 0; i < 256; i++)
 	{
 		colors[i] = PackedRGB(&pConBack->data[pConBack->width * pConBack->height + 2], i);
+		colors32[i] = PackedRGB32(&pConBack->data[pConBack->width * pConBack->height + 2], i);
 	}
 
 	// draw the pic
@@ -1018,20 +1306,38 @@ void Draw_ConsoleBackground(int lines)
 
 		f = 0;
 		fstep = (pConBack->width << 16) / vid.conwidth;
-		for (x = 0; x < vid.conwidth; x += 8)
+
+		if (r_pixbytes == 1)
 		{
-			*(word*)&dest[x] = colors[src[f >> 16]];
-			f += fstep;
-			*(word*)&dest[x + 2] = colors[src[f >> 16]];
-			f += fstep;
-			*(word*)&dest[x + 4] = colors[src[f >> 16]];
-			f += fstep;
-			*(word*)&dest[x + 6] = colors[src[f >> 16]];
-			f += fstep;
+			for (x = 0; x < vid.conwidth; x += 4)
+			{
+				((word*)dest)[x] = colors[src[f >> 16]];
+				f += fstep;
+				((word*)dest)[x + 1] = colors[src[f >> 16]];
+				f += fstep;
+				((word*)dest)[x + 2] = colors[src[f >> 16]];
+				f += fstep;
+				((word*)dest)[x + 3] = colors[src[f >> 16]];
+				f += fstep;
+			}
+		}
+		else
+		{
+			for (x = 0; x < vid.conwidth; x += 4)
+			{
+				((unsigned int*)dest)[x] = 0xFF000000 | colors32[src[f >> 16]];
+				f += fstep;
+				((unsigned int*)dest)[x + 1] = 0xFF000000 | colors32[src[f >> 16]];
+				f += fstep;
+				((unsigned int*)dest)[x + 2] = 0xFF000000 | colors32[src[f >> 16]];
+				f += fstep;
+				((unsigned int*)dest)[x + 3] = 0xFF000000 | colors32[src[f >> 16]];
+				f += fstep;
+			}
 		}
 
 		v += pConBack->height;
-		dest += 2 * (vid.conrowbytes >> 1);
+		dest += vid.conrowbytes;
 	}
 
 	snprintf(ver, sizeof(ver), "Half-Life %i/%s (sw build %d)", PROTOCOL_VERSION, gpszVersionString, build_number());
@@ -1109,18 +1415,32 @@ void Draw_Init(void)
 void Draw_Fill(int x, int y, int w, int h, int c)
 {
 	word* dest;
+	unsigned int* dest32;
 	int				u, v;
 
 	dest = (word*)vid.buffer + x + y * (vid.rowbytes >> 1);
+	dest32 = (unsigned int*)vid.buffer + x + y * (vid.rowbytes >> 2);
 
 	for (v = 0; v < h; v++)
 	{
-		for (u = 0; u < w; u++)
+		if (r_pixbytes == 1)
 		{
-			dest[u] = c;
-		}
+			for (u = 0; u < w; u++)
+			{
+				dest[u] = c;
+			}
 
-		dest += vid.rowbytes >> 1;
+			dest += vid.rowbytes >> 1;
+		}
+		else
+		{
+			for (u = 0; u < w; u++)
+			{
+				dest32[u] = 0xFF000000 | c;
+			}
+
+			dest32 += vid.rowbytes >> 2;
+		}
 	}
 }
 
@@ -1151,10 +1471,22 @@ void Draw_FadeScreen(void)
 
 		for (x = 0; x < vid.width; x++)
 		{
-			if (is15bit)
-				*(word*)&pbuf[2 * x] = (*(word*)&pbuf[2 * x] & 0b1110101011011110) >> 1;
+			if (r_pixbytes == 1)
+			{
+				if (is15bit)
+					*(word*)&pbuf[2 * x] = (*(word*)&pbuf[2 * x] & 0b1110101011011110) >> 1;
+				else
+					*(word*)&pbuf[2 * x] = (*(word*)&pbuf[2 * x] & 0b1111011111011110) >> 1;
+			}
 			else
-				*(word*)&pbuf[2 * x] = (*(word*)&pbuf[2 * x] & 0b1111011111011110) >> 1;
+			{
+				color32* pScreenRGB = (color32*)&pbuf[4 * x];
+
+				pScreenRGB->r = pScreenRGB->r >> 1;
+				pScreenRGB->g = pScreenRGB->g >> 1;
+				pScreenRGB->b = pScreenRGB->b >> 1;
+				pScreenRGB->a = 255;
+			}
 		}
 	}
 

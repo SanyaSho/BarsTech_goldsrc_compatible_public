@@ -655,18 +655,40 @@ void SCR_ScreenShot_f()
 	if (FS_Write(&targa_header, 18, 1, file) != 18)
 		Sys_Error("Couldn't write tga header screenshot.\n");
 
-	unsigned short* start;
 	color24 t[2048];
-	for (int i = 0; i < vid.height; i++)
+	for (int i = vid.height - 1; i >= 0 ; i--)
 	{
-		start = (WORD*)&vid.buffer[(i * vid.rowbytes) << 1];
-		for (int j = 0; j < vid.width; j++)
+		if (r_pixbytes == 1)
 		{
-			// FIXME : 15-bit depth support
-			t[j].b = RGB_BLUE565(*start) << 3;
-			t[j].g = RGB_GREEN565(*start) << 2;
-			t[j].r = RGB_RED565(*start) << 3;
-			start++;
+			unsigned short* start = (WORD*)&vid.buffer[i * vid.rowbytes];
+			for (int j = 0; j < vid.width; j++)
+			{
+				// FIXME : 15-bit depth support
+				if (is15bit)
+				{
+					t[j].b = RGB_BLUE555(*start) << 3;
+					t[j].g = RGB_GREEN555(*start) << 3;
+					t[j].r = RGB_RED555(*start) << 3;
+				}
+				else
+				{
+					t[j].b = RGB_BLUE565(*start) << 3;
+					t[j].g = RGB_GREEN565(*start) << 2;
+					t[j].r = RGB_RED565(*start) << 3;
+				}
+				start++;
+			}
+		}
+		else
+		{
+			unsigned int* start = (unsigned int*)&vid.buffer[i * vid.rowbytes];
+			for (int j = 0; j < vid.width; j++)
+			{
+				t[j].r = RGB_BLUE888(*start);
+				t[j].g = RGB_GREEN888(*start);
+				t[j].b = RGB_RED888(*start);
+				start++;
+			}
 		}
 
 		int compatible_size = vid.width * 3;

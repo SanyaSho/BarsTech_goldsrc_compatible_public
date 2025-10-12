@@ -684,7 +684,7 @@ enum
 	kRenderNormal,			// src
 	kRenderTransColor,		// c*a+dest*(1-a)
 	kRenderTransTexture,	// src*a+dest*(1-a)
-	kRenderGlow,			// src*a+dest -- No Z rgba checks
+	kRenderGlow,			// src*a+dest -- No Z buffer checks
 	kRenderTransAlpha,		// src*srca+dest*(1-srca)
 	kRenderTransAdd,		// src*a+dest
 };

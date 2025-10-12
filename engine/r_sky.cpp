@@ -77,6 +77,17 @@ short PutDitheredRGB( colorVec* pcv )
 		return PACKEDRGB565(pcv->r, pcv->g, pcv->b);
 }
 
+unsigned int PutDitheredRGB32( colorVec* pcv )
+{
+	pcv->r |= ((unsigned int)pcv->r >> 6) & 3;
+	pcv->g |= ((unsigned char)pcv->g >> 6);
+	pcv->b |= ((unsigned char)pcv->b >> 6);
+
+	return (pcv->a << 24) | PACKEDRGB888(pcv->r, pcv->g, pcv->b);
+}
+
+BOOL g_bLoadingSkybox = FALSE;
+
 /*
 =============
 LoadTGA
@@ -185,6 +196,9 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 		targaPixelBytes = 2;
 	}
 
+	if (r_pixbytes != 1 && g_bLoadingSkybox == TRUE)
+		targaPixelBytes = 4;
+
 	if (numPixels > 0x7FFFFFFF / targaPixelBytes)
 		return NULL;
 
@@ -227,7 +241,7 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 
 		for (row = rows - 1; row >= 0; row--)
 		{
-			if (normalSize)
+			if (normalSize || r_pixbytes != 1)
 				pixbuf = targa_rgba + row * columns * 4;
 			else
 				pixbuf = targa_rgba + row * columns * 2;
@@ -244,7 +258,14 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 					red = tgafile_mem_buffer[2];
 					tgafile_mem_buffer += 3;
 
-					if (normalSize)
+					if (r_pixbytes != 1 && g_bLoadingSkybox == TRUE)
+					{
+						*pixbuf++ = blue;
+						*pixbuf++ = green;
+						*pixbuf++ = red;
+						*pixbuf++ = 255;
+					}
+					else if (normalSize)
 					{
 						*pixbuf++ = red;
 						*pixbuf++ = green;
@@ -268,7 +289,14 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 					alphabyte = tgafile_mem_buffer[3];
 					tgafile_mem_buffer += 4;
 
-					if (normalSize)
+					if (r_pixbytes != 1 && g_bLoadingSkybox == TRUE)
+					{
+						*pixbuf++ = blue;
+						*pixbuf++ = green;
+						*pixbuf++ = red;
+						*pixbuf++ = alphabyte;
+					}
+					else if (normalSize)
 					{
 						*pixbuf++ = red;
 						*pixbuf++ = green;
@@ -294,7 +322,10 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 
 		for (row = rows - 1; row >= 0; row--)
 		{
-			pixbuf = targa_rgba + row * columns * 2;
+			if (r_pixbytes != 1)
+				pixbuf = targa_rgba + row * columns * 4;
+			else
+				pixbuf = targa_rgba + row * columns * 2;
 
 			for (column = 0; column < columns; )
 			{
@@ -337,8 +368,18 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 
 					for (j = 0; j < packetSize; j++)
 					{
-						*(word*)pixbuf = PutDitheredRGB(&color);
-						pixbuf += 2;
+						if (r_pixbytes != 1 && g_bLoadingSkybox == TRUE)
+						{
+							*pixbuf++ = blue;
+							*pixbuf++ = green;
+							*pixbuf++ = red;
+							*pixbuf++ = alphabyte;
+						}
+						else
+						{
+							*(word*)pixbuf = PutDitheredRGB(&color);
+							pixbuf += 2;
+						}
 
 						column++;
 
@@ -352,7 +393,10 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 							else
 								goto breakOut;
 
-							pixbuf = targa_rgba + row * columns * 2;
+							if (r_pixbytes != 1)
+								pixbuf = targa_rgba + row * columns * 4;
+							else
+								pixbuf = targa_rgba + row * columns * 2;
 						}
 					}
 				}
@@ -374,8 +418,18 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 
 							tgafile_mem_buffer += 3;
 
-							*(word*)pixbuf = PutDitheredRGB(&color);
-							pixbuf += 2;
+							if (r_pixbytes != 1 && g_bLoadingSkybox == TRUE)
+							{
+								*pixbuf++ = blue;
+								*pixbuf++ = green;
+								*pixbuf++ = red;
+								*pixbuf++ = 255;
+							}
+							else
+							{
+								*(word*)pixbuf = PutDitheredRGB(&color);
+								pixbuf += 2;
+							}
 							break;
 
 						case 32:
@@ -390,8 +444,18 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 
 							tgafile_mem_buffer += 4;
 
-							*(word*)pixbuf = PutDitheredRGB(&color);
-							pixbuf += 2;
+							if (r_pixbytes != 1 && g_bLoadingSkybox == TRUE)
+							{
+								*pixbuf++ = blue;
+								*pixbuf++ = green;
+								*pixbuf++ = red;
+								*pixbuf++ = alphabyte;
+							}
+							else
+							{
+								*(word*)pixbuf = PutDitheredRGB(&color);
+								pixbuf += 2;
+							}
 							break;
 						}
 
@@ -406,7 +470,10 @@ byte* R_LoadTGA(char* szFilename, byte* buffer, int bufferSize, int* width, int*
 							else
 								goto breakOut;
 
-							pixbuf = targa_rgba + row * columns * 2;
+							if (r_pixbytes != 1)
+								pixbuf = targa_rgba + row * columns * 4;
+							else
+								pixbuf = targa_rgba + row * columns * 2;
 						}
 					}
 				}
@@ -492,7 +559,7 @@ tryagain:
 
 					Con_DPrintf(const_cast<char*>("%s%s, "), movevars.skyName, suf[i]);
 					// 128 KiB - max /filtered/ size -> 256x256x16bit
-					gFilteredSkies[i] = (byte*)Hunk_AllocName(256 * 256 * sizeof(word), const_cast<char*>("FILTEREDSKYBOX"));
+					gFilteredSkies[i] = (byte*)Hunk_AllocName(256 * 256 * (r_pixbytes == 1 ? sizeof(word) : r_pixbytes), const_cast<char*>("FILTEREDSKYBOX"));
 				}
 				else
 				{
@@ -508,13 +575,15 @@ tryagain:
 			}
 			else
 			{
-				gFilteredSkies[i] = (byte*)Hunk_AllocName(256 * 256 * sizeof(word), const_cast<char*>("FILTEREDSKYBOX"));
+				gFilteredSkies[i] = (byte*)Hunk_AllocName(256 * 256 * (r_pixbytes == 1 ? sizeof(word) : r_pixbytes), const_cast<char*>("FILTEREDSKYBOX"));
 			}
 		}
 		else
 		{
 			// Loads up, setups, and get the information about an actual targa image.
+			g_bLoadingSkybox = TRUE;
 			gSkies[i] = R_LoadTGA(name, NULL, 0, 0, 0, false);
+			g_bLoadingSkybox = FALSE;
 
 			if (gSkies[i])
 			{
@@ -526,7 +595,7 @@ tryagain:
 
 				Con_DPrintf(const_cast<char*>("%s%s, "), movevars.skyName, suf[i]);
 
-				gFilteredSkies[i] = (byte*)Hunk_AllocName(256 * 256 * sizeof(word), const_cast<char*>("FILTEREDSKYBOX"));
+				gFilteredSkies[i] = (byte*)Hunk_AllocName(256 * 256 * (r_pixbytes == 1 ? sizeof(word) : r_pixbytes), const_cast<char*>("FILTEREDSKYBOX"));
 			}
 			else
 			{
@@ -1067,6 +1136,7 @@ void R_FilterSkyBox(void)
 	float		r, g, b;
 
 	short* samples = NULL;
+	unsigned int* samples32 = NULL;
 	pixel_t* pskyfiltered = NULL;
 
 	r = filterColorRed * filterBrightness;
@@ -1078,17 +1148,31 @@ void R_FilterSkyBox(void)
 		if (filterMode && gFakeSurface[i].samples)
 		{
 			samples = (short*)gFakeSurface[i].samples;
+			samples32 = (unsigned int*)gFakeSurface[i].samples;
 			pskyfiltered = gFilteredSkies[i];
 
 			for (j = 0; j < 65536; j++)
 			{
-				GetRGB(samples[j], &color);
+				if (r_pixbytes == 1)
+				{
+					GetRGB(samples[j], &color);
 
-				color.r *= r;
-				color.g *= g;
-				color.b *= b;
+					color.r *= r;
+					color.g *= g;
+					color.b *= b;
 
-				*(short*)&pskyfiltered[2 * j] = PutDitheredRGB(&color);
+					*(short*)&pskyfiltered[2 * j] = PutDitheredRGB(&color);
+				}
+				else
+				{
+					GetRGB32(samples32[j], &color);
+
+					color.r *= r;
+					color.g *= g;
+					color.b *= b;
+
+					*(unsigned int*)&pskyfiltered[4 * j] = PutDitheredRGB32(&color);
+				}
 			}
 
 			gFakeSurface[i].samples = (color24*)pskyfiltered;

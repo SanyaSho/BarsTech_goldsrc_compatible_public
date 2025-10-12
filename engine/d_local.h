@@ -1,22 +1,3 @@
-/*
-Copyright (C) 1996-1997 Id Software, Inc.
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
-
-See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-
-*/
 // d_local.h:  private rasterization driver defs
 
 #ifndef _D_LOCAL_H_
@@ -88,6 +69,7 @@ extern "C" fixed16_t	sadjust, tadjust;
 extern "C" fixed16_t	bbextents, bbextentt;
 extern word *gWaterLastPalette, gWaterTextureBuffer[CYCLE * CYCLE];
 extern colorVec d_fogtable[64][64];
+extern colorVec d_fogtable32[64][256];
 extern short watertex[CYCLE * CYCLE];
 extern short watertex2[CYCLE * CYCLE];
 
@@ -115,10 +97,6 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage);
 void D_PolysetDrawHole(spanpackage_t *pspanpackage);
 void D_PolysetDrawSpansTrans(spanpackage_t *pspanpackage);
 
-void D_DrawSkyScans8 (espan_t *pspan);
-void D_DrawSkyScans16 (espan_t *pspan);
-
-void R_ShowSubDiv (void);
 surfcache_t	*D_CacheSurface (msurface_t *surface, int miplevel);
 void D_SetFadeColor(int r, int g, int b, int fog);
 void D_SetScreenFade(int r, int g, int b, int alpha, int type);
@@ -127,12 +105,8 @@ int LeafId(msurface_t* psurf);
 extern int D_MipLevelForScale (float scale);
 extern void TilingSetup(int sMask, int tMask, int tShift);
 
-#if id386
-extern "C" void D_PolysetAff8Start (void);
-extern "C" void D_PolysetAff8End (void);
-#endif
-
 extern "C" short *d_pzbuffer;
+extern "C" int	 *d_pzbuffer32;
 extern "C" unsigned int d_zrowbytes, d_zwidth;
 
 extern int	*d_pscantable;
@@ -149,6 +123,7 @@ extern float fp_64kx64k;
 extern "C" pixel_t	*d_viewbuffer;
 
 extern "C" short	*zspantable[MAXHEIGHT];
+extern "C" int		*zspantable32[MAXHEIGHT];
 
 extern int d_depth;
 

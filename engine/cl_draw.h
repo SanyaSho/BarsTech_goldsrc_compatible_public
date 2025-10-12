@@ -63,6 +63,7 @@ void SetFilterColor( float r, float g, float b );
 void SetFilterBrightness( float brightness );
 
 void UnpackPalette(unsigned short* pDest, word* pSource, int r, int g, int b);
+void UnpackPalette32(unsigned int* pDest, word* pSource, int r, int g, int b);
 
 msprite_t* SPR_Pointer(SPRITELIST* pList);
 

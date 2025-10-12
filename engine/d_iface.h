@@ -1,22 +1,3 @@
-/*
-Copyright (C) 1996-1997 Id Software, Inc.
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
-
-See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-
-*/
 // d_iface.h: interface header file for rasterization driver modules
 
 #ifndef _D_IFACE_H
@@ -213,7 +194,7 @@ typedef struct
 extern drawsurf_t	r_drawsurf;
 
 void R_DrawSurface (void);
-void R_GenTile (msurface_t *psurf, void *pdest);
+void R_DrawSurface32 (void);
 
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!

@@ -9,6 +9,7 @@
 #include "sound.h"
 #include "host.h"
 #include "render.h"
+#include "color.h"
 
 qboolean scr_skipupdate = false;
 qboolean scr_skiponeupdate = false;
@@ -72,15 +73,18 @@ bool VID_AllocBuffers(void)
     vid.maxwarpwidth = WARP_WIDTH;
     vid.maxwarpheight = WARP_HEIGHT;
     vid.colormap = host_colormap;
-	vid.fullbright = 256;
+    vid.fullbright = 256;
 
     is15bit = vid.is15bit;
 
-	tbuffersize = (vid.width * sizeof(*d_pzbuffer)) * vid.height;
+    if (r_pixbytes == 1)
+        tbuffersize = (vid.width * sizeof(*d_pzbuffer)) * vid.height;
+    else
+        tbuffersize = (vid.width * sizeof(*d_pzbuffer32)) * vid.height;
 
     tsize = D_SurfaceCacheForRes(vid.width, vid.height);
 
-	tbuffersize += tsize;
+    tbuffersize += tsize;
 
     // see if there's enough memory, allowing for the normal mode 0x13 pixel,
     // z, and surface buffers
@@ -93,18 +97,36 @@ bool VID_AllocBuffers(void)
 
     vid_surfcachesize = tsize;
 
-    if (d_pzbuffer)
+    if (r_pixbytes == 1)
     {
-		D_FlushCaches();
-        Hunk_FreeToHighMark(VID_highhunkmark);
-        d_pzbuffer = NULL;
-	}
+        if (d_pzbuffer)
+        {
+            D_FlushCaches();
+            Hunk_FreeToHighMark(VID_highhunkmark);
+            d_pzbuffer = NULL;
+        }
 
-    VID_highhunkmark = Hunk_HighMark();
+        VID_highhunkmark = Hunk_HighMark();
 
-	d_pzbuffer = (short*)Hunk_HighAllocName(tbuffersize, const_cast<char*>("video"));
+        d_pzbuffer = (short*)Hunk_HighAllocName(tbuffersize, const_cast<char*>("video"));
 
-    vid_surfcache = (byte*)(d_pzbuffer + vid.width * vid.height);
+        vid_surfcache = (byte*)(d_pzbuffer + vid.width * vid.height);
+    }
+    else
+    {
+        if (d_pzbuffer32)
+        {
+            D_FlushCaches();
+            Hunk_FreeToHighMark(VID_highhunkmark);
+            d_pzbuffer32 = NULL;
+        }
+
+        VID_highhunkmark = Hunk_HighMark();
+
+        d_pzbuffer32 = (int*)Hunk_HighAllocName(tbuffersize, const_cast<char*>("video"));
+
+        vid_surfcache = (byte*)(d_pzbuffer32 + vid.width * vid.height);
+    }
 
     D_InitCaches();
 
@@ -129,7 +151,7 @@ void VID_TakeSnapshot(const char* destfile)
     FileHandle_t f = FS_Open(destfile, "wb");
     if (f == nullptr)
         Sys_Error("Couldn't create file for snapshot.\n");
-    BITMAPFILEHEADER bmf;
+    BITMAPFILEHEADER bmf{};
 
     bmf.bfType = 0x4D42;
     bmf.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
@@ -149,34 +171,49 @@ void VID_TakeSnapshot(const char* destfile)
     if (FS_Write(&bmi, sizeof(bmi), 1, f) != sizeof(bmi))
         Sys_Error("Couldn't write bitmap header to snapshot.\n");
 
-    unsigned short* start;
     color24 row[2048];
-    for (int i = 0; i < vid.height; i++)
+    for (int i = vid.height - 1; i >= 0 ; i--)
     {
         if (vid.width)
         {
-            start = (WORD*)&vid.buffer[(i * vid.rowbytes) >> 1];
-            for (int j = 0; j < vid.width; j++)
+            if (r_pixbytes == 1)
             {
-                // запись в формате bgr
-                if (is15bit)
+                unsigned short* start = (WORD*)&vid.buffer[i * vid.rowbytes];
+                for (int j = 0; j < vid.width; j++)
                 {
-                    row[j].b = (*start >> 7) & 0b11111000;
-                    row[j].g = (*start >> 2) & 0b11111000;
+                    // запись в формате bgr
+                    if (is15bit)
+                    {
+                        row[j].b = (*start >> 7) & 0b11111000;
+                        row[j].g = (*start >> 2) & 0b11111000;
+                    }
+                    else
+                    {
+                        row[j].b = (*start >> 8) & 0b11111000;
+                        row[j].g = (*start >> 3) & 0b11111100;
+                    }
+                    // синий цвет для обоих форматов выделяется по одной формуле
+                    row[j].r = (*start << 3) & 0xFF;
+                    start++;
                 }
-                else
+            }
+            else
+            {
+                unsigned int* start = (unsigned int*)&vid.buffer[i * vid.rowbytes];
+                for (int j = 0; j < vid.width; j++)
                 {
-                    row[j].b = (*start >> 8) & 0b11111000;
-                    row[j].g = (*start >> 3) & 0b11111100;
+                    row[j].r = RGB_BLUE888(*start);
+                    row[j].g = RGB_GREEN888(*start);
+                    row[j].b = RGB_RED888(*start);
+                    start++;
                 }
-                // синий цвет для обоих форматов выделяется по одной формуле
-                row[j].r = (*start << 3) & 0xFF;
-                start++;
             }
         }
         // ширина BM всегда кратна 4
-        int compatible_size = vid.width + (vid.width & 3);
-        if (FS_Write(row, compatible_size, 1, f) != compatible_size)
+        int compatible_size = vid.width;
+        if (vid.width & 3)
+            compatible_size += 4 - (vid.width & 3);
+        if (FS_Write(row, compatible_size * 3, 1, f) != compatible_size * 3)
             Sys_Error("Couldn't write bitmap data snapshot.\n");
     }
     FS_Close(f);

@@ -1,15 +1,20 @@
 #include "quakedef.h"
 #include "vid.h"
 #include "sound.h"
+#include "color.h"
+#include "d_iface.h"
 
 void D_FillRect(vrect_t* vrect, color24 color)
 {
 	WORD colordest;
+	unsigned int colordest32;
 
 	if (is15bit)
 		colordest = (color.b >> 3) | ((color.g & 0xF8 | ((color.r & 0xF8) << 5)) << 2);
 	else
 		colordest = (color.b >> 3) | ((color.g & 0xFC | ((color.r & 0xF8) << 5)) << 3);
+
+	colordest32 = 0xFF000000 | PACKEDRGB888(color.r, color.g, color.b);
 
 	vrect_t lr = *vrect;
 	if (lr.x < 0)
@@ -33,6 +38,7 @@ void D_FillRect(vrect_t* vrect, color24 color)
 	if (lr.width >= 1 && lr.height >= 1)
 	{
 		pixel_t* start = &vid.buffer[lr.y * vid.rowbytes + sizeof(colordest) * lr.x];
+		pixel_t* start32 = &vid.buffer[lr.y * vid.rowbytes + sizeof(colordest32) * lr.x];
 		for (int i = 0; i < lr.height; i++)
 		{
 			if (lr.x > 0)
@@ -40,29 +46,17 @@ void D_FillRect(vrect_t* vrect, color24 color)
 
 				for (int j = 0; j < lr.width; j++)
 				{
-					*(WORD*)&start[j * sizeof(colordest)] = colordest;
+					if (r_pixbytes == 1)
+						*(WORD*)&start[j * sizeof(colordest)] = colordest;
+					else
+						*(unsigned int*)&start32[j * sizeof(colordest32)] = colordest32;
 				}
 			}
-			start += vid.rowbytes;
-		}
-	}
-}
-
-void D_GrayScreen()
-{
-	S_ExtraUpdate();
-	for (int y = 0; y < vid.height; y++)
-	{
-		for (int x = 0; x < vid.width; x++)
-		{
-			WORD pix = ((WORD*)&vid.buffer[y * vid.rowbytes])[x];
-			pix >>= 1;
-			if (is15bit)
-				pix &= 0x756F;
+			
+			if (r_pixbytes == 1)
+				start += vid.rowbytes;
 			else
-				pix &= 0x7BEF;
-			((WORD*)&vid.buffer[y * vid.rowbytes])[x] = pix;
+				start32 += vid.rowbytes;
 		}
 	}
-	S_ExtraUpdate();
 }

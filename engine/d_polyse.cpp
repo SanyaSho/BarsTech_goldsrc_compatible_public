@@ -479,6 +479,85 @@ void D_PolysetDraw(void)
 // poly spans
 void (*polysetdraw)(spanpackage_t *pspanpackage) = D_PolysetDrawSpans8;
 
+void D_PolysetDrawSpans32(spanpackage_t *pspanpackage)
+{
+	int		lcount;
+	unsigned int *lpdest;
+	byte	*lptex;
+	int		lsfrac, ltfrac;
+	int		llight;
+	int		lzi;
+	int		*lpz;
+	byte r, g, b;
+
+	do
+	{
+		lcount = d_aspancount - pspanpackage->count;
+
+		errorterm += erroradjustup;
+		if (errorterm >= 0)
+		{
+			d_aspancount += d_countextrastep;
+			errorterm -= erroradjustdown;
+		}
+		else
+		{
+			d_aspancount += ubasestep;
+		}
+
+		if (lcount)
+		{
+			lpdest = (unsigned int*)pspanpackage->pdest;
+			lptex = pspanpackage->ptex;
+			lpz = (int*)pspanpackage->pz;
+			lsfrac = pspanpackage->sfrac;
+			ltfrac = pspanpackage->tfrac;
+			llight = pspanpackage->light;
+			lzi = pspanpackage->zi;
+
+			do
+			{
+				if (lzi >= *lpz)
+				{
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+
+					int lightcomp = (llight & 0xFF00) >> 8;
+
+					r = (step1_r * lightcomp) / 255;
+					g = (step1_g * lightcomp) / 255;
+					b = (step1_b * lightcomp) / 255;
+
+					*lpdest = mask_a_32 | PACKEDRGB888(r, g, b);
+
+					*lpz = lzi;
+				}
+				llight += r_lstepx;
+				lzi += r_zistepx;
+				lpdest++;
+				lpz++;
+
+				lptex += a_ststepxwhole;
+				lsfrac += a_sstepxfrac;;
+				lptex += (unsigned int)lsfrac >> 16;
+				lsfrac &= 0xFFFF;
+
+				ltfrac += a_tstepxfrac;
+				// поиск переполнения
+				if (ltfrac & 0xFFFF0000)
+				{
+					lptex += r_affinetridesc.skinwidth;
+					// сброс переполнения
+					ltfrac &= 0xFFFF;
+				}
+			} while (--lcount);
+		}
+
+		pspanpackage++;
+	} while (pspanpackage->count != -999999);
+}
+
 void D_PolysetDrawSpans8(spanpackage_t *pspanpackage)
 {
 	int		lcount;
@@ -489,6 +568,12 @@ void D_PolysetDrawSpans8(spanpackage_t *pspanpackage)
 	int		lzi;
 	short	*lpz;
 	byte r, g, b;
+
+	if (r_pixbytes != 1)
+	{
+		D_PolysetDrawSpans32(pspanpackage);
+		return;
+	}
 
 	do
 	{
@@ -553,6 +638,85 @@ void D_PolysetDrawSpans8(spanpackage_t *pspanpackage)
 	} while (pspanpackage->count != -999999);
 }
 
+void D_PolysetDrawHole32(spanpackage_t *pspanpackage)
+{
+	int		lcount;
+	unsigned int *lpdest;
+	byte	*lptex;
+	int		lsfrac, ltfrac;
+	int		llight;
+	int		lzi;
+	int		*lpz;
+	byte r, g, b;
+
+	do
+	{
+		lcount = d_aspancount - pspanpackage->count;
+
+		errorterm += erroradjustup;
+		if (errorterm >= 0)
+		{
+			d_aspancount += d_countextrastep;
+			errorterm -= erroradjustdown;
+		}
+		else
+		{
+			d_aspancount += ubasestep;
+		}
+
+		if (lcount)
+		{
+			lpdest = (unsigned int*)pspanpackage->pdest;
+			lptex = pspanpackage->ptex;
+			lpz = (int*)pspanpackage->pz;
+			lsfrac = pspanpackage->sfrac;
+			ltfrac = pspanpackage->tfrac;
+			llight = pspanpackage->light;
+			lzi = pspanpackage->zi;
+
+			do
+			{
+				if (lzi >= *lpz && *lptex != TRANSPARENT_COLOR)
+				{
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+
+					int lightcomp = (llight & 0xFF00) >> 8;
+
+					r = (step1_r * lightcomp) / 255;
+					g = (step1_g * lightcomp) / 255;
+					b = (step1_b * lightcomp) / 255;
+
+					*lpdest = mask_a_32 | PACKEDRGB888(r, g, b);
+
+					*lpz = lzi;
+				}
+				llight += r_lstepx;
+				lzi += r_zistepx;
+				lpdest++;
+				lpz++;
+
+				lptex += a_ststepxwhole;
+				lsfrac += a_sstepxfrac;;
+				lptex += (unsigned int)lsfrac >> 16;
+				lsfrac &= 0xFFFF;
+
+				ltfrac += a_tstepxfrac;
+				// поиск переполнения
+				if (ltfrac & 0xFFFF0000)
+				{
+					lptex += r_affinetridesc.skinwidth;
+					// сброс переполнения
+					ltfrac &= 0xFFFF;
+				}
+			} while (--lcount);
+		}
+
+		pspanpackage++;
+	} while (pspanpackage->count != -999999);
+}
+
 void D_PolysetDrawHole(spanpackage_t *pspanpackage)
 {
 	int		lcount;
@@ -563,6 +727,12 @@ void D_PolysetDrawHole(spanpackage_t *pspanpackage)
 	int		lzi;
 	short	*lpz;
 	byte r, g, b;
+
+	if (r_pixbytes != 1)
+	{
+		D_PolysetDrawHole32(pspanpackage);
+		return;
+	}
 
 	do
 	{
@@ -625,6 +795,88 @@ void D_PolysetDrawHole(spanpackage_t *pspanpackage)
 	} while (pspanpackage->count != -999999);
 }
 
+void D_PolysetDrawSpansTrans32(spanpackage_t *pspanpackage)
+{
+	int		lcount;
+	unsigned int *oldcolor;
+	byte	*lptex;
+	int		lsfrac, ltfrac;
+	int		llight;
+	int		lzi;
+	int	*lpz;
+	byte r, g, b;
+
+	do
+	{
+		lcount = d_aspancount - pspanpackage->count;
+
+		errorterm += erroradjustup;
+		if (errorterm >= 0)
+		{
+			d_aspancount += d_countextrastep;
+			errorterm -= erroradjustdown;
+		}
+		else
+		{
+			d_aspancount += ubasestep;
+		}
+
+		if (lcount)
+		{
+			oldcolor = (unsigned int*)pspanpackage->pdest;
+			lptex = pspanpackage->ptex;
+			lpz = (int*)pspanpackage->pz;
+			lsfrac = pspanpackage->sfrac;
+			ltfrac = pspanpackage->tfrac;
+			llight = pspanpackage->light;
+			lzi = pspanpackage->zi;
+
+			do
+			{
+				if (lzi >= *lpz)
+				{
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+
+					int lightcomp = (llight & 0xFF00) >> 8;
+
+					r = (step1_r * lightcomp) / 255;
+					g = (step1_g * lightcomp) / 255;
+					b = (step1_b * lightcomp) / 255;
+
+					r = ScaleToColor(RGB_RED888(*oldcolor), r, 0xFF, r_blend) & 0xFF;
+					g = ScaleToColor(RGB_GREEN888(*oldcolor), g, 0xFF, r_blend) & 0xFF;
+					b = ScaleToColor(RGB_BLUE888(*oldcolor), b, 0xFF, r_blend) & 0xFF;
+
+					*oldcolor = mask_a_32 | PACKEDRGB888(r, g, b);
+					*lpz = lzi;
+				}
+				llight += r_lstepx;
+				lzi += r_zistepx;
+				oldcolor++;
+				lpz++;
+
+				lptex += a_ststepxwhole;
+				lsfrac += a_sstepxfrac;
+				lptex += (unsigned int)lsfrac >> 16;
+				lsfrac &= 0xFFFF;
+
+				ltfrac += a_tstepxfrac;
+				// поиск переполнения
+				if (ltfrac & 0xFFFF0000)
+				{
+					lptex += r_affinetridesc.skinwidth;
+					// сброс переполнения
+					ltfrac &= 0xFFFF;
+				}
+			} while (--lcount);
+		}
+
+		pspanpackage++;
+	} while (pspanpackage->count != -999999);
+}
+
 void D_PolysetDrawSpansTrans(spanpackage_t *pspanpackage)
 {
 	int		lcount;
@@ -636,6 +888,12 @@ void D_PolysetDrawSpansTrans(spanpackage_t *pspanpackage)
 	short	*lpz;
 	byte r, g, b;
 	word newcolor, scaledr, scaledg, scaledb;
+
+	if (r_pixbytes != 1)
+	{
+		D_PolysetDrawSpansTrans32(pspanpackage);
+		return;
+	}
 
 	do
 	{
@@ -715,6 +973,99 @@ void D_PolysetDrawSpansTrans(spanpackage_t *pspanpackage)
 	} while (pspanpackage->count != -999999);
 }
 
+void D_PolysetDrawSpansTransAdd32(spanpackage_t *pspanpackage)
+{
+	int		lcount;
+	unsigned int *lpdest;
+	byte	*lptex;
+	int		lsfrac, ltfrac;
+	int		llight;
+	int		lzi;
+	int		*lpz;
+	byte r, g, b;
+
+	do
+	{
+		lcount = d_aspancount - pspanpackage->count;
+
+		errorterm += erroradjustup;
+		if (errorterm >= 0)
+		{
+			d_aspancount += d_countextrastep;
+			errorterm -= erroradjustdown;
+		}
+		else
+		{
+			d_aspancount += ubasestep;
+		}
+
+		if (lcount)
+		{
+			lpdest = (unsigned int*)pspanpackage->pdest;
+			lptex = pspanpackage->ptex;
+			lpz = (int*)pspanpackage->pz;
+			lsfrac = pspanpackage->sfrac;
+			ltfrac = pspanpackage->tfrac;
+			llight = pspanpackage->light;
+			lzi = pspanpackage->zi;
+
+			do
+			{
+				if (lzi >= *lpz)
+				{
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+
+					int lightcomp = (llight & 0xFF00) >> 8;
+
+					r = (step1_r * lightcomp) / 255;
+					g = (step1_g * lightcomp) / 255;
+					b = (step1_b * lightcomp) / 255;
+
+					int blendalpha = r_blend & lowcleanmask(4);
+
+					int r_result = (r * blendalpha) / 255 + RGB_RED888(*lpdest);
+					int g_result = (g * blendalpha) / 255 + RGB_GREEN888(*lpdest);
+					int b_result = (b * blendalpha) / 255 + RGB_BLUE888(*lpdest);
+
+					if (r_result > 255 || g_result > 255 || b_result > 255) 
+					{
+						int max_comp = max(max(r_result, g_result), b_result);
+						float scale = 255.0f / (float)max_comp;
+						r_result = (int)((float)r_result * scale);
+						g_result = (int)((float)g_result * scale);
+						b_result = (int)((float)b_result * scale);
+					}
+
+					*lpdest = mask_a_32 | PACKEDRGB888(r_result, g_result, b_result);
+
+					*lpz = lzi;
+				}
+				lpdest++;
+				lzi += r_zistepx;
+				lpz++;
+				llight += r_lstepx;
+				lptex += a_ststepxwhole;
+				lsfrac += a_sstepxfrac;
+				lptex += (unsigned int)lsfrac >> 16;
+				lsfrac &= 0xFFFF;
+				ltfrac += a_tstepxfrac;
+				
+				// поиск переполнения
+				if (ltfrac & 0xFFFF0000)
+				{
+					lptex += r_affinetridesc.skinwidth;
+					// сброс переполнения
+					ltfrac &= 0xFFFF;
+				}
+			} while (--lcount);
+		}
+
+		pspanpackage++;
+	} while (pspanpackage->count != -999999);
+}
+
 void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 {
 	int		lcount;
@@ -725,6 +1076,12 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 	int		lzi;
 	short	*lpz;
 	byte r, g, b;
+
+	if (r_pixbytes != 1)
+	{
+		D_PolysetDrawSpansTransAdd32(pspanpackage);
+		return;
+	}
 
 	do
 	{
@@ -991,9 +1348,18 @@ extern "C" void D_RasterizeAliasPolySmooth(void)
 	d_light = plefttop[4];
 	d_zi = plefttop[5];
 
-	d_pdest = (byte*)d_viewbuffer + 
-		ystart * screenwidth + plefttop[0] * sizeof(word);
-	d_pz = zspantable[ystart] + plefttop[0];
+	if (r_pixbytes == 1)
+	{
+		d_pdest = (byte*)d_viewbuffer +
+			ystart * screenwidth + plefttop[0] * sizeof(word);
+		d_pz = zspantable[ystart] + plefttop[0];
+	}
+	else
+	{
+		d_pdest = (byte*)d_viewbuffer +
+			ystart * screenwidth + plefttop[0] * sizeof(unsigned int);
+		d_pz = (short*)(zspantable32[ystart] + plefttop[0]);
+	}
 
 	if (initialleftheight == 1)
 	{
@@ -1017,11 +1383,22 @@ extern "C" void D_RasterizeAliasPolySmooth(void)
 		D_PolysetSetUpForLineScan(plefttop[0], plefttop[1],
 			pleftbottom[0], pleftbottom[1]);
 
-		d_pzbasestep = d_zwidth + ubasestep;
-		d_pzextrastep = d_pzbasestep + 1;
+		if (r_pixbytes == 1)
+		{
+			d_pzbasestep = d_zwidth + ubasestep;
+			d_pzextrastep = d_pzbasestep + 1;
 
-		d_pdestbasestep = screenwidth + 2 * ubasestep;
-		d_pdestextrastep = d_pdestbasestep + 2;
+			d_pdestbasestep = screenwidth + sizeof(word) * ubasestep;
+			d_pdestextrastep = d_pdestbasestep + sizeof(word) * 1;
+		}
+		else
+		{
+			d_pzbasestep = (d_zwidth + ubasestep) * (sizeof(unsigned int) / sizeof(word));
+			d_pzextrastep = d_pzbasestep + 1 * (sizeof(unsigned int) / sizeof(word));
+
+			d_pdestbasestep = screenwidth + sizeof(unsigned int) * ubasestep;
+			d_pdestextrastep = d_pdestbasestep + sizeof(unsigned int) * 1;
+		}
 
 		// TODO: can reuse partial expressions here
 
@@ -1080,8 +1457,16 @@ extern "C" void D_RasterizeAliasPolySmooth(void)
 		d_light = plefttop[4];
 		d_zi = plefttop[5];
 
-		d_pdest = &d_viewbuffer[sizeof(word) * plefttop[0] + ystart * screenwidth];
-		d_pz = &zspantable[ystart][plefttop[0]];
+		if (r_pixbytes == 1)
+		{
+			d_pdest = &d_viewbuffer[sizeof(word) * plefttop[0] + ystart * screenwidth];
+			d_pz = &zspantable[ystart][plefttop[0]];
+		}
+		else
+		{
+			d_pdest = &d_viewbuffer[sizeof(unsigned int) * plefttop[0] + ystart * screenwidth];
+			d_pz = (short*)&zspantable32[ystart][plefttop[0]];
+		}
 
 		if (height == 1)
 		{
@@ -1103,11 +1488,22 @@ extern "C" void D_RasterizeAliasPolySmooth(void)
 			D_PolysetSetUpForLineScan(plefttop[0], plefttop[1],
 				pleftbottom[0], pleftbottom[1]);
 
-			d_pdestbasestep = screenwidth + sizeof(word) * ubasestep;
-			d_pdestextrastep = d_pdestbasestep + sizeof(word);
+			if (r_pixbytes == 1)
+			{
+				d_pdestbasestep = screenwidth + sizeof(word) * ubasestep;
+				d_pdestextrastep = d_pdestbasestep + sizeof(word);
 
-			d_pzbasestep = d_zwidth + ubasestep;
-			d_pzextrastep = d_pzbasestep + 1;
+				d_pzbasestep = d_zwidth + ubasestep;
+				d_pzextrastep = d_pzbasestep + 1;
+			}
+			else
+			{
+				d_pdestbasestep = screenwidth + sizeof(unsigned int) * ubasestep;
+				d_pdestextrastep = d_pdestbasestep + sizeof(unsigned int);
+
+				d_pzbasestep = (d_zwidth + ubasestep) * (sizeof(unsigned int) / sizeof(word));
+				d_pzextrastep = d_pzbasestep + 1 * (sizeof(unsigned int) / sizeof(word));
+			}
 
 			if (ubasestep < 0 && r_lstepx)
 				working_lstepx = r_lstepx - 1;

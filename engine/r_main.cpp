@@ -122,9 +122,11 @@ unsigned short red_64klut[0xffff + 1], green_64klut[0xffff + 1], blue_64klut[0xf
 unsigned char r_lut[0xffff + 1];
 
 word* r_palette;
+// 32-bit palette for sprites
+unsigned int* r_palette32;
+// 32-bit warp buffer
+byte	warpbuffer32[WARP_WIDTH * WARP_HEIGHT * sizeof(unsigned int)];
 };
-//extern "C" void Sys_LowFPPrecision(void);
-//extern "C" void Sys_HighFPPrecision(void);
 
 cvar_t	r_draworder = { const_cast<char*>("r_draworder"), const_cast<char*>("0") };
 cvar_t	r_speeds = { const_cast<char*>("r_speeds"), const_cast<char*>("0") };
@@ -516,8 +518,16 @@ void R_LoadOverviewSpriteModel(model_t* mod, byte* pdata, byte* packPalette, int
 	{
 		psprite->frames[i].type = SPR_SINGLE;
 
-		pspriteframe = (mspriteframe_t*)Hunk_AllocName((r_pixbytes << 14) + sizeof(mspriteframe_t), mod->name);
-		Q_memset(pspriteframe, 0, (r_pixbytes << 14) + sizeof(mspriteframe_t));
+		if (r_pixbytes == 1)
+		{
+			pspriteframe = (mspriteframe_t*)Hunk_AllocName((r_pixbytes << 14) + sizeof(mspriteframe_t), mod->name);
+			Q_memset(pspriteframe, 0, (r_pixbytes << 14) + sizeof(mspriteframe_t));
+		}
+		else
+		{
+			pspriteframe = (mspriteframe_t*)Hunk_AllocName((1 << 14) + sizeof(mspriteframe_t), mod->name);
+			Q_memset(pspriteframe, 0, (1 << 14) + sizeof(mspriteframe_t));
+		}
 
 		psprite->frames[i].frameptr = pspriteframe;
 
@@ -528,7 +538,7 @@ void R_LoadOverviewSpriteModel(model_t* mod, byte* pdata, byte* packPalette, int
 		pspriteframe->left = 0.0;
 		pspriteframe->right = OVERVIEW_FRAME_WIDTH;
 
-		if (r_pixbytes != 1)
+		if (r_pixbytes != 1 && r_pixbytes != 4)
 		{
 			Sys_Error("R_LoadOverviewSpriteModel: driver set invalid r_pixbytes: %d\n", r_pixbytes);
 		}
@@ -1152,7 +1162,10 @@ void R_RenderView_ (void)
 {
 	byte	warpbuffer[WARP_WIDTH * WARP_HEIGHT * 2];
 
-	r_warpbuffer = warpbuffer;
+	if (r_pixbytes == 1)
+		r_warpbuffer = warpbuffer;
+	else
+		r_warpbuffer = warpbuffer32;
 
 	if (r_timegraph.value || r_speeds.value || r_dspeeds.value)
 		r_time1 = Sys_FloatTime ();

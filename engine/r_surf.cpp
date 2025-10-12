@@ -74,6 +74,19 @@ void 			R_DrawSurfaceBlock16(void);
 word* 			R_DecalLightSurface(byte* psource, word* prowdest);
 word* 			R_DecalLightSurfaceMMX(byte* psource, word* prowdest);
 
+// 32-bit stuff
+void 			R_DrawSurfaceBlock32Holes(void);
+void			R_DrawSurfaceBlock32Filtered(void);
+unsigned int* 	R_DecalFilteredSurface32(byte* psource, unsigned int* prowdest);
+unsigned int* 	R_DecalFullbrightSurface32(byte* psource, unsigned int* prowdest);
+unsigned int* 	R_DecalLightSurface32(byte* psource, unsigned int* prowdest);
+void 			R_DrawSurfaceBlock32Fullbright1(void);
+void 			R_DrawSurfaceBlock32Fullbright2(void);
+void 			R_DrawSurfaceBlock32Fullbright3(void);
+void 			R_DrawSurfaceBlock32Fullbright4(void);
+void 			R_DrawSurfaceBlock32Fullbright5(void);
+void 			R_DrawSurfaceBlock32(void);
+
 void 			R_DecalPickRow(byte* data, PackedColorVec* pal, byte* row);
 void 			R_DecalResolution(decal_t* pdecals, int* scaleinfo, int miplevel);
 void 			R_DecalSurface(decal_t* pdecal, byte* row, int width, int height);
@@ -563,6 +576,196 @@ void R_DrawSurface(void)
 	}
 }
 
+void R_DrawSurface32(void)
+{
+	// r_ds vars there
+	decal_t		*pdecals;
+	int rendermode;
+	void(*pblockdrawer)(void);
+	unsigned int*(*pdecaldrawer)(byte* psource, unsigned int* prowdest);
+	int smax, tmax, soffset, basetoffset;
+	int scaleinfo[4]; // размеры декали
+	int u, j, localvblocks;
+	unsigned int* pcolumndest;
+
+	static byte decalbuffer[1024];
+
+	R_BuildLightMap();
+
+	surfrowbytes = r_drawsurf.rowbytes;
+
+	blocksize = 16 >> r_drawsurf.surfmip;
+	blockdivshift = 4 - r_drawsurf.surfmip;
+	blockdivmask = (1 << blockdivshift) - 1;
+
+	r_lightwidth = (r_drawsurf.surf->extents[0] >> 4) + 1;
+
+	r_numhblocks = r_drawsurf.surfwidth >> blockdivshift;
+	r_numvblocks = r_drawsurf.surfheight >> blockdivshift;
+
+	pdecals = r_drawsurf.surf->pdecals;
+	rendermode = currententity->curstate.rendermode;
+
+	if (rendermode == kRenderTransAlpha)
+	{
+		pblockdrawer = R_DrawSurfaceBlock32Holes;
+		pdecaldrawer = NULL;
+		pdecals = NULL;
+	}
+	else if (rendermode != kRenderNormal || (r_drawsurf.surf->flags & SURF_DRAWTILED))
+	{
+		if (filterMode)
+		{
+			pblockdrawer = R_DrawSurfaceBlock32Filtered;
+			pdecaldrawer = R_DecalFilteredSurface32;
+		}
+		else
+		{
+			pblockdrawer = R_DrawSurfaceBlock32Fullbright1;
+			pdecaldrawer = R_DecalFullbrightSurface32;
+		}
+	}
+	else if (filterMode)
+	{
+		pblockdrawer = R_DrawSurfaceBlock32Filtered;
+		pdecaldrawer = R_DecalFilteredSurface32;
+	}
+	else
+	{
+		switch ((int)r_fullbright.value)
+		{
+		case 1:
+			pblockdrawer = R_DrawSurfaceBlock32Fullbright1;
+			pdecaldrawer = R_DecalFullbrightSurface32;
+			break;
+		case 2:
+			pblockdrawer = R_DrawSurfaceBlock32Fullbright2;
+			pdecaldrawer = R_DecalFullbrightSurface32;
+			break;
+		case 3:
+			pblockdrawer = R_DrawSurfaceBlock32Fullbright3;
+			pdecaldrawer = NULL;
+			pdecals = NULL;
+			break;
+		case 4:
+			pblockdrawer = R_DrawSurfaceBlock32Fullbright4;
+ 			pdecaldrawer = NULL;
+ 			pdecals = NULL;
+			break;
+		case 5:
+			pblockdrawer = R_DrawSurfaceBlock32Fullbright5;
+			pdecaldrawer = NULL;
+			pdecals = NULL;
+			break;
+		default:
+			pdecaldrawer = R_DecalLightSurface32;
+			pblockdrawer = R_DrawSurfaceBlock32;
+		}
+	}
+
+	smax = r_drawsurf.texture->width >> r_drawsurf.surfmip;
+	tmax = r_drawsurf.texture->height>> r_drawsurf.surfmip;
+
+	r_stepback = smax * tmax;
+	sourcevstep = smax * blocksize;
+
+	sourcetstep = smax;
+
+	soffset = ((r_drawsurf.surf->texturemins[0] >> r_drawsurf.surfmip) + (smax << 16)) % smax;
+	basetoffset = (((r_drawsurf.surf->texturemins[1] >> r_drawsurf.surfmip) + (tmax << 16)) % tmax) * smax;
+
+	R_SetupTextureIndex(0);
+
+	pcolumndest = (unsigned int*)r_drawsurf.surfdat;
+
+	if (pdecals != NULL)
+	{
+		unsigned int* decalsurfbase;
+
+		R_DecalResolution(pdecals, scaleinfo, r_drawsurf.surfmip);
+		scaleinfo[0] >>= blockdivshift;
+		scaleinfo[1] >>= blockdivshift;
+		scaleinfo[2] = (blocksize + scaleinfo[2] - 1) >> blockdivshift;
+		scaleinfo[3] = (blocksize + scaleinfo[3] - 1) >> blockdivshift;
+		localvblocks = r_numvblocks;
+
+		for (int i = 0; i < r_numhblocks; i++)
+		{
+			r_lightptr = &blocklights[i];
+			r_offset = soffset + basetoffset;
+			r_deltav = 0;
+			prowdestbase = pcolumndest;
+			decalsurfbase = pcolumndest;
+
+			if (i < scaleinfo[0] || i > scaleinfo[2])
+			{
+				pblockdrawer();
+			}
+			else
+			{
+				r_numvblocks = scaleinfo[1];
+
+				if (scaleinfo[1] != 0)
+				{
+					pblockdrawer();
+					decalsurfbase = &pcolumndest[blocksize * r_numvblocks * (surfrowbytes >> 2)];
+				}
+
+				// парс по вертикали
+				for (j = scaleinfo[1]; j < scaleinfo[3]; j++)
+				{
+					R_DecalPickRow((byte*)r_basetexture[j] + r_basetexture[j]->offsets[r_drawsurf.surfmip] + r_offset,
+						(PackedColorVec*)((byte*)r_basetexture[j] + r_basetexture[j]->paloffset), decalbuffer);
+					R_DecalSurface(pdecals, decalbuffer, i << blockdivshift, j << blockdivshift);
+					decalsurfbase = pdecaldrawer(decalbuffer, decalsurfbase);
+				}
+
+				r_numvblocks = localvblocks - scaleinfo[3];
+				if (r_numvblocks > 0)
+				{
+					r_deltav = j;
+					prowdestbase = decalsurfbase;
+					pblockdrawer();
+				}
+			}
+
+			r_numvblocks = localvblocks;
+			soffset += blocksize;
+			if (soffset >= smax)
+			{
+				R_SetupTextureIndex(i + 1);
+				soffset = 0;
+			}
+
+			pcolumndest += blocksize;
+		}
+	}
+	else
+	{
+		r_deltav = 0;
+		
+		for (u = 0; u<r_numhblocks; u++)
+		{
+			r_lightptr = &blocklights[u];
+
+			prowdestbase = pcolumndest;
+
+			r_offset = basetoffset + soffset;
+
+			(*pblockdrawer)();
+
+			soffset = soffset + blocksize;
+			if (soffset >= smax)
+			{
+				R_SetupTextureIndex(u + 1);
+				soffset = 0;
+			}
+
+			pcolumndest += blocksize;
+		}
+	}
+}
+
 void R_DrawSurfaceBlock16(void)
 {
 	int				v, i, b;
@@ -646,6 +849,87 @@ void R_DrawSurfaceBlock16(void)
 			bluelightleft += bluelightleftstep;
 
 			prowdest += surfrowbytes >> 1;
+			psource += sourcetstep;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
+void R_DrawSurfaceBlock32(void)
+{
+	int				v, i, b;
+	byte			*psource;
+	unsigned int	*prowdest;
+	PackedColorVec	*palette, pix;
+	texture_t*		texture;
+	int redlightleft, redlightright, redlightleftstep, redlightrightstep;
+	int greenlightleft, greenlightright, greenlightleftstep, greenlightrightstep;
+	int bluelightleft, bluelightright, bluelightleftstep, bluelightrightstep;
+	int redfrac, greenfrac, bluefrac;
+	int redfracstep, greenfracstep, bluefracstep;
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		redlightleft = r_lightptr[0].r;
+		greenlightleft = r_lightptr[0].g;
+		bluelightleft = r_lightptr[0].b;
+
+		redlightright = r_lightptr[1].r;
+		greenlightright = r_lightptr[1].g;
+		bluelightright = r_lightptr[1].b;
+
+		r_lightptr += r_lightwidth;
+
+		redlightleftstep = ((int)r_lightptr[0].r - redlightleft) >> blockdivshift;
+		greenlightleftstep = ((int)r_lightptr[0].g - greenlightleft) >> blockdivshift;
+		bluelightleftstep = ((int)r_lightptr[0].b - bluelightleft) >> blockdivshift;
+		redlightrightstep = ((int)r_lightptr[1].r - redlightright) >> blockdivshift;
+		greenlightrightstep = ((int)r_lightptr[1].g - greenlightright) >> blockdivshift;
+		bluelightrightstep = ((int)r_lightptr[1].b - bluelightright) >> blockdivshift;
+
+		texture = r_basetexture[r_deltav + v];
+		psource = r_offset + (byte*)texture + texture->offsets[r_drawsurf.surfmip];
+		palette = (PackedColorVec*)((byte*)texture + texture->paloffset);
+
+		for (i = 0; i < blocksize; i++)
+		{
+			redfracstep = (redlightright - redlightleft) >> blockdivshift;
+			redfrac = redlightleft;
+
+			greenfracstep = (greenlightright - greenlightleft) >> blockdivshift;
+			greenfrac = greenlightleft;
+
+			bluefracstep = (bluelightright - bluelightleft) >> blockdivshift;
+			bluefrac = bluelightleft;
+
+			for (b = 0; b < blocksize; b++)
+			{
+				pix = palette[psource[b]];
+
+				int lit_r = (((redfrac & 0xFF00) >> 8) * pix.b) / 255;
+				int lit_g = (((greenfrac & 0xFF00) >> 8) * pix.g) / 255;
+				int lit_b = (((bluefrac & 0xFF00) >> 8) * pix.r) / 255;
+
+				prowdest[b] = 0xFF000000 | PACKEDRGB888(lit_r, lit_g, lit_b);
+
+				redfrac += redfracstep;
+				greenfrac += greenfracstep;
+				bluefrac += bluefracstep;
+			}
+
+			redlightright += redlightrightstep;
+			redlightleft += redlightleftstep;
+			greenlightright += greenlightrightstep;
+			greenlightleft += greenlightleftstep;
+			bluelightright += bluelightrightstep;
+			bluelightleft += bluelightleftstep;
+
+			prowdest += surfrowbytes >> 2;
 			psource += sourcetstep;
 		}
 
@@ -897,6 +1181,46 @@ void R_DrawSurfaceBlock16Filtered(void)
 	}
 }
 
+void R_DrawSurfaceBlock32Filtered(void)
+{
+	int				v, i, b;
+	byte			*psource;
+	unsigned int	*prowdest;
+	PackedColorVec	*palette, pix;
+	texture_t*		texture;
+	int				red, green, blue;
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		texture = r_basetexture[r_deltav + v];
+		psource = r_offset + (byte*)texture + texture->offsets[r_drawsurf.surfmip];
+		palette = (PackedColorVec*)((byte*)texture + texture->paloffset);
+
+		for (i = 0; i < blocksize; i++)
+		{
+			for (b = 0; b < blocksize; b++)
+			{
+				pix = palette[psource[b]];
+
+				red = pix.b * filterBrightness * filterColorRed;
+				green = pix.g * filterBrightness * filterColorGreen;
+				blue = pix.r * filterBrightness * filterColorBlue;
+
+				prowdest[b] = 0xFF000000 | PACKEDRGB888(red, green, blue);
+			}
+
+			prowdest += surfrowbytes >> 2;
+			psource += sourcetstep;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
 void R_DrawSurfaceBlock16Fullbright1(void)
 {
 	int				v, i, b;
@@ -925,6 +1249,41 @@ void R_DrawSurfaceBlock16Fullbright1(void)
 			}
 
 			prowdest += surfrowbytes >> 1;
+			psource += sourcetstep;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
+void R_DrawSurfaceBlock32Fullbright1(void)
+{
+	int				v, i, b;
+	byte			*psource;
+	unsigned int	*prowdest;
+	PackedColorVec	*palette, pix;
+	texture_t*		texture;
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		texture = r_basetexture[r_deltav + v];
+		psource = r_offset + (byte*)texture + texture->offsets[r_drawsurf.surfmip];
+		palette = (PackedColorVec*)((byte*)texture + texture->paloffset);
+
+		for (i = 0; i < blocksize; i++)
+		{
+			for (b = 0; b < blocksize; b++)
+			{
+				pix = palette[psource[b]];
+				
+				prowdest[b] = 0xFF000000 | PACKEDRGB888(pix.b, pix.g, pix.r);
+			}
+
+			prowdest += surfrowbytes / 4;
 			psource += sourcetstep;
 		}
 
@@ -996,6 +1355,73 @@ void R_DrawSurfaceBlock16Fullbright2(void)
 			bluelightleft += bluelightleftstep;
 
 			prowdest += surfrowbytes >> 1;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
+void R_DrawSurfaceBlock32Fullbright2(void)
+{
+	int				v, i, b;
+	unsigned int	*prowdest;
+	int redlightleft, redlightright, redlightleftstep, redlightrightstep;
+	int greenlightleft, greenlightright, greenlightleftstep, greenlightrightstep;
+	int bluelightleft, bluelightright, bluelightleftstep, bluelightrightstep;
+	int redfrac, greenfrac, bluefrac;
+	int redfracstep, greenfracstep, bluefracstep;
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		redlightleft = r_lightptr[0].r;
+		greenlightleft = r_lightptr[0].g;
+		bluelightleft = r_lightptr[0].b;
+
+		redlightright = r_lightptr[1].r;
+		greenlightright = r_lightptr[1].g;
+		bluelightright = r_lightptr[1].b;
+
+		r_lightptr += r_lightwidth;
+
+		redlightleftstep = ((int)r_lightptr[0].r - redlightleft) >> blockdivshift;
+		greenlightleftstep = ((int)r_lightptr[0].g - greenlightleft) >> blockdivshift;
+		bluelightleftstep = ((int)r_lightptr[0].b - bluelightleft) >> blockdivshift;
+		redlightrightstep = ((int)r_lightptr[1].r - redlightright) >> blockdivshift;
+		greenlightrightstep = ((int)r_lightptr[1].g - greenlightright) >> blockdivshift;
+		bluelightrightstep = ((int)r_lightptr[1].b - bluelightright) >> blockdivshift;
+
+		for (i = 0; i < blocksize; i++)
+		{
+			redfracstep = (redlightright - redlightleft) >> blockdivshift;
+			redfrac = redlightleft;
+
+			greenfracstep = (greenlightright - greenlightleft) >> blockdivshift;
+			greenfrac = greenlightleft;
+
+			bluefracstep = (bluelightright - bluelightleft) >> blockdivshift;
+			bluefrac = bluelightleft;
+
+			for (b = 0; b < blocksize; b++)
+			{
+				prowdest[b] = 0xFF000000 | PACKEDRGB888((redfrac & 0xFF00) >> 8, (greenfrac & 0xFF00) >> 8, (bluefrac & 0xFF00) >> 8);
+
+				redfrac += redfracstep;
+				greenfrac += greenfracstep;
+				bluefrac += bluefracstep;
+			}
+
+			redlightright += redlightrightstep;
+			redlightleft += redlightleftstep;
+			greenlightright += greenlightrightstep;
+			greenlightleft += greenlightleftstep;
+			bluelightright += bluelightrightstep;
+			bluelightleft += bluelightleftstep;
+
+			prowdest += surfrowbytes >> 2;
 		}
 
 		r_offset += sourcevstep;
@@ -1088,6 +1514,81 @@ void R_DrawSurfaceBlock16Fullbright3(void)
 	}
 }
 
+void R_DrawSurfaceBlock32Fullbright3(void)
+{
+	int				v, i, b;
+	unsigned int	*prowdest, pix;
+	int redlightleft, redlightright, redlightleftstep, redlightrightstep;
+	int greenlightleft, greenlightright, greenlightleftstep, greenlightrightstep;
+	int bluelightleft, bluelightright, bluelightleftstep, bluelightrightstep;
+	int redfrac, greenfrac, bluefrac;
+	int redfracstep, greenfracstep, bluefracstep;
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		redlightleft = r_lightptr[0].r;
+		greenlightleft = r_lightptr[0].g;
+		bluelightleft = r_lightptr[0].b;
+
+		redlightright = r_lightptr[1].r;
+		greenlightright = r_lightptr[1].g;
+		bluelightright = r_lightptr[1].b;
+
+		r_lightptr += r_lightwidth;
+
+		redlightleftstep = ((int)r_lightptr[0].r - redlightleft) >> blockdivshift;
+		greenlightleftstep = ((int)r_lightptr[0].g - greenlightleft) >> blockdivshift;
+		bluelightleftstep = ((int)r_lightptr[0].b - bluelightleft) >> blockdivshift;
+		redlightrightstep = ((int)r_lightptr[1].r - redlightright) >> blockdivshift;
+		greenlightrightstep = ((int)r_lightptr[1].g - greenlightright) >> blockdivshift;
+		bluelightrightstep = ((int)r_lightptr[1].b - bluelightright) >> blockdivshift;
+
+		for (i = 0; i < blocksize; i++)
+		{
+			redfracstep = (redlightright - redlightleft) >> blockdivshift;
+			redfrac = redlightleft;
+
+			greenfracstep = (greenlightright - greenlightleft) >> blockdivshift;
+			greenfrac = greenlightleft;
+
+			bluefracstep = (bluelightright - bluelightleft) >> blockdivshift;
+			bluefrac = bluelightleft;
+
+			for (b = 0; b < blocksize; b++)
+			{
+				int lit_r = (redfrac & 0xFF00) >> 8, lit_g = (greenfrac & 0xFF00) >> 8, lit_b = (bluefrac & 0xFF00) >> 8;
+
+				if (i == 0 || b == 0)
+				{
+					lit_r = ((lit_r & 0xE0) + (((254 * (lit_r & 0x1F)) >> r_drawsurf.surfmip) >> 8)) & 0xFF;
+					lit_g = ((lit_g & 0xC0) + (((254 * (lit_g & 0x3F)) >> r_drawsurf.surfmip) >> 8)) & 0xFF;
+				}
+
+				prowdest[b] = 0xFF000000 | PACKEDRGB888(lit_r, lit_g, lit_b);
+
+				redfrac += redfracstep;
+				greenfrac += greenfracstep;
+				bluefrac += bluefracstep;
+			}
+
+			redlightright += redlightrightstep;
+			redlightleft += redlightleftstep;
+			greenlightright += greenlightrightstep;
+			greenlightleft += greenlightleftstep;
+			bluelightright += bluelightrightstep;
+			bluelightleft += bluelightleftstep;
+
+			prowdest += surfrowbytes >> 2;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
 void R_DrawSurfaceBlock16Fullbright4(void)
 {
 	int				v, i, b;
@@ -1163,6 +1664,83 @@ void R_DrawSurfaceBlock16Fullbright4(void)
 			bluelightleft += bluelightleftstep;
 
 			prowdest += surfrowbytes >> 1;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
+void R_DrawSurfaceBlock32Fullbright4(void)
+{
+	int				v, i, b;
+	unsigned int	*prowdest;
+	int redlightleft, redlightright, redlightleftstep, redlightrightstep;
+	int greenlightleft, greenlightright, greenlightleftstep, greenlightrightstep;
+	int bluelightleft, bluelightright, bluelightleftstep, bluelightrightstep;
+	int redfrac, greenfrac, bluefrac;
+	int redfracstep, greenfracstep, bluefracstep;
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		redlightleft = r_lightptr[0].r;
+		greenlightleft = r_lightptr[0].g;
+		bluelightleft = r_lightptr[0].b;
+
+		redlightright = r_lightptr[1].r;
+		greenlightright = r_lightptr[1].g;
+		bluelightright = r_lightptr[1].b;
+
+		r_lightptr += r_lightwidth;
+
+		redlightleftstep = ((int)r_lightptr[0].r - redlightleft) >> blockdivshift;
+		greenlightleftstep = ((int)r_lightptr[0].g - greenlightleft) >> blockdivshift;
+		bluelightleftstep = ((int)r_lightptr[0].b - bluelightleft) >> blockdivshift;
+		redlightrightstep = ((int)r_lightptr[1].r - redlightright) >> blockdivshift;
+		greenlightrightstep = ((int)r_lightptr[1].g - greenlightright) >> blockdivshift;
+		bluelightrightstep = ((int)r_lightptr[1].b - bluelightright) >> blockdivshift;
+
+		for (i = 0; i < blocksize; i++)
+		{
+			redfracstep = (redlightright - redlightleft) >> blockdivshift;
+			redfrac = redlightleft;
+
+			greenfracstep = (greenlightright - greenlightleft) >> blockdivshift;
+			greenfrac = greenlightleft;
+
+			bluefracstep = (bluelightright - bluelightleft) >> blockdivshift;
+			bluefrac = bluelightleft;
+
+			for (b = 0; b < blocksize; b++)
+			{
+				int lit_r = (((redfrac & 0xFF00) >> 8) * 255) >> 8;
+				int lit_g = (((greenfrac & 0xFF00) >> 8) * 255) >> 8;
+				int lit_b = (((bluefrac & 0xFF00) >> 8) * 255) >> 8;
+
+				if (i == 0 && lit_b == 0)
+				{
+					lit_r = min(lit_r + ((254 * (lit_r & 0x1F)) >> (r_drawsurf.surfmip + 8)), 255);
+					lit_g = ((lit_g & 0xC0) + (((254 * (lit_g & 0x3F)) >> r_drawsurf.surfmip) >> 8)) & 0xFF;
+				}
+
+				prowdest[b] = 0xFF000000 | PACKEDRGB888(lit_r, lit_g, lit_b);
+				
+				redfrac += redfracstep;
+				greenfrac += greenfracstep;
+				bluefrac += bluefracstep;
+			}
+
+			redlightright += redlightrightstep;
+			redlightleft += redlightleftstep;
+			greenlightright += greenlightrightstep;
+			greenlightleft += greenlightleftstep;
+			bluelightright += bluelightrightstep;
+			bluelightleft += bluelightleftstep;
+
+			prowdest += surfrowbytes >> 2;
 		}
 
 		r_offset += sourcevstep;
@@ -1261,6 +1839,91 @@ void R_DrawSurfaceBlock16Fullbright5(void)
 	}
 }
 
+void R_DrawSurfaceBlock32Fullbright5(void)
+{
+	int				v, i, b;
+	unsigned int	*prowdest, pix;
+	int redlightleft, redlightright, redlightleftstep, redlightrightstep;
+	int greenlightleft, greenlightright, greenlightleftstep, greenlightrightstep;
+	int bluelightleft, bluelightright, bluelightleftstep, bluelightrightstep;
+	int redfrac, greenfrac, bluefrac;
+	int redfracstep, greenfracstep, bluefracstep;
+	colorVec mipcolors[4] = {
+		{ 255, 0, 0, 0 },
+		{ 255, 255, 0, 0 },
+		{ 0, 255, 0, 0 },
+		{ 0, 255, 255, 0 }
+	};
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		redlightleft = r_lightptr[0].r;
+		greenlightleft = r_lightptr[0].g;
+		bluelightleft = r_lightptr[0].b;
+
+		redlightright = r_lightptr[1].r;
+		greenlightright = r_lightptr[1].g;
+		bluelightright = r_lightptr[1].b;
+
+		r_lightptr += r_lightwidth;
+
+		redlightleftstep = ((int)r_lightptr[0].r - redlightleft) >> blockdivshift;
+		greenlightleftstep = ((int)r_lightptr[0].g - greenlightleft) >> blockdivshift;
+		bluelightleftstep = ((int)r_lightptr[0].b - bluelightleft) >> blockdivshift;
+		redlightrightstep = ((int)r_lightptr[1].r - redlightright) >> blockdivshift;
+		greenlightrightstep = ((int)r_lightptr[1].g - greenlightright) >> blockdivshift;
+		bluelightrightstep = ((int)r_lightptr[1].b - bluelightright) >> blockdivshift;
+
+		for (i = 0; i < blocksize; i++)
+		{
+			redfracstep = (redlightright - redlightleft) >> blockdivshift;
+			redfrac = redlightleft;
+
+			greenfracstep = (greenlightright - greenlightleft) >> blockdivshift;
+			greenfrac = greenlightleft;
+
+			bluefracstep = (bluelightright - bluelightleft) >> blockdivshift;
+			bluefrac = bluelightleft;
+
+			for (b = 0; b < blocksize; b++)
+			{
+				int lit_r = (((redfrac & 0xFF00) >> 8) * mipcolors[r_drawsurf.surfmip].r) >> 8;
+				int lit_g = (((greenfrac & 0xFF00) >> 8) * mipcolors[r_drawsurf.surfmip].g) >> 8;
+				int lit_b = (((bluefrac & 0xFF00) >> 8) * mipcolors[r_drawsurf.surfmip].b) >> 8;
+
+				if (i == 0 || b == 0)
+				{
+					lit_r = ((lit_r & 0xE0) + (((254 * (lit_r & 0x1F)) >> r_drawsurf.surfmip) >> 8)) & 0xFF;
+					lit_g = ((lit_g & 0xC0) + (((254 * (lit_g & 0x3F)) >> r_drawsurf.surfmip) >> 8)) & 0xFF;
+					lit_b = ((lit_b & 0x1F) + (((255 * (0x1F - (lit_b & 0x1F))) >> r_drawsurf.surfmip) >> 8)) & 0x1F;
+					lit_b = (lit_b << 3) | (lit_b >> 2);
+				}
+
+				prowdest[b] = 0xFF000000 | PACKEDRGB888(lit_r, lit_g, lit_b);
+
+				redfrac += redfracstep;
+				greenfrac += greenfracstep;
+				bluefrac += bluefracstep;
+			}
+
+			redlightright += redlightrightstep;
+			redlightleft += redlightleftstep;
+			greenlightright += greenlightrightstep;
+			greenlightleft += greenlightleftstep;
+			bluelightright += bluelightrightstep;
+			bluelightleft += bluelightleftstep;
+
+			prowdest += surfrowbytes >> 2;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
 void R_DrawSurfaceBlock16Holes(void)
 {
 	int				v, i, b;
@@ -1348,6 +2011,94 @@ void R_DrawSurfaceBlock16Holes(void)
 	}
 }
 
+void R_DrawSurfaceBlock32Holes(void)
+{
+	int				v, i, b;
+	byte			*psource;
+	unsigned int	*prowdest;
+	PackedColorVec	*palette, pix;
+	texture_t*		texture;
+	int redlightleft, redlightright, redlightleftstep, redlightrightstep;
+	int greenlightleft, greenlightright, greenlightleftstep, greenlightrightstep;
+	int bluelightleft, bluelightright, bluelightleftstep, bluelightrightstep;
+	int redfrac, greenfrac, bluefrac;
+	int redfracstep, greenfracstep, bluefracstep;
+
+	prowdest = (unsigned int*)prowdestbase;
+
+	for (v = 0; v < r_numvblocks; v++)
+	{
+		redlightleft = r_lightptr[0].r;
+		greenlightleft = r_lightptr[0].g;
+		bluelightleft = r_lightptr[0].b;
+
+		redlightright = r_lightptr[1].r;
+		greenlightright = r_lightptr[1].g;
+		bluelightright = r_lightptr[1].b;
+
+		r_lightptr += r_lightwidth;
+
+		redlightleftstep = ((int)r_lightptr[0].r - redlightleft) >> blockdivshift;
+		greenlightleftstep = ((int)r_lightptr[0].g - greenlightleft) >> blockdivshift;
+		bluelightleftstep = ((int)r_lightptr[0].b - bluelightleft) >> blockdivshift;
+		redlightrightstep = ((int)r_lightptr[1].r - redlightright) >> blockdivshift;
+		greenlightrightstep = ((int)r_lightptr[1].g - greenlightright) >> blockdivshift;
+		bluelightrightstep = ((int)r_lightptr[1].b - bluelightright) >> blockdivshift;
+
+		texture = r_basetexture[r_deltav + v];
+		psource = r_offset + (byte*)texture + texture->offsets[r_drawsurf.surfmip];
+		palette = (PackedColorVec*)((byte*)texture + texture->paloffset);
+
+		for (i = 0; i < blocksize; i++)
+		{
+			redfracstep = (redlightright - redlightleft) >> blockdivshift;
+			redfrac = redlightleft;
+
+			greenfracstep = (greenlightright - greenlightleft) >> blockdivshift;
+			greenfrac = greenlightleft;
+
+			bluefracstep = (bluelightright - bluelightleft) >> blockdivshift;
+			bluefrac = bluelightleft;
+
+			for (b = 0; b < blocksize; b++)
+			{
+				if (psource[b] == TRANSPARENT_COLOR)
+				{
+					prowdest[b] = 0xFF000000 | PACKEDRGB888(0, 0, TRANSPARENT_COLOR);
+				}
+				else
+				{
+					pix = palette[psource[b]];
+
+					int lit_r = (((redfrac & 0xFF00) >> 8) * pix.b) / 255;
+					int lit_g = (((greenfrac & 0xFF00) >> 8) * pix.g) / 255;
+					int lit_b = (((bluefrac & 0xFF00) >> 8) * pix.r) / 255;
+
+					prowdest[b] = 0xFF000000 | PACKEDRGB888(lit_r, lit_g, lit_b);
+				}
+
+				redfrac += redfracstep;
+				greenfrac += greenfracstep;
+				bluefrac += bluefracstep;
+			}
+
+			redlightright += redlightrightstep;
+			redlightleft += redlightleftstep;
+			greenlightright += greenlightrightstep;
+			greenlightleft += greenlightleftstep;
+			bluelightright += bluelightrightstep;
+			bluelightleft += bluelightleftstep;
+
+			prowdest += surfrowbytes >> 2;
+			psource += sourcetstep;
+		}
+
+		r_offset += sourcevstep;
+		if (r_offset >= r_stepback)
+			r_offset -= r_stepback;
+	}
+}
+
 word* R_DecalFilteredSurface(byte* psource, word* prowdest)
 {
 	int				i, b, idx;
@@ -1380,6 +2131,35 @@ word* R_DecalFilteredSurface(byte* psource, word* prowdest)
 	return prowdest;
 }
 
+unsigned int* R_DecalFilteredSurface32(byte* psource, unsigned int* prowdest)
+{
+	int				i, b, idx;
+	int				red, green, blue;
+
+	r_lightptr += r_lightwidth;
+
+	if (blocksize <= 0)
+		return prowdest;
+
+	for (i = 0; i < blocksize; i++)
+	{
+		for (b = 0; b < blocksize; b++)
+		{
+			idx = (i * blocksize + b) * 4;
+
+			red = psource[idx] * filterBrightness * filterColorRed;
+			green = psource[idx + 1] * filterBrightness * filterColorGreen;
+			blue = psource[idx + 2] * filterBrightness * filterColorBlue;
+
+			prowdest[b] = 0xFF000000 | PACKEDRGB888(red, green, blue);
+		}
+
+		prowdest += surfrowbytes >> 2;
+	}
+
+	return prowdest;
+}
+
 word* R_DecalFullbrightSurface(byte* base, word* dest)
 {
 	int				i, b;
@@ -1402,6 +2182,30 @@ word* R_DecalFullbrightSurface(byte* base, word* dest)
 		}
 
 		dest += surfrowbytes >> 1;
+	}
+
+	return dest;
+}
+
+unsigned int* R_DecalFullbrightSurface32(byte* base, unsigned int* dest)
+{
+	int				i, b;
+
+	r_lightptr += r_lightwidth;
+
+	if (blocksize <= 0)
+		return dest;
+
+	for (i = 0; i < blocksize; i++)
+	{
+		for (b = 0; b < blocksize; b++)
+		{
+			int idx = (i * blocksize + b) * 4;
+
+			dest[b] = 0xFF000000 | PACKEDRGB888(base[idx], base[idx + 1], base[idx + 2]);
+		}
+
+		dest += surfrowbytes >> 2;
 	}
 
 	return dest;
@@ -1479,6 +2283,78 @@ word* R_DecalLightSurface(byte* psource, word* prowdest)
 	}
 
 	return &prowdest[blocksize * (surfrowbytes >> 1)];
+}
+
+unsigned int* R_DecalLightSurface32(byte* psource, unsigned int* prowdest)
+{
+	int redlightleft, redlightright, redlightleftstep, redlightrightstep;
+	int greenlightleft, greenlightright, greenlightleftstep, greenlightrightstep;
+	int bluelightleft, bluelightright, bluelightleftstep, bluelightrightstep;
+	int redfrac, greenfrac, bluefrac;
+	int redfracstep, greenfracstep, bluefracstep;
+	
+	redlightleft = r_lightptr[0].r;
+	greenlightleft = r_lightptr[0].g;
+	bluelightleft = r_lightptr[0].b;
+
+	redlightright = r_lightptr[1].r;
+	greenlightright = r_lightptr[1].g;
+	bluelightright = r_lightptr[1].b;
+
+	r_lightptr += r_lightwidth;
+
+	redlightleftstep = ((int)r_lightptr[0].r - redlightleft) >> blockdivshift;
+	greenlightleftstep = ((int)r_lightptr[0].g - greenlightleft) >> blockdivshift;
+	bluelightleftstep = ((int)r_lightptr[0].b - bluelightleft) >> blockdivshift;
+	redlightrightstep = ((int)r_lightptr[1].r - redlightright) >> blockdivshift;
+	greenlightrightstep = ((int)r_lightptr[1].g - greenlightright) >> blockdivshift;
+	bluelightrightstep = ((int)r_lightptr[1].b - bluelightright) >> blockdivshift;
+
+	if (blocksize <= 0)
+		return prowdest;
+
+	for (int i = 0; i < blocksize; i++)
+	{
+		redfracstep = (redlightright - redlightleft) >> blockdivshift;
+		redfrac = redlightleft;
+
+		greenfracstep = (greenlightright - greenlightleft) >> blockdivshift;
+		greenfrac = greenlightleft;
+
+		bluefracstep = (bluelightright - bluelightleft) >> blockdivshift;
+		bluefrac = bluelightleft;
+
+		for (int j = 0; j < blocksize; j++)
+		{
+			int idx = (i * blocksize + j) * 4;
+			// особенность, по которой каждая текстура, имеющая в начале '~', имеет fullbright палитру последние её 32 байта
+			if (r_drawsurf.texture->name[2] == '~' && psource[idx + 3] >= 0b11100000)
+			{
+				prowdest[i * (surfrowbytes >> 2) + j] = 0xFF000000 | PACKEDRGB888(psource[idx], psource[idx + 1], psource[idx + 2]);
+			}
+			else
+			{
+				int lit_r = (((redfrac & 0xFF00) >> 8) * psource[idx]) >> 8;
+				int lit_g = (((greenfrac & 0xFF00) >> 8) * psource[idx + 1]) >> 8;
+				int lit_b = (((bluefrac & 0xFF00) >> 8) * psource[idx + 2]) >> 8;
+
+				prowdest[i * (surfrowbytes >> 2) + j] = 0xFF000000 | PACKEDRGB888(lit_r, lit_g, lit_b);
+			}
+
+			redfrac += redfracstep;
+			greenfrac += greenfracstep;
+			bluefrac += bluefracstep;
+		}
+
+		redlightright += redlightrightstep;
+		greenlightright += greenlightrightstep;
+		bluelightright += bluelightrightstep;
+		redlightleft += redlightleftstep;
+		greenlightleft += greenlightleftstep;
+		bluelightleft += bluelightleftstep;
+	}
+
+	return &prowdest[blocksize * (surfrowbytes >> 2)];
 }
 
 void R_DecalSurface(decal_t* pdecal, byte* row, int width, int height)
