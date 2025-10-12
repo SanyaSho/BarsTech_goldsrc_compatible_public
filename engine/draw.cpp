@@ -470,19 +470,19 @@ void Draw_RGBAImageAdd32(int x, int y, int srcx, int srcy, int srcw, int srch, i
 			if (colors[3] != 0)
 			{
 				// c*a+dest*(1-a)
-				int srcB = (colors[0] * textr) >> 8;
-				int srcG = (colors[1] * textg) >> 8;
-				int srcR = (colors[2] * textb) >> 8;
+				int srcB = (colors[0] * textr) / 255;
+				int srcG = (colors[1] * textg) / 255;
+				int srcR = (colors[2] * textb) / 255;
 
-				int a = colors[3]; // (colors[3] * globalAlphaScale) >> 8;
+				int a = colors[3];
 
 				if (srcR || srcG || srcB)
 				{
 					color32* pScreenRGB = (color32*)&pScreen32[i * (vid.rowbytes >> 2) + j];
 
-					pScreenRGB->r = (srcR * a + pScreenRGB->r * (255 - a)) / 255;
-					pScreenRGB->g = (srcG * a + pScreenRGB->g * (255 - a)) / 255;
-					pScreenRGB->b = (srcB * a + pScreenRGB->b * (255 - a)) / 255;
+					pScreenRGB->r = min((srcR * a) / 255 + pScreenRGB->r, 255);
+					pScreenRGB->g = min((srcG * a) / 255 + pScreenRGB->g, 255);
+					pScreenRGB->b = min((srcB * a) / 255 + pScreenRGB->b, 255);
 					pScreenRGB->a = 255;
 				}
 			}
