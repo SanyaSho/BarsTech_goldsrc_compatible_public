@@ -11,7 +11,10 @@
 #include "color.h"
 #include "host.h"
 #include "d_local.h"
+
+#if defined(_WIN32) || defined(_WIN64)
 #include <mmintrin.h>
+#endif
 
 #define MAX_TILERAND		20
 #define MAX_DECALSURFS		500
@@ -48,7 +51,9 @@ word			fpu_cw;
 double 			lut_8byte_aligner;
 word 			lut_realigner1[256];
 word 			lut_realigner2[256];
+#if defined(_WIN32) || defined(_WIN64)
 __m64			lightleftnext, lightrightnext;
+#endif
 decal_t			gDecalPool[MAX_DECALS];
 int				gDecalCount;
 int				gDecalFlags;
