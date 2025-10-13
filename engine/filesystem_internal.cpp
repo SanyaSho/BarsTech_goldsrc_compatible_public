@@ -239,7 +239,7 @@ int FS_SetVBuf( FileHandle_t stream, char *buffer, int mode, size_t size )
 	return g_pFileSystem->SetVBuf( stream, buffer, mode, size );
 }
 
-void FS_SetWarningFunc( FileSystemWarningFunc pfnWarning )
+void FS_SetWarningFunc( void ( *pfnWarning )( const char *fmt, ... ) )
 {
 	g_pFileSystem->SetWarningFunc( pfnWarning );
 }
