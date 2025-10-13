@@ -65,7 +65,7 @@ bool FS_RemoveSearchPath( const char *pPath );
 void FS_Rename( const char *originalName, const char *newName );
 void FS_Seek( FileHandle_t file, int pos, FileSystemSeek_t seekType );
 int FS_SetVBuf( FileHandle_t stream, char *buffer, int mode, size_t size );
-void FS_SetWarningFunc( FileSystemWarningFunc pfnWarning );
+void FS_SetWarningFunc( void ( *pfnWarning )( const char *fmt, ... ) );
 void FS_SetWarningLevel( FileWarningLevel_t level );
 unsigned int FS_Size( FileHandle_t file );
 unsigned int FS_Tell( FileHandle_t file );

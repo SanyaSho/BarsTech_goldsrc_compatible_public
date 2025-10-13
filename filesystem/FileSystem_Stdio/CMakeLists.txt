@@ -13,9 +13,12 @@ BEGIN_SRC( FILESYSTEM_STDIO_SOURCE_FILES "Source Files" )
 		"${SRCDIR}/common/StringUtils.cpp"
 		"${SRCDIR}/public/characterset.cpp"
 		"${SRCDIR}/public/interface.cpp"
-		"CFileHandle.cpp"
-		"CFileSystem.cpp"
-		"CFileSystem.obsolete.cpp"
+
+		"BaseFileSystem.cpp"
+		"filesystem_helpers.cpp"
+		"FileSystem_Stdio.cpp"
+		"$<${IS_POSIX}:linux_support.cpp>"
+		#"pathmatch.cpp"
 	)
 END_SRC( FILESYSTEM_STDIO_SOURCE_FILES "Source Files" )
 
@@ -25,11 +28,14 @@ BEGIN_SRC( FILESYSTEM_STDIO_HEADER_FILES "Header Files" )
 		SOURCES
 		"${SRCDIR}/public/characterset.h"
 		"${SRCDIR}/public/interface.h"
-		"CFileHandle.h"
-		"CFileSystem.h"
-		"CPackFileEntry.h"
-		"CSearchPath.h"
-		"PackFile.h"
+
+		"precompiled.h"
+
+		"BaseFileSystem.h"
+		"filesystem_helpers.h"
+		"FileSystem_Stdio.h"
+		"$<${IS_POSIX}:linux_support.h>"
+		#"pathmatch_casefolding.h"
 	)
 END_SRC( FILESYSTEM_STDIO_HEADER_FILES "Header Files" )
 
@@ -44,6 +50,12 @@ install_library(
 set_property(
 	TARGET filesystem_stdio
 	PROPERTY FOLDER "Shared Libraries"
+)
+
+target_precompile_headers(
+	filesystem_stdio
+	PRIVATE
+	"precompiled.h"
 )
 
 target_include_directories(
@@ -61,4 +73,11 @@ target_compile_definitions(
 
 	NO_MALLOC_OVERRIDE
 	filesystem_stdio_EXPORTS
+)
+
+target_link_libraries(
+	filesystem_stdio PRIVATE
+
+	tier0
+	tier1
 )
