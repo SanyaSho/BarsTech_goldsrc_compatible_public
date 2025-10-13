@@ -414,7 +414,8 @@ void D_DrawSurfaces(void)
 				else
 				{
 					texture_t* tiletex;
-					int mipwidth, mipheight, mipscale, sadjinc, rfxfrac;
+					int mipwidth, mipheight, mipscale;
+					float speed;
 					miplevel = D_MipLevelForScale(s->nearzi * scale_for_mip
 						* pface->texinfo->mipadjust);
 
@@ -432,13 +433,14 @@ void D_DrawSurfaces(void)
 					mipheight = tiletex->height >> miplevel;
 					
 					TilingSetup(mipwidth - 1, mipheight - 1, Q_log2(mipwidth));
-					rfxfrac = (float)(currententity->curstate.rendercolor.b + currententity->curstate.rendercolor.g << 8) * 0.625;
+
+					speed = (float)(currententity->curstate.rendercolor.b + (currententity->curstate.rendercolor.g << 8)) / 16.0f;
 					if (!currententity->curstate.rendercolor.r)
-						rfxfrac = -rfxfrac;
+						speed = -speed;
 
 					mipscale = 1 << miplevel;
-					sadjinc = (float)1.0f / (float)mipscale * rfxfrac * cl.time * MAX_TEXTURE_PIXELS;
-					sadjust += sadjinc;
+					speed = (1.0f / (float)mipscale) * speed * cl.time * MAX_TEXTURE_PIXELS;
+					sadjust += speed;
 				}
 
 				if (r_intentities)

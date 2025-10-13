@@ -673,53 +673,6 @@ void R_RenderFace(msurface_t* fa, int clipflags)
 	surface_p++;
 }
 
-void R_RenderWaterFace(model_t* model, msurface_t* watersurf)
-{
-	mvertex_t	bverts[32];
-	bedge_t		bedges[32], * pbedge = NULL;
-	medge_t* pedge, * pedges;
-	int i;
-
-	pbedges = bedges;
-	pbverts = bverts;
-	numbverts = 0;
-	numbedges = watersurf->numedges;
-
-	if (watersurf->numedges > 32)
-	{
-		Con_Printf(const_cast<char*>("Out of edges!\n"));
-		return;
-	}
-
-	if (watersurf->numedges > 0)
-	{
-		int* septr = model->surfedges;
-		pbedge = bedges;
-		pedges = model->edges;
-
-		for (i = 0; i < watersurf->numedges; i++)
-		{
-			int lindex = septr[watersurf->numedges - 1 + watersurf->firstedge - i];
-			if (lindex > 0)
-			{
-				pedge = &pedges[lindex];
-				pbedge[i].v[0] = &r_pcurrentvertbase[pedge->v[1]];
-				pbedge[i].v[1] = &r_pcurrentvertbase[pedge->v[0]];
-			}
-			else
-			{
-				pedge = &pedges[-lindex];
-				pbedge[i].v[0] = &r_pcurrentvertbase[pedge->v[0]];
-				pbedge[i].v[1] = &r_pcurrentvertbase[pedge->v[1]];
-			}
-
-			pbedge[i].pnext = &pbedge[i + 1];
-		}
-		pbedge[i - 1].pnext = NULL;
-	}
-	R_RenderBmodelFace(bedges, watersurf);
-}
-
 /*
 ================
 R_RenderPoly

@@ -497,8 +497,8 @@ void D_DrawTiled32Trans(espan_t* pspan)
 	float			sdivz, tdivz, zi, z, du, dv, spancountminus1;
 	float			sdivz16stepu, tdivz16stepu, zi16stepu, izistep;
 	unsigned int  *psource, *pdest;
-	fixed16_t		r_turb_s, r_turb_t, r_turb_sstep, r_turb_tstep;
-	int				r_turb_spancount;
+	fixed16_t		s, t, sstep, tstep;
+	int				spancount;
 	int*			zbuf;
 
 	sdivz16stepu = d_sdivzstepu * 16;
@@ -527,28 +527,28 @@ void D_DrawTiled32Trans(espan_t* pspan)
 		zi = d_ziorigin + dv * d_zistepv + du * d_zistepu;
 		z = (float)INFINITE_DISTANCE / zi;	// prescale to 16.16 fixed-point
 
-		r_turb_s = (int)(sdivz * z) + sadjust;
-		r_turb_t = (int)(tdivz * z) + tadjust;
+		s = (int)(sdivz * z) + sadjust;
+		t = (int)(tdivz * z) + tadjust;
 
 		if (zi > 0.9f)
 		{
 			izi = 0x7F000000;
+			izistep = 0;
 		}
 		else
 		{
 			izi = (int)(zi * ZISCALE * INFINITE_DISTANCE);
-			izistep = 0;
 		}
 
 		do
 		{
 			// calculate s and t at the far end of the span
 			if (count >= 16)
-				r_turb_spancount = 16;
+				spancount = 16;
 			else
-				r_turb_spancount = count;
+				spancount = count;
 
-			count -= r_turb_spancount;
+			count -= spancount;
 
 			// calculate s/z, t/z, zi->fixed s and t at far end of span,
 			// calculate s and t steps across span by shifting
@@ -560,14 +560,14 @@ void D_DrawTiled32Trans(espan_t* pspan)
 			snext = (int)(sdivz * z) + sadjust;
 			tnext = (int)(tdivz * z) + tadjust;
 
-			r_turb_sstep = (snext - r_turb_s) >> 4;
-			r_turb_tstep = (tnext - r_turb_t) >> 4;
+			sstep = (snext - s) >> 4;
+			tstep = (tnext - t) >> 4;
 
 			do
 			{
 				if (*zbuf < izi)
 				{
-					psource = (unsigned int*)cacheblock + ((gTilemap.tMask & (r_turb_t >> 16)) << gTilemap.tShift) + (gTilemap.sMask & (r_turb_s >> 16));
+					psource = (unsigned int*)cacheblock + ((gTilemap.tMask & (t >> 16)) << gTilemap.tShift) + (gTilemap.sMask & (s >> 16));
 					
 					*pdest = mask_a_32 |
 						ScaleToColor(*pdest, *psource, mask_b_32, r_blend) & mask_b_32 |
@@ -576,12 +576,13 @@ void D_DrawTiled32Trans(espan_t* pspan)
 				}
 				zbuf++;
 				pdest++;
-				r_turb_s += r_turb_sstep;
-				r_turb_t += r_turb_tstep;
-			} while (--r_turb_spancount > 0);
+				s += sstep;
+				t += tstep;
+				izi += izistep;
+			} while (--spancount > 0);
 
-			r_turb_s = snext;
-			r_turb_t = tnext;
+			s = snext;
+			t = tnext;
 		} while (count > 0);
 	} while ((pspan = pspan->pnext) != NULL);
 }
@@ -594,8 +595,8 @@ void D_DrawTiled8Trans(espan_t* pspan)
 	float			sdivz, tdivz, zi, z, du, dv, spancountminus1;
 	float			sdivz16stepu, tdivz16stepu, zi16stepu, izistep;
 	unsigned short  *psource, *pdest;
-	fixed16_t		r_turb_s, r_turb_t, r_turb_sstep, r_turb_tstep;
-	int				r_turb_spancount;
+	fixed16_t		s, t, sstep, tstep;
+	int				spancount;
 	short*			zbuf;
 
 	if (r_pixbytes != 1)
@@ -630,28 +631,28 @@ void D_DrawTiled8Trans(espan_t* pspan)
 		zi = d_ziorigin + dv * d_zistepv + du * d_zistepu;
 		z = (float)INFINITE_DISTANCE / zi;	// prescale to 16.16 fixed-point
 
-		r_turb_s = (int)(sdivz * z) + sadjust;
-		r_turb_t = (int)(tdivz * z) + tadjust;
+		s = (int)(sdivz * z) + sadjust;
+		t = (int)(tdivz * z) + tadjust;
 
 		if (zi > 0.9f)
 		{
 			izi = 0x7F000000;
+			izistep = 0;
 		}
 		else
 		{
 			izi = (int)(zi * ZISCALE * INFINITE_DISTANCE);
-			izistep = 0;
 		}
 
 		do
 		{
 			// calculate s and t at the far end of the span
 			if (count >= 16)
-				r_turb_spancount = 16;
+				spancount = 16;
 			else
-				r_turb_spancount = count;
+				spancount = count;
 
-			count -= r_turb_spancount;
+			count -= spancount;
 
 			// calculate s/z, t/z, zi->fixed s and t at far end of span,
 			// calculate s and t steps across span by shifting
@@ -663,14 +664,14 @@ void D_DrawTiled8Trans(espan_t* pspan)
 			snext = (int)(sdivz * z) + sadjust;
 			tnext = (int)(tdivz * z) + tadjust;
 
-			r_turb_sstep = (snext - r_turb_s) >> 4;
-			r_turb_tstep = (tnext - r_turb_t) >> 4;
+			sstep = (snext - s) >> 4;
+			tstep = (tnext - t) >> 4;
 
 			do
 			{
 				if (*zbuf < izi >> 16)
 				{
-					word* psource = (word*)cacheblock + ((gTilemap.tMask & (r_turb_t >> 16)) << gTilemap.tShift) + (gTilemap.sMask & (r_turb_s >> 16));
+					word* psource = (word*)cacheblock + ((gTilemap.tMask & (t >> 16)) << gTilemap.tShift) + (gTilemap.sMask & (s >> 16));
 					if (is15bit)
 						*pdest = ScaleToColor(*pdest, *psource, mask_b_15, r_blend) & mask_b_15 |
 						ScaleToColor(*pdest, *psource, mask_r_15, r_blend) & mask_r_15 |
@@ -682,12 +683,13 @@ void D_DrawTiled8Trans(espan_t* pspan)
 				}
 				zbuf++;
 				pdest++;
-				r_turb_s += r_turb_sstep;
-				r_turb_t += r_turb_tstep;
-			} while (--r_turb_spancount > 0);
+				s += sstep;
+				t += tstep;
+				izi += izistep;
+			} while (--spancount > 0);
 
-			r_turb_s = snext;
-			r_turb_t = tnext;
+			s = snext;
+			t = tnext;
 		} while (count > 0);
 	} while ((pspan = pspan->pnext) != NULL);
 }

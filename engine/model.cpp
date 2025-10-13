@@ -1118,9 +1118,6 @@ void Mod_LoadFaces( lump_t* l )
 			continue;
 		}
 
-		if (!(out->flags & (SURF_DRAWSKY | SURF_DRAWTILED)) && out->samples == 0)
-			OutputDebugString("");
-
 		if (!Q_strncmp(out->texinfo->texture->name, "scroll", 6))	// scroll
 		{
 			out->flags |= SURF_DRAWTILED;

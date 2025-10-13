@@ -393,6 +393,50 @@ void R_DrawSolidClippedSubmodelPolygons( model_t* pmodel )
 	}
 }
 
+void R_RenderBmodelFaceReverse(model_t* pmodel, msurface_t* psurf)
+{
+	mvertex_t	bverts[32];
+	bedge_t		bedges[32], * pbedge = NULL;
+	medge_t* pedge, * pedges;
+	int i;
+
+	pbedges = bedges;
+	pbverts = bverts;
+	numbverts = 0;
+	numbedges = psurf->numedges;
+
+	if (psurf->numedges > 32)
+	{
+		Con_Printf(const_cast<char*>("Out of edges!\n"));
+		return;
+	}
+
+	pbedge = bedges;
+	pedges = pmodel->edges;
+
+	for (i = 0; i < psurf->numedges; i++)
+	{
+		int lindex = pmodel->surfedges[psurf->numedges - 1 + psurf->firstedge - i];
+		if (lindex > 0)
+		{
+			pedge = &pedges[lindex];
+			pbedge[i].v[0] = &r_pcurrentvertbase[pedge->v[1]];
+			pbedge[i].v[1] = &r_pcurrentvertbase[pedge->v[0]];
+		}
+		else
+		{
+			pedge = &pedges[-lindex];
+			pbedge[i].v[0] = &r_pcurrentvertbase[pedge->v[0]];
+			pbedge[i].v[1] = &r_pcurrentvertbase[pedge->v[1]];
+		}
+
+		pbedge[i].pnext = &pbedge[i + 1];
+	}
+	pbedge[i - 1].pnext = NULL;
+	
+	R_RenderBmodelFace(bedges, psurf);
+}
+
 
 /*
 ================
@@ -439,7 +483,7 @@ void R_DrawSubmodelPolygons( model_t* pmodel, int clipflags )
 
 				r_currentbkey = ((mleaf_t*)currententity->topnode)->key;
 
-				R_RenderWaterFace(pmodel, psurf);
+				R_RenderBmodelFaceReverse(pmodel, psurf);
 			}
 		}
 	}
