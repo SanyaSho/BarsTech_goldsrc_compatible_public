@@ -132,8 +132,8 @@ void FloorDivMod( double numer, double denom, int *quotient,
 fixed16_t Invert24To16( fixed16_t val );
 int GreatestCommonDivisor( int i1, int i2 );
 
-void AngleVectors( const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up );
-void AngleVectorsTranspose( const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up );
+void AngleVectors(const vec_t* angles, vec_t* forward, vec_t* right, vec_t* up);
+void AngleVectorsTranspose(const vec_t* angles, vec_t* forward, vec_t* right, vec_t* up);
 #define AngleIVectors	AngleVectorsTranspose
 
 void AngleMatrix( const vec3_t angles, float( *matrix )[ 4 ] );
@@ -142,15 +142,14 @@ void VectorTransform( const vec3_t in1, const float in2[ 3 ][ 4 ], vec3_t out );
 
 void NormalizeAngles( float *angles );
 void InterpolateAngles( float *start, float *end, float *output, float frac );
-float AngleBetweenVectors( const vec3_t v1, const vec3_t v2 );
 
 
 void VectorMatrix( vec3_t forward, vec3_t right, vec3_t up );
-void VectorAngles( const vec3_t forward, vec3_t angles );
+void VectorAngles( const vec_t* forward, vec_t* angles );
 
 int InvertMatrix( const float * m, float *out );
 
-extern "C" int BoxOnPlaneSide(vec3_t emins, vec3_t emaxs, struct mplane_s* plane);
+extern "C" int BoxOnPlaneSide(vec_t* emins, vec_t* emaxs, struct mplane_s* p);
 float	anglemod( float a );
 
 

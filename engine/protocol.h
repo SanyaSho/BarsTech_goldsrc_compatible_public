@@ -129,6 +129,7 @@ typedef struct entity_state_s entity_state_t;
 
 // Request for detailed server/rule information.
 #define S2A_INFO_GOLDSRC		'm' // Reserved for use by goldsrc servers
+#define S2A_INFO_STATUS			'I'
 // Proxy sends multicast IP or 0.0.0.0 if he's not broadcasting the game
 #define S2C_LISTEN				'G'	// + IP x.x.x.x:port
 #define P2P_STATUS				'I'	// Inter-Proxy status message

@@ -3,6 +3,7 @@
 
 #include "quakedef.h"
 #include "client.h"
+#include "studio.h"
 
 cvar_t mem_dbgfile = { const_cast<char*>("mem_dbgfile"), const_cast<char*>(".\\mem.txt") };
 
@@ -291,44 +292,7 @@ void Hunk_Check( void )
 }
 
 #define MAX_COMMA_BUFFER 50
-
-/**
-*	Converts a numeer into a string representation.
-*/
-char* CommatizeNumber( int num, char* pout )
-{
-	char outbuf[ MAX_COMMA_BUFFER ] = {};
-
-	//Convert the number into a string representation.
-	//Separates each part of 3 numbers with a comma.
-	{
-		char tempbuf[ MAX_COMMA_BUFFER ];
-
-		for( int i = num; i; i /= 1000 )
-		{
-			const auto part = i % 1000;
-			Q_strncpy( tempbuf, outbuf, sizeof( tempbuf ) - 1 );
-			tempbuf[ sizeof( tempbuf ) - 1 ] = '\0';
-			snprintf( outbuf, sizeof( outbuf ), ",%03i%s", part, tempbuf );
-		}
-	}
-
-	const int iLength = Q_strlen( outbuf );
-
-	//Skip any leading zeroes.
-	for( int i = 0; i < iLength; ++i )
-	{
-		if( outbuf[ i ] != ',' && outbuf[ i ] != '0' )
-		{
-			Q_strcpy( pout, &outbuf[ i ] );
-			return pout;
-		}
-	}
-
-	Q_strcpy( pout, "0" );
-
-	return pout;
-}
+char* CommatizeNumber(int num, char* pout);
 
 /*
 ==============
@@ -404,7 +368,7 @@ void Hunk_Print( qboolean all )
 		//
 		// print the single block
 		//
-		memcpy( name, h->name, HUNK_MAX_NAME );
+		Q_memcpy( name, h->name, HUNK_MAX_NAME );
 		if( all )
 		{
 			CommatizeNumber( h->size, commabuf );
@@ -415,7 +379,7 @@ void Hunk_Print( qboolean all )
 		// print the total
 		//
 		if( next == endlow || next == endhigh ||
-			strncmp( h->name, next->name, HUNK_MAX_NAME ) )
+			Q_strncmp( h->name, next->name, HUNK_MAX_NAME ) )
 		{
 			if( !all )
 			{
@@ -801,6 +765,12 @@ cache_system_t *Cache_TryAlloc( int size, qboolean nobottom )
 	return NULL;		// couldn't allocate
 }
 
+void Cache_Force_Flush()
+{
+	while (cache_head.next != &cache_head)
+		Cache_Free(cache_head.next->user);	// reclaim the space
+}
+
 /*
 ============
 Cache_Flush
@@ -820,12 +790,6 @@ void Cache_Flush( void )
 	}
 }
 
-void Cache_Force_Flush()
-{
-	while( cache_head.next != &cache_head )
-		Cache_Free( cache_head.next->user );	// reclaim the space
-}
-
 static int CacheSystemCompare( const void *ppcs1, const void *ppcs2 )
 {
 	return stricmp( 
@@ -841,74 +805,36 @@ Cache_Print
 */
 void Cache_Print( void )
 {
-	FileHandle_t file = FS_Open( mem_dbgfile.string, "a" );
+	cache_system_t* cd;
+	cache_system_t* sortarray[512];
+	int i = 0, j = 0;
+	FileHandle_t file;
+	char commabuf[50];
 
-	if( file == FILESYSTEM_INVALID_HANDLE )
+	file = FS_Open(mem_dbgfile.string, "a");
+	if (!file)
 		return;
 
-	cache_system_t* sortarray[ 512 ];
-	char commabuf[ MAX_COMMA_BUFFER ];
 
-	//Note: this memset is wrong in GoldSource, the fill and count args are swapped. - Solokiller
-	Q_memset( sortarray, 0, sizeof( sortarray ) );
+	Q_memset(sortarray, 0, sizeof(sortarray));
 
-	int num = 0;
+	FS_FPrintf(file, "\nCACHE:\n");
 
-	for( cache_system_t *cd = cache_head.next; cd != &cache_head; cd = cd->next )
+	for (cd = cache_head.next; cd != &cache_head; cd = cd->next)
 	{
-		sortarray[ num++ ] = cd;
+		sortarray[i++] = cd;
 	}
 
-	//qsort( sortarray, num, sizeof( cache_system_t* ), &CacheSystemCompare );
-	FS_FPrintf(file, "\r\n\r\nunsorted dump:\r\n");
+	//Sort the array alphabetically
+	qsort(sortarray, i, sizeof(cache_system_t*), CacheSystemCompare);
 
-	for( int i = 0; i < num; ++i )
-	{
-		CommatizeNumber( sortarray[ i ]->size, commabuf );
-		FS_FPrintf( file, "%16.16s : %s\n", commabuf, sortarray[ i ]->name );
-	}
+	for (j = 0; j < i; j++)
+		FS_FPrintf(file, "%16.16s : %-16s\n", CommatizeNumber(sortarray[j]->size, commabuf), sortarray[j]->name);
 
-	FS_Close( file );
+	FS_Close(file);
 }
 
-void Cache_Print_Models_And_Totals()
-{
-	FileHandle_t file = FS_Open( mem_dbgfile.string, "a" );
-
-	if( file == FILESYSTEM_INVALID_HANDLE )
-		return;
-
-	cache_system_t* sortarray[ 512 ];
-	char commabuf[ MAX_COMMA_BUFFER ];
-
-	Q_memset( sortarray, 0, sizeof( sortarray ) );
-
-	int num = 0;
-
-	for( cache_system_t *cd = cache_head.next; cd != &cache_head; cd = cd->next )
-	{
-		if( strstr( cd->name, ".mdl" ) )
-			sortarray[ num++ ] = cd;
-	}
-
-	qsort( sortarray, num, sizeof( cache_system_t* ), &CacheSystemCompare );
-
-	FS_FPrintf( file, "\nCACHED MODELS:\n" );
-
-	int iTotalSize = 0;
-
-	for( int i = 0; i < num; ++i )
-	{
-		CommatizeNumber( sortarray[ i ]->size, commabuf );
-		FS_FPrintf( file, "\t%16.16s : %s\n", commabuf, sortarray[ i ]->name );
-		iTotalSize += sortarray[ i ]->size;
-	}
-
-	FS_FPrintf( file, "Total bytes in cache used by models:  %s\n", CommatizeNumber( iTotalSize, commabuf ) );
-	FS_Close( file );
-}
-
-bool ComparePath1( const char* path1, const char* path2 )
+int ComparePath1( char* path1, char* path2 )
 {
 	for( int i = 0; path1[ i ] == path2[ i ]; ++i )
 	{
@@ -919,54 +845,42 @@ bool ComparePath1( const char* path1, const char* path2 )
 	return false;
 }
 
-void Cache_Print_Sounds_And_Totals()
+/**
+*	Converts a numeer into a string representation.
+*/
+char* CommatizeNumber(int num, char* pout)
 {
-	FileHandle_t file = FS_Open( mem_dbgfile.string, "a" );
 
-	if( file == FILESYSTEM_INVALID_HANDLE )
-		return;
-
-	cache_system_t* sortarray[ 512 ];
-	char commabuf[ MAX_COMMA_BUFFER ];
-
-	Q_memset( sortarray, 0, sizeof( sortarray ) );
-
-	int num = 0;
-
-	for( cache_system_t *cd = cache_head.next; cd != &cache_head; cd = cd->next )
+	//this is probably more complex than it needs to be.
+	int len = 0;
+	int i;
+	char outbuf[50];
+	Q_memset(outbuf, 0, sizeof(outbuf));
+	while (num)
 	{
-		if( strstr( cd->name, ".wav" ) )
-			sortarray[ num++ ] = cd;
+		char tempbuf[50];
+		int temp = num % 1000;
+		num = num / 1000;
+		Q_strncpy(tempbuf, outbuf, sizeof(tempbuf) - 1);
+		tempbuf[sizeof(tempbuf) - 1] = 0;
+
+		snprintf(outbuf, sizeof(outbuf), ",%03i%s", temp, tempbuf);
 	}
 
-	qsort( sortarray, num, sizeof( cache_system_t* ), &CacheSystemCompare );
+	len = Q_strlen(outbuf);
 
-	FS_FPrintf( file, "\nCACHED SOUNDS:\n" );
-
-	int iTotalSize = 0;
-	int subtot = 0;
-
-	char pathbuf[ 512 ];
-
-	for( int i = 0; i < num; ++i )
+	for (i = 0; i < len; i++)				//find first significant digit
 	{
-		auto pSys = sortarray[ i ];
-
-		CommatizeNumber( pSys->size, commabuf );
-		FS_FPrintf( file, "\t%16.16s : %s\n", commabuf, pSys->name );
-		iTotalSize += pSys->size;
-
-		//Determine the total size of each directory
-		if( i + 1 >= num || !ComparePath1( pSys->name, sortarray[ i + 1 ]->name ) )
-		{
-			Sys_SplitPath( pSys->name, nullptr, pathbuf, 0, 0 );
-			FS_FPrintf( file, "\tTotal Bytes used in \"%s\": %s\n", pathbuf, CommatizeNumber( iTotalSize - subtot, commabuf ) );
-			subtot = iTotalSize;
-		}
+		if (outbuf[i] != '0' && outbuf[i] != ',')
+			break;
 	}
 
-	FS_FPrintf( file, "Total bytes in cache used by sound:  %s\n", CommatizeNumber( iTotalSize, commabuf ) );
-	FS_Close( file );
+	if (i == len)
+		Q_strcpy(pout, "0");
+	else
+		Q_strcpy(pout, &outbuf[i]);	//copy from i to get rid of the first comma and leading zeros
+
+	return pout;
 }
 
 /*
@@ -978,18 +892,6 @@ Cache_Report
 void Cache_Report( void )
 {
 	Con_DPrintf( const_cast<char*>("%4.1f megabyte data cache\n"), ( hunk_size - hunk_high_used - hunk_low_used ) / ( float ) ( 1024 * 1024 ) );
-}
-
-int Cache_TotalUsed()
-{
-	int result = 0;
-
-	for( auto pSys = cache_head.next; pSys != &cache_head; pSys = pSys->next )
-	{
-		result += pSys->size;
-	}
-
-	return result;
 }
 
 /*
@@ -1043,6 +945,18 @@ void Cache_Free( cache_user_t *c )
 }
 
 
+int Cache_TotalUsed()
+{
+	int Total = 0;
+
+	for (cache_system_t* pSys = cache_head.next; pSys != &cache_head; pSys = pSys->next)
+	{
+		Total += pSys->size;
+	}
+
+	return Total;
+}
+
 
 /*
 ==============
@@ -1082,10 +996,6 @@ void *Cache_Alloc( cache_user_t *c, int size, char *name )
 		Sys_Error( "Cache_Alloc: size %i", size );
 
 	size = ( size + sizeof( cache_system_t ) + 15 ) & ~15;
-
-	Hunk_Check();
-
-	// Cache_Print();
 
 	// find memory for it	
 	while( 1 )
@@ -1139,4 +1049,113 @@ void Memory_Init( void *buf, int size )
 	}
 	mainzone = reinterpret_cast<memzone_t*>( Hunk_AllocName( zonesize, const_cast<char*>("zone") ) );
 	Z_ClearZone( mainzone, zonesize );
+}
+
+void Cache_Print_Models_And_Totals(void)
+{
+	char buf[50];
+	cache_system_t* cd;
+	cache_system_t* sortarray[MAX_MODELS];
+	long i = 0, j = 0;
+	long totalbytes = 0;
+	FileHandle_t file = FS_Open(mem_dbgfile.string, "a");
+	int subtot = 0;
+
+	if (!file)
+		return;
+
+
+
+	Q_memset(sortarray, 0, sizeof(sortarray));
+
+	//pack names into the array.
+	for (cd = cache_head.next; cd != &cache_head; cd = cd->next)
+	{
+		if (Q_strstr(cd->name, ".mdl"))
+		{
+			sortarray[i++] = cd;
+		}
+	}
+
+	qsort(sortarray, i, sizeof(cache_system_t*), CacheSystemCompare);
+
+
+
+
+	FS_FPrintf(file, "\nCACHED MODELS:\n");
+
+
+	//now process the sorted list.  
+	for (j = 0; j < i; j++)
+	{
+		int k;
+		mstudiotexture_t* ptexture;
+		studiohdr_t* phdr = (studiohdr_t*)sortarray[j]->user->data;
+
+
+		ptexture = (mstudiotexture_t*)(((char*)phdr) + phdr->textureindex);
+
+		subtot = 0;
+		for (k = 0; k < phdr->numtextures; k++)
+			subtot += ptexture[k].width * ptexture[k].height + 768; // (256*3 for the palette)
+
+		FS_FPrintf(file, "\t%16.16s : %s\n", CommatizeNumber(sortarray[j]->size, buf), sortarray[j]->name);
+		totalbytes += sortarray[j]->size;
+	}
+
+
+	FS_FPrintf(file, "Total bytes in cache used by models:  %s\n", CommatizeNumber(totalbytes, buf));
+	FS_Close(file);
+}
+
+void Cache_Print_Sounds_And_Totals(void)
+{
+	char buf[50];
+	cache_system_t* cd;
+	cache_system_t* sortarray[MAX_SOUNDS];
+	long i = 0, j = 0;
+	long totalsndbytes = 0;
+	FileHandle_t file = FS_Open(mem_dbgfile.string, "a");
+	int subtot = 0;
+
+	if (!file)
+		return;
+
+	Q_memset(sortarray, 0, sizeof(sortarray));
+
+	//pack names into the array
+	for (cd = cache_head.next; cd != &cache_head; cd = cd->next)
+	{
+		if (Q_strstr(cd->name, ".wav"))
+		{
+			sortarray[i++] = cd;
+		}
+	}
+
+	qsort(sortarray, i, sizeof(cache_system_t*), CacheSystemCompare);
+
+	FS_FPrintf(file, "\nCACHED SOUNDS:\n");
+
+
+	//now process the sorted list.  (totals by directory)
+	for (j = 0; j < i; j++)
+	{
+
+		FS_FPrintf(file, "\t%16.16s : %s\n", CommatizeNumber(sortarray[j]->size, buf), sortarray[j]->name);
+		totalsndbytes += sortarray[j]->size;
+
+		if (j + 1 == i || ComparePath1(sortarray[j]->name, sortarray[j + 1]->name) == 0)
+		{
+			char pathbuf[512];
+			Sys_SplitPath(sortarray[j]->name, NULL, pathbuf, NULL, NULL);
+			FS_FPrintf(file, "\tTotal Bytes used in \"%s\": %s\n", pathbuf, CommatizeNumber(totalsndbytes - subtot, buf));
+			subtot = totalsndbytes;
+		}
+
+	}
+
+
+
+	FS_FPrintf(file, "Total bytes in cache used by sound:  %s\n", CommatizeNumber(totalsndbytes, buf));
+	FS_Close(file);
 }

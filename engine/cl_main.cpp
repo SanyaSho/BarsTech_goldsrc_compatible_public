@@ -227,7 +227,7 @@ void CL_UpdateSoundFade()
 {
 	cls.soundfade.nClientSoundFadePercent = 0;
 
-	if (realtime >= cls.soundfade.soundFadeOutTime + cls.soundfade.soundFadeHoldTime + cls.soundfade.soundFadeStartTime + cls.soundfade.soundFadeInTime)
+	if (realtime - cls.soundfade.soundFadeStartTime >= cls.soundfade.soundFadeOutTime + cls.soundfade.soundFadeHoldTime + cls.soundfade.soundFadeInTime)
 		return;
 
 	if (cls.soundfade.soundFadeOutTime && realtime - cls.soundfade.soundFadeStartTime < cls.soundfade.soundFadeOutTime)
@@ -309,7 +309,7 @@ void CL_PrintCachedServer(int slot)
 	if (!p->inuse)
 		return;
 
-	Con_Printf(const_cast<char*>("%i. "), slot + 1);
+	Con_Printf(const_cast<char*>("%d "), slot + 1);
 
 	Con_Printf(const_cast<char*>("Name: %s\n"), p->name);
 	Con_Printf(const_cast<char*>("Address: %s\n"), NET_AdrToString(p->adr));
@@ -348,7 +348,8 @@ void CL_PrintCachedServer(int slot)
 
 	Con_Printf(const_cast<char*>("%s - %s - %s - %s\n"), type, os, p->is_private ? "Private" : "Public", p->is_vac ? "Secure" : "Insecure");
 
-	Con_Printf(const_cast<char*>("\n"));
+	if (p->has_spectator_address)
+		Con_Printf(const_cast<char*>("Spectator Address: %s\n"), NET_AdrToString(p->spec_adr));
 }
 
 /*
@@ -483,8 +484,7 @@ void CL_ParseBatchModList()
 
 	if (pszModName && pszModName[0] && !Q_strcasecmp(pszModName, "more-in-list"))
 	{
-		// 120 - command?
-		_snprintf(szRequest, 128, "%c\r\n%s\r\n", 120, szName);
+		_snprintf(szRequest, 128, "%c\r\n%s\r\n", A2M_GETACTIVEMODS, szName);
 		Con_DPrintf(const_cast<char*>("Requesting next batch ( >%s ) of mods from %s\n"), szName, NET_AdrToString(net_from));
 		NET_SendPacket(NS_CLIENT, Q_strlen(szRequest) + 1, szRequest, net_from);
 
@@ -507,8 +507,8 @@ void CL_ParseBatchUserList()
 
 	MSG_ReadByte();
 
-	int hash = MSG_ReadLong();
 	int unique = MSG_ReadLong();
+	int hash = MSG_ReadLong();
 
 	int nNumAddresses = (net_message.cursize - msg_readcount) / 6;
 
@@ -527,14 +527,14 @@ void CL_ParseBatchUserList()
 		count++;
 	}
 
-	if (unique && hash)
+	if (hash && unique)
 	{
 		Q_strcpy((char*)c, "users");
 
-		*(int*)&c[Q_strlen("users") + 1] = hash;
-		*(int*)&c[Q_strlen("users") + 5] = unique;
+		*(int*)&c[Q_strlen("users") + 1] = unique;
+		*(int*)&c[Q_strlen("users") + 5] = hash;
 
-		Con_DPrintf(const_cast<char*>("Requesting next batch ( %i ) user list from %s\n"), unique, NET_AdrToString(net_from));
+		Con_DPrintf(const_cast<char*>("Requesting next batch ( %i ) user list from %s\n"), hash, NET_AdrToString(net_from));
 
 		NET_SendPacket(NS_CLIENT, Q_strlen("users") + 9, c, net_from);
 
@@ -1009,9 +1009,6 @@ void CL_ConnectionlessPacket(void)
 		// Force bad pw dialog to come up now.
 		COM_ExplainDisconnection(false, const_cast<char*>("#GameUI_ServerConnectionFailedBadPassword"));
 		Con_Printf(const_cast<char*>("Invalid server password.\n"));
-		extern void DbgPrint(FILE*, const char* format, ...);
-		extern FILE* m_fMessages;
-		DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 		CL_Disconnect();
 		break;
 	case S2C_REDIRECT:
@@ -1026,9 +1023,6 @@ void CL_ConnectionlessPacket(void)
 		if (strchr(s, '\n') || strchr(s, ';'))
 		{
 			COM_ExplainDisconnection(true, const_cast<char*>("Invalid command separator in redirect server name, disconnecting.\n"));
-			extern void DbgPrint(FILE*, const char* format, ...);
-			extern FILE* m_fMessages;
-			DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 			CL_Disconnect();
 			break;
 		}
@@ -1049,12 +1043,9 @@ void CL_ConnectionlessPacket(void)
 
 		// Force failure dialog to come up now.
 		COM_ExplainDisconnection(true, s);
-		extern void DbgPrint(FILE*, const char* format, ...);
-		extern FILE* m_fMessages;
-		DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 		CL_Disconnect();
 		break;
-	case P2P_STATUS:
+	case S2A_INFO_STATUS:
 		memset(&szCommand, 0, sizeof(szCommand));
 		szCommand.adr = net_from;
 
@@ -1076,16 +1067,16 @@ void CL_ConnectionlessPacket(void)
 		infoByte = MSG_ReadByte();
 		if (!msg_badread)
 		{
-			if (infoByte & PROXYFLAG_SETPORT)
+			if (infoByte & S2A_EXTRA_DATA_HAS_GAME_PORT)
 				szCommand.adr.port = Q_ntohs(MSG_ReadShort());
 
-			if (infoByte & PROXYFLAG_BIT4)
+			if (infoByte & S2A_EXTRA_DATA_HAS_STEAMID)
 			{
 				MSG_ReadLong();
 				MSG_ReadLong();
 			}
 
-			if (infoByte & PROXYFLAG_SETSPECTATOR)
+			if (infoByte & S2A_EXTRA_DATA_HAS_SPECTATOR_DATA)
 			{
 				szCommand.spec_adr = net_from;
 				szCommand.spec_adr.port = Q_ntohs(MSG_ReadShort());
@@ -1093,10 +1084,10 @@ void CL_ConnectionlessPacket(void)
 				szCommand.has_spectator_address = 1;
 			}
 
-			if (infoByte & PROXYFLAG_SETNAME)
+			if (infoByte & S2A_EXTRA_DATA_HAS_GAMETAG_DATA)
 				MSG_SkipString();
 
-			if (infoByte & PROXYFLAG_BIT0)
+			if (infoByte & S2A_EXTRA_DATA_GAMEID)
 			{
 				MSG_ReadLong();
 				MSG_ReadLong();
@@ -1147,9 +1138,6 @@ qboolean CL_PrecacheResources()
 				else
 				{
 					COM_ExplainDisconnection(true, const_cast<char*>("Cannot continue without sound %s, disconnecting."), pResource->szFileName);
-					extern void DbgPrint(FILE*, const char* format, ...);
-					extern FILE* m_fMessages;
-					DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 					CL_Disconnect();
 					return FALSE;
 				}
@@ -1161,7 +1149,7 @@ qboolean CL_PrecacheResources()
 			break;
 		case t_model:
 			if (pResource->nIndex >= cl.model_precache_count)
-				cl.model_precache_count = min(pResource->nIndex + 1, 512);
+				cl.model_precache_count = min(pResource->nIndex + 1, MAX_MODELS);
 			
 			if (pResource->szFileName[0] == '*')
 			{
@@ -1176,15 +1164,14 @@ qboolean CL_PrecacheResources()
 				else
 					cl.model_precache[pResource->nIndex] = Mod_FindName(true, pResource->szFileName);
 
-				if (!cl.model_precache[pResource->nIndex] && pResource->ucFlags != 0)
+				if (!cl.model_precache[pResource->nIndex])
 				{
-					Con_Printf(const_cast<char*>("Model %s not found and not available from server\n"), pResource->szFileName);
+					if (pResource->ucFlags != 0)
+						Con_Printf(const_cast<char*>("Model %s not found and not available from server\n"), pResource->szFileName);
+					
 					if (pResource->ucFlags & RES_FATALIFMISSING)
 					{
 						COM_ExplainDisconnection(true, const_cast<char*>("Cannot continue without model %s, disconnecting."), pResource->szFileName);
-						extern void DbgPrint(FILE*, const char* format, ...);
-						extern FILE* m_fMessages;
-						DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 						CL_Disconnect();
 						return FALSE;
 					}
@@ -1210,15 +1197,12 @@ qboolean CL_PrecacheResources()
 				if (pResource->ucFlags & RES_FATALIFMISSING)
 				{
 					COM_ExplainDisconnection(true, const_cast<char*>("Cannot continue without script %s, disconnecting."), pResource->szFileName);
-					extern void DbgPrint(FILE*, const char* format, ...);
-					extern FILE* m_fMessages;
-					DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 					CL_Disconnect();
 					return FALSE;
 				}
 			}
-			//else
-				pResource->ucFlags |= RES_PRECACHED;
+			
+			pResource->ucFlags |= RES_PRECACHED;
 			break;
 		default:
 			Con_DPrintf(const_cast<char*>("Unknown resource type\n"));
@@ -1228,7 +1212,7 @@ qboolean CL_PrecacheResources()
 	}
 
 	if (fs_startup_timings.value == 0.0)
-		return 1;
+		return true;
 
 	AddStartupTiming("end  CL_PrecacheResources()");
 
@@ -1396,20 +1380,17 @@ void CL_ReadPackets()
 	cl.oldtime = cl.time;
 	cl.time += host_frametime;
 
-	extern FILE* m_fMessages;
-	void DbgPrint(FILE * m_fLogStream, const char* format, ...);
-
 	bool bReceived = false;
 
 	while (CL_GetMessage())
 	{
 		bReceived = true;
-		DbgPrint(m_fMessages, "got %d bytes\r\n", net_message.cursize);
+
+		msg_count++;
 
 		// demo code
 		if (!cls.demoplayback)
 		{
-			msg_count++;
 			if (msg_count > MAX_INCOMING_MESSAGES)
 			{
 				// Ignore rest of messages this frame, we won't be able to uncompress the delta
@@ -1424,7 +1405,6 @@ void CL_ReadPackets()
 		if (*(int *)net_message.data == -1)
 		{
 			CL_ConnectionlessPacket();
-			DbgPrint(m_fMessages, "%d bytes processed\r\n", msg_readcount);
 			continue;
 		}
 		
@@ -1466,7 +1446,6 @@ void CL_ReadPackets()
 
 		// Parse out the commands.
 		CL_ParseServerMessage();
-		DbgPrint(m_fMessages, "%d bytes processed\r\n", msg_readcount);
 	}
 
 	if (bReceived && msg_count > MAX_INCOMING_MESSAGES && !cls.demoplayback)
@@ -1514,9 +1493,6 @@ void CL_ReadPackets()
 		((realtime - cls.netchan.last_received) > cl_timeout.value))
 	{
 		COM_ExplainDisconnection(true, const_cast<char*>("#GameUI_ServerConnectionTimeout"));
-		extern void DbgPrint(FILE*, const char* format, ...);
-		extern FILE* m_fMessages;
-		DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 		CL_Disconnect();
 		return;
 	}
@@ -1557,7 +1533,7 @@ resource_t* CL_AddResource(resourcetype_t type, char* name, int size, qboolean b
 	pResource->szFileName[sizeof(pResource->szFileName) - 1] = 0;
 
 	pResource->nDownloadSize = size;
-	pResource->ucFlags |= bFatalIfMissing != false;
+	pResource->ucFlags |= bFatalIfMissing != false ? RES_FATALIFMISSING : 0;
 	pResource->nIndex = index;
 
 	return pResource;
@@ -1573,7 +1549,7 @@ void CL_CreateResourceList()
 	cl.num_resources = 0;
 
 	char szFileName[MAX_PATH];
-	strcpy(szFileName, "tempdecal.wad");
+	_snprintf(szFileName, sizeof(szFileName), "tempdecal.wad");
 
 	byte rgucMD5_hash[16];
 	Q_memset(rgucMD5_hash, 0, sizeof(rgucMD5_hash));
@@ -1589,9 +1565,6 @@ void CL_CreateResourceList()
 
 		if (uiSize)
 		{
-			if (cl.num_resources >= MAX_RESOURCE_LIST)
-				Sys_Error("Too many resources on client.");
-
 			resource_t* pLastResource = CL_AddResource(t_decal, szFileName, uiSize, false, 0);
 
 			if (pLastResource != NULL)
@@ -1651,7 +1624,7 @@ void CL_ClearClientState()
 	CL_CreateResourceList();
 }
 
-void CL_ClearState( bool bQuiet )
+void CL_ClearState( qboolean bQuiet )
 {
 	if( !Host_IsServerActive() )
 		Host_ClearMemory( bQuiet );
@@ -1679,7 +1652,7 @@ void CL_ClearState( bool bQuiet )
 		cl.free_efrags[ i ].entnext = &cl.free_efrags[ i + 1 ];
 	}
 
-	cl.free_efrags[ i ].entnext = nullptr;
+	cl.free_efrags[ i ].entnext = NULL;
 }
 
 void CL_Disconnect(void)
@@ -1733,7 +1706,7 @@ void CL_Disconnect(void)
 
 		Steam_GSTerminateGameConnection(curip, g_GameServerAddress.port);
 
-		Q_memset((char*)&g_GameServerAddress, 0, sizeof(g_GameServerAddress));
+		Q_memset(&g_GameServerAddress, 0, sizeof(g_GameServerAddress));
 
 		if (Host_IsServerActive())
 			Host_ShutdownServer(false);
@@ -1741,8 +1714,8 @@ void CL_Disconnect(void)
 		CloseSecurityModule();
 	}
 
-	cls.timedemo = 0;
-	cls.demoplayback = 0;
+	cls.timedemo = false;
+	cls.demoplayback = false;
 	cls.signon = 0;
 
 	CL_ClearState(true);
@@ -1753,7 +1726,7 @@ void CL_Disconnect(void)
 
 	scr_downloading.value = -1.0f;
 	sys_timescale.value = 1.0f;
-	g_LastScreenUpdateTime = 0;
+	g_LastScreenUpdateTime = 0.0f;
 
 	VGuiWrap2_NotifyOfServerDisconnect();
 
@@ -1783,7 +1756,7 @@ void CL_ShutDownClientStatic()
 
 void CL_Retry_f()
 {
-	char szCommand[260];
+	char szCommand[MAX_PATH];
 
 	if (!cls.servername[0])
 		return Con_Printf(const_cast<char*>("Can't retry, no previous connection\n"));
@@ -1835,6 +1808,8 @@ char *CL_GetCDKeyHash(void)
 		return const_cast<char*>("");
 	}
 
+	szKeyBuffer[nKeyLength] = 0;
+
 	// Now get the md5 hash of the key
 	Q_memset(&ctx, 0, sizeof(ctx));
 	Q_memset(digest, 0, sizeof(digest));
@@ -1842,7 +1817,7 @@ char *CL_GetCDKeyHash(void)
 	MD5Init(&ctx);
 	MD5Update(&ctx, (unsigned char*)szKeyBuffer, nKeyLength);
 	MD5Final(digest, &ctx);
-	Q_memset(szHashedKeyBuffer, 0, 256);
+	Q_memset(szHashedKeyBuffer, 0, sizeof(szHashedKeyBuffer));
 	Q_strncpy(szHashedKeyBuffer, MD5_Print(digest), sizeof(szHashedKeyBuffer) - 1);
 	szHashedKeyBuffer[sizeof(szHashedKeyBuffer) - 1] = 0;
 
@@ -1871,7 +1846,7 @@ void CL_SendConnectPacket(void)
 	byte authprotocol;
 	int steamproto;
 	int steampacket;
-	int querylen, length;
+	int length;
 
 	Q_memset(protinfo, 0, sizeof(protinfo));
 	ContinueLoadingProgressBar("ClientConnect", 1, 0.0);
@@ -1928,51 +1903,31 @@ void CL_SendConnectPacket(void)
 
 	Q_memset(rgchSteam3LoginCookie, 0, 1024);
 
-	if (!steamproto)
+	if (steamproto)
 	{
-		// Mark time of this attempt for retransmit requests
-		cls.connect_time = realtime;
-
-		_snprintf(data, sizeof(data), "%c%c%c%cconnect %i %i \"%s\" \"%s\"\n", 255, 255, 255, 255,
-			PROTOCOL_VERSION, cls.challenge, protinfo, cls.userinfo);  // Send protocol and challenge value
-
-		length = Q_strlen(data);
-	}
-	else
-	{
-		extern void DbgPrint(FILE*, const char* format, ...);
-		extern FILE* m_fMessages;
-		DbgPrint(m_fMessages, "connecting to %08X at %04X (%d.%d.%d.%d:%d) <%s#%d>\r\n", adr.type == NA_LOOPBACK ? *(DWORD*)&net_local_adr.ip[0] : *(DWORD*)&adr.ip[0],
-			adr.port, adr.type == NA_LOOPBACK ? net_local_adr.ip[0] : adr.ip[0],
-			adr.type == NA_LOOPBACK ? net_local_adr.ip[1] : adr.ip[1],
-			adr.type == NA_LOOPBACK ? net_local_adr.ip[2] : adr.ip[2],
-			adr.type == NA_LOOPBACK ? net_local_adr.ip[3] : adr.ip[3], adr.port, __FILE__, __LINE__);
-
 		steampacket = Steam_GSInitiateGameConnection(rgchSteam3LoginCookie, sizeof(rgchSteam3LoginCookie), cls.GameServerSteamID, 
-			adr.type == NA_LOOPBACK ? *(DWORD*)&net_local_adr.ip[0] : *(DWORD*)&adr.ip[0], adr.port, cls.isVAC2Secure);
+			adr.type == NA_LOOPBACK ? *(uint32*)&net_local_adr.ip[0] : *(uint32*)&adr.ip[0], adr.port, cls.isVAC2Secure);
+	}
 
-		// Mark time of this attempt for retransmit requests
-		cls.connect_time = realtime;
+	// Mark time of this attempt for retransmit requests
+	cls.connect_time = realtime;
 
-		_snprintf(data, sizeof(data), "%c%c%c%cconnect %i %i \"%s\" \"%s\"\n", 255, 255, 255, 255,
-			PROTOCOL_VERSION, cls.challenge, protinfo, cls.userinfo);  // Send protocol and challenge value
+	_snprintf(data, sizeof(data), "%c%c%c%cconnect %i %i \"%s\" \"%s\"\n", 255, 255, 255, 255,
+		PROTOCOL_VERSION, cls.challenge, protinfo, cls.userinfo);  // Send protocol and challenge value
 
-		querylen = Q_strlen(data);
-		length = querylen + steampacket;
+	length = Q_strlen(data);
 
-		if (length > sizeof(data))
+	if (steamproto)
+	{
+		if ((length + steampacket) > sizeof(data))
 		{
-			Con_Printf(const_cast<char*>("CL_SendConnectPacket:  Potential buffer overrun (%i/%i>%i) copying steamkeybuffer into connection packet\n"), querylen, length, sizeof(data));
-			extern void DbgPrint(FILE*, const char* format, ...);
-			extern FILE* m_fMessages;
-			DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
+			Con_Printf(const_cast<char*>("CL_SendConnectPacket:  Potential buffer overrun (%i/%i>%i) copying steamkeybuffer into connection packet\n"), length, steampacket, sizeof(data));
 			CL_Disconnect();
-			if (Host_IsServerActive())
-				Host_ShutdownServer(false);
 			return;
 		}
 
-		Q_memcpy(&data[querylen], rgchSteam3LoginCookie, steampacket);
+		Q_memcpy(&data[length], rgchSteam3LoginCookie, steampacket);
+		length += steampacket;
 	}
 
 	g_GameServerAddress = adr;
@@ -1982,8 +1937,8 @@ void CL_SendConnectPacket(void)
 
 void CL_CheckForResend()
 {
-	netadr_t src, adr;
-	char szServerName[260];
+	netadr_t adr;
+	char szServerName[MAX_PATH];
 	float cvar_new;
 	char data[2048];
 
@@ -2020,8 +1975,7 @@ void CL_CheckForResend()
 					cls.state = ca_disconnected;
 					Q_memset(&g_GameServerAddress, 0, sizeof(g_GameServerAddress));
 					cls.passive = false;
-					src = cls.connect_stream;
-					NET_LeaveGroup(cls.netchan.sock, src);
+					NET_LeaveGroup(cls.netchan.sock, cls.connect_stream);
 				}
 			}
 
@@ -2060,9 +2014,6 @@ void CL_CheckForResend()
 			cls.connect_retry = 0;
 			cls.state = ca_disconnected;
 			Q_memset(&g_GameServerAddress, 0, sizeof(g_GameServerAddress));
-			extern void DbgPrint(FILE*, const char* format, ...);
-			extern FILE* m_fMessages;
-			DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 			CL_Disconnect();
 			return;
 		}
@@ -2102,8 +2053,7 @@ void CL_CheckForResend()
 
 void CL_Connect_f()
 {
-	netadr_t dest;
-	char name[260];
+	char name[MAX_PATH];
 	CareerStateType career_old;
 	int cached_num;
 
@@ -2134,10 +2084,9 @@ void CL_Connect_f()
 
 	cached_num = Q_atoi(name);
 
-	if (!strstr(name, ".") && cached_num > 0 && cached_num <= num_servers)
+	if (!Q_strstr(name, ".") && cached_num > 0 && cached_num <= num_servers)
 	{
-		dest = cached_servers[cached_num - 1].adr;
-		Q_strncpy(name, NET_AdrToString(dest), sizeof(name));
+		Q_strncpy(name, NET_AdrToString(cached_servers[cached_num - 1].adr), sizeof(name));
 		name[sizeof(name) - 1] = 0;
 	}
 
@@ -2172,8 +2121,6 @@ void CL_Connect_f()
 //-----------------------------------------------------------------------------
 void CL_SignonReply(void)
 {
-	char 	str[8192];
-
 	Con_DPrintf (const_cast<char*>("CL_SignonReply: %i\n"), cls.signon);
 
 	switch (cls.signon)
@@ -2193,10 +2140,7 @@ void CL_SignonReply(void)
 			  int len;
 
 			  SCR_EndLoadingPlaque();
-			  int iArgs = sscanf(cl.levelname, "maps/%s.bsp", mapname);
-
-			//  if (iArgs == 0)
-			//	  return Sys_Error("can't parse levelname");
+			  sscanf(cl.levelname, "maps/%s.bsp", mapname);
 
 			  len = strlen(mapname);
 			  if (len > 4 && !strcmp(&mapname[len - 4], ".bsp"))
@@ -2210,9 +2154,6 @@ void CL_SignonReply(void)
 				  if (cls.spectator == false)
 				  {
 					  Con_Printf(const_cast<char*>("Redirected to invalid server\n"));
-					  extern void DbgPrint(FILE*, const char* format, ...);
-					  extern FILE* m_fMessages;
-					  DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 					  CL_Disconnect_f();
 				  }
 			  }
@@ -2694,25 +2635,9 @@ void CL_Move()
 		return;
 
 	if (cls.state == ca_connected && !cls.passive)
-		return Netchan_Transmit(&cls.netchan, 0, 0);
-
-	extern void DbgPrint(FILE*, const char* format, ...);
-	extern FILE* m_fMessages;
+		return Netchan_Transmit(&cls.netchan, 0, NULL);
 
 	CL_ComputePacketLoss();
-
-	// Determine number of backup commands to send along
-	numbackup = cl_cmdbackup.value;
-	if (numbackup < 0)
-	{
-		numbackup = 0;
-	}
-	else if (numbackup > MAX_BACKUP_COMMANDS)
-	{
-		numbackup = MAX_BACKUP_COMMANDS;
-	}
-
-	DbgPrint(m_fMessages, "numbackup set to %d\r\n", numbackup);
 
 	buf.buffername = "Client Move";
 	buf.maxsize = sizeof(data);
@@ -2734,11 +2659,24 @@ void CL_Move()
 
 	Q_memset(&cmd->cmd, 0, sizeof(usercmd_t));
 
+	active = cls.signon == SIGNONS;
+
 	CL_SetSolidEntities();
 	CL_PushPMStates();
 	CL_SetSolidPlayers(cl.playernum);
-	active = cls.signon == SIGNONS;
 	ClientDLL_CreateMove(host_frametime, &cmd->cmd, active);
+
+	// Determine number of backup commands to send along
+	numbackup = cl_cmdbackup.value;
+	if (numbackup < 0)
+	{
+		numbackup = 0;
+	}
+	else if (numbackup > MAX_BACKUP_COMMANDS)
+	{
+		numbackup = MAX_BACKUP_COMMANDS;
+	}
+
 	CL_PopPMStates();
 	CL_ComputeClientInterpolationAmount(&cmd->cmd);
 
@@ -2746,12 +2684,10 @@ void CL_Move()
 
 	// Write a clc_move message
 	MSG_WriteByte(&buf, clc_move);
-	DbgPrint(m_fMessages, "writing clc_move at %d\r\n", buf.cursize - 1);
 	// сохранение позиции для последующего заполнения двух байт (размера и хэша)
 	szbefore = buf.cursize + 1;
 	MSG_WriteByte(&buf, 0);
 	MSG_WriteByte(&buf, 0);
-	DbgPrint(m_fMessages, "2-byte pad at %d\r\n", buf.cursize - 2);
 
 	int packet_loss = clamp((int)cls.packet_loss, 0, 100);
 
@@ -2760,9 +2696,6 @@ void CL_Move()
 		packet_loss |= (1 << 7);
 
 	MSG_WriteByte(&buf, packet_loss);
-
-	DbgPrint(m_fMessages, "writing %d at %d\r\n", clamp((int)cls.packet_loss, 0, 100) | (Voice_GetLoopback() << 7),
-		buf.cursize - 1);
 
 	dmsec = host_frametime * 1000.f;
 
@@ -2817,7 +2750,6 @@ void CL_Move()
 		}
 		else
 		{
-			DbgPrint(m_fMessages, "writing %d backups at %d\r\n", numbackup, buf.cursize - 1);
 			MSG_WriteByte(&buf, numbackup);
 
 			// How many real commands have queued up
@@ -2830,7 +2762,6 @@ void CL_Move()
 				newcmds = min(newcmds, MAX_TOTAL_CMDS - numbackup);
 
 			MSG_WriteByte(&buf, newcmds);
-			DbgPrint(m_fMessages, "writing %d cmds at %d\r\n", newcmds, buf.cursize - 1);
 
 			Q_memset(&cmdbaseline, 0, sizeof(usercmd_t));
 			p_cmdbaseline = &cmdbaseline;
@@ -2871,12 +2802,6 @@ void CL_Move()
 			cl.validsequence = 0;
 		}
 
-
-		DbgPrint(m_fMessages, "move packet before delta:\r\n");
-		for (int i = 0; i < buf.cursize; i++)
-			DbgPrint(m_fMessages, "%02X ", buf.data[i]);
-		DbgPrint(m_fMessages, "\r\n");
-
 		// Determine if we need to ask for a new set of delta's.
 		if (cl.validsequence &&
 			!cl_nodelta.value &&
@@ -2902,11 +2827,6 @@ void CL_Move()
 
 		CL_AddVoiceToDatagram(false);
 
-		DbgPrint(m_fMessages, "move packet before composite:\r\n");
-		for (int i = 0; i < buf.cursize; i++)
-			DbgPrint(m_fMessages, "%02X ", buf.data[i]);
-		DbgPrint(m_fMessages, "\r\n");
-
 		// Composite the rest of the datagram..
 		if (cls.datagram.cursize <= buf.maxsize - buf.cursize)
 		{
@@ -2917,12 +2837,6 @@ void CL_Move()
 
 		//COM_Log( "cl.log", "Sending command number %i(%i) to server\n", cls.netchan.outgoing_sequence, cls.netchan.outgoing_sequence & CL_UPDATE_MASK );
 		// Send the message
-
-		DbgPrint(m_fMessages, "final packet is:\r\n");
-		for (int i = 0; i < buf.cursize; i++)
-			DbgPrint(m_fMessages, "%02X ", buf.data[i]);
-		DbgPrint(m_fMessages, "\r\n");
-
 		Netchan_Transmit(&cls.netchan, buf.cursize, buf.data);
 	}
 	else
@@ -3001,7 +2915,7 @@ void CL_BeginUpload_f()
 
 void CL_SendResourceListBlock()
 {
-	byte buf[65536];
+	byte buf[NET_MAX_PAYLOAD];
 	sizebuf_t msg;
 	int nStartIndex, arg;
 
@@ -3014,7 +2928,7 @@ void CL_SendResourceListBlock()
 	msg.cursize = 0;
 	msg.maxsize = sizeof(buf);
 
-	if (cls.state < ca_connecting)
+	if (cls.state == ca_dedicated || cls.state == ca_disconnected)
 		return Con_Printf(const_cast<char*>("custom resource list not valid -- not connected\n"));
 
 	arg = MSG_ReadLong();
@@ -3096,7 +3010,7 @@ void CL_GameDir_f()
 
 void CL_GetPlayerHulls()
 {
-	for( int i = 0; i < 4; ++i )
+	for( int i = 0; i < MAX_MAP_HULLS; i++ )
 	{
 		if( !ClientDLL_GetHullBounds( i, player_mins[ i ], player_maxs[ i ] ) )
 			break;
@@ -3113,25 +3027,26 @@ void CL_Rate_f()
 
 	fNewRate = Q_atof(Cmd_Argv(1));
 
+	
 	if (fNewRate == 0.0)
-		fNewRate = 30000.0;
-	else if (fNewRate < 1000.0 || fNewRate > 100000.0)
-		return Con_Printf(const_cast<char*>("cl_rate:  Maximum %f, Minimum %f\n"), 100000.0, 1000.0);
+		fNewRate = DEFAULT_RATE;
+	else if (fNewRate < MIN_RATE || fNewRate > MAX_RATE)
+		return Con_Printf(const_cast<char*>("cl_rate:  Maximum %f, Minimum %f\n"), MAX_RATE, MIN_RATE);
 
 	cls.netchan.rate = fNewRate;
 }
 
-void GetPos( vec3_t origin, vec3_t angles )
+void GetPos( vec3_t* origin, vec3_t* angles )
 {	
-	VectorCopy(r_refdef.vieworg, origin);
-	VectorCopy(r_refdef.viewangles, angles);
+	VectorCopy(r_refdef.vieworg, *origin);
+	VectorCopy(r_refdef.viewangles, *angles);
 
 	if( Cmd_Argc() == 2 )
 	{
 		if( Q_atoi( (char*)Cmd_Argv( 1 ) ) == 2 && cls.state == ca_active )
 		{
-			VectorCopy(cl.frames[ cl.parsecountmod ].playerstate[ cl.playernum ].origin, origin);
-			VectorCopy(cl.frames[ cl.parsecountmod ].playerstate[ cl.playernum ].angles, angles);
+			VectorCopy(cl.frames[ cl.parsecountmod ].playerstate[ cl.playernum ].origin, *origin);
+			VectorCopy(cl.frames[ cl.parsecountmod ].playerstate[ cl.playernum ].angles, *angles);
 		}
 	}
 }
@@ -3141,7 +3056,7 @@ void CL_SpecPos_f()
 	vec3_t origin;
 	vec3_t angles;
 
-	GetPos(origin, angles);
+	GetPos(&origin, &angles);
 	Con_Printf(const_cast<char*>("spec_pos %.1f %.1f %.1f %.1f %.1f\n"), origin[0], origin[1], origin[2], angles[0], angles[1]);
 }
 
@@ -3294,7 +3209,7 @@ void CL_SendKeepaliveToServer()
 	buf.flags = 0;
 	buf.data = szData;
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < sizeof(szData); i++)
 		MSG_WriteByte(&buf, clc_nop);
 
 	Netchan_Transmit(&cls.netchan, buf.cursize, buf.data);
@@ -3302,25 +3217,18 @@ void CL_SendKeepaliveToServer()
 
 void CL_KeepConnectionActive()
 {
-	static float flLastKeepaliveTime;
+	static float flLastKeepaliveTime = 0.0;
+	float flCurrentTime;
 
-	float flCurrentTime = Sys_FloatTime();
-
-	float dt = flCurrentTime;
-
-	if (flLastKeepaliveTime <= flCurrentTime)
-		dt = flLastKeepaliveTime;
-	else
+	flCurrentTime = Sys_FloatTime();
+	if (flCurrentTime < flLastKeepaliveTime)
 		flLastKeepaliveTime = flCurrentTime;
 
-	if (dt - flCurrentTime <= 5.0)
-		return;
-
-	if (cls.state == ca_disconnected)
-		return;
-
-	CL_SendKeepaliveToServer();
-	flLastKeepaliveTime = flCurrentTime;
+	if ((flCurrentTime - flLastKeepaliveTime) > 5.0f)
+	{
+		CL_SendKeepaliveToServer();
+		flLastKeepaliveTime = flCurrentTime;
+	}
 }
 
 model_t* CL_GetModelByIndex( int index )
@@ -3333,7 +3241,7 @@ model_t* CL_GetModelByIndex( int index )
 	if (cl.model_precache[index] == NULL)
 		return NULL;
 
-	if (cl.model_precache[index]->needload == NL_NEEDS_LOADED || cl.model_precache[index]->needload == NL_UNREFERENCED)
+	if (cl.model_precache[index]->needload != NL_NEEDS_LOADED && cl.model_precache[index]->needload != NL_UNREFERENCED)
 		return cl.model_precache[index];
 
 	if (fs_precache_timings.value == 0.0)

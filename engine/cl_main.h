@@ -111,7 +111,7 @@ BOOL UserIsConnectedOnLoopback();
 
 void SetPal( int i );
 
-void GetPos( vec3_t origin, vec3_t angles );
+void GetPos( vec3_t* origin, vec3_t* angles );
 
 const char* CL_CleanFileName( const char* filename );
 
@@ -119,7 +119,7 @@ void CL_ClearCaches();
 
 void CL_ClearClientState();
 
-void CL_ClearState( bool bQuiet );
+void CL_ClearState( qboolean bQuiet );
 
 void CL_CreateResourceList();
 

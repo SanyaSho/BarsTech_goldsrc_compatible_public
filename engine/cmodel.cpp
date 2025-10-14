@@ -212,35 +212,34 @@ void CM_CalcPAS(model_t *pModel)
 	Con_DPrintf(const_cast<char*>("Average leaves visible / audible / total: %i / %i / %i\n"), vcount / count, acount / count, count);
 }
 
-qboolean CM_HeadnodeVisible(mnode_t *node, unsigned char *visbits, int *first_visible_leafnum)
+qboolean CM_HeadnodeVisible( mnode_t* node, byte* visbits, int* first_visible_leafnum )
 {
 	int leafnum;
-	mleaf_t *leaf;
+	mleaf_t* leaf;
 
-	leaf = (mleaf_t *)node;
-	while (leaf && leaf->contents != CONTENTS_SOLID)
+	if (!node || node->contents == CONTENTS_SOLID)
+		return FALSE;
+
+	// add an efrag if the node is a leaf
+	if (node->contents < 0)
 	{
-		if (leaf->contents < 0)
-		{
-			leafnum = leaf - sv.worldmodel->leafs - 1;
-			if ((visbits[leafnum >> 3] & (1 << (leafnum & 7))) == 0)
-			{
-				return 0;
-			}
-			if (first_visible_leafnum)
-			{
-				*first_visible_leafnum = leafnum;
-			}
-			return 1;
-		}
+		leaf = (mleaf_t*)node;
+		leafnum = (leaf - sv.worldmodel->leafs) - 1;
 
-		if (CM_HeadnodeVisible(((mnode_t *)leaf)->children[0], visbits, first_visible_leafnum))
-		{
-			return 1;
-		}
+		if ((visbits[leafnum >> 3] & (1 << (leafnum & 7))) == 0)
+			return FALSE;
 
-		leaf = (mleaf_t *)((mnode_t *)leaf)->children[1];
+		if (first_visible_leafnum)
+			*first_visible_leafnum = leafnum;
+
+		return TRUE;
 	}
 
-	return 0;
+	if (CM_HeadnodeVisible(node->children[0], visbits, first_visible_leafnum))
+		return TRUE;
+
+	if (CM_HeadnodeVisible(node->children[1], visbits, first_visible_leafnum))
+		return TRUE;
+
+	return FALSE;
 }
