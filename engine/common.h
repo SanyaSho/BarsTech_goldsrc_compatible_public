@@ -145,7 +145,11 @@ char* COM_FileBase_s(char* in, char* out, int size);
 
 bool COM_SetupDirectories();
 
-void COM_ParseDirectoryFromCmd( const char *pCmdName, char *pDirName, const char *pDefault );
+#ifdef _2020_PATCH
+void COM_ParseDirectoryFromCmd(const char* pCmdName, char* pDirName, int nLen, const char* pDefault);
+#else
+void COM_ParseDirectoryFromCmd(const char* pCmdName, char* pDirName, const char* pDefault);
+#endif
 
 void COM_FixSlashes( char *pname );
 

@@ -1131,8 +1131,8 @@ bool COM_SetupDirectories()
 
 	char basedir[ 512 ];
 
-	COM_ParseDirectoryFromCmd( "-basedir", basedir, "valve" );
-	COM_ParseDirectoryFromCmd( "-game", com_gamedir, basedir );
+	COM_ParseDirectoryFromCmd( "-basedir", basedir, sizeof(basedir), "valve" );
+	COM_ParseDirectoryFromCmd( "-game", com_gamedir, sizeof(com_gamedir), basedir);
 
 	bool bResult = FileSystem_SetGameDirectory( basedir, com_gamedir[ 0 ] ? com_gamedir : nullptr );
 
@@ -1145,7 +1145,11 @@ bool COM_SetupDirectories()
 	return bResult;
 }
 
+#ifdef _2020_PATCH
+void COM_ParseDirectoryFromCmd( const char *pCmdName, char *pDirName, int nLen, const char *pDefault )
+#else
 void COM_ParseDirectoryFromCmd( const char *pCmdName, char *pDirName, const char *pDefault )
+#endif
 {
 	const char* pszResult = nullptr;
 
@@ -1167,7 +1171,12 @@ void COM_ParseDirectoryFromCmd( const char *pCmdName, char *pDirName, const char
 
 							if( *pszValue != '+' && *pszValue != '-' )
 							{
+#ifdef _2020_PATCH
+								strncpy(pDirName, pszValue, nLen);
+								pDirName[nLen - 1] = 0;
+#else
 								strcpy( pDirName, pszValue );
+#endif
 								pszResult = pDirName;
 								break;
 							}
@@ -1182,7 +1191,12 @@ void COM_ParseDirectoryFromCmd( const char *pCmdName, char *pDirName, const char
 	{
 		if( pDefault )
 		{
+#ifdef _2020_PATCH
+			strncpy(pDirName, pDefault, nLen);
+			pDirName[nLen - 1] = 0;
+#else
 			strcpy( pDirName, pDefault );
+#endif
 			pszResult = pDirName;
 		}
 		else
@@ -1192,7 +1206,7 @@ void COM_ParseDirectoryFromCmd( const char *pCmdName, char *pDirName, const char
 		}
 	}
 
-	const auto uiLength = strlen( pszResult );
+	int uiLength = strlen( pszResult );
 
 	if( uiLength > 0 )
 	{

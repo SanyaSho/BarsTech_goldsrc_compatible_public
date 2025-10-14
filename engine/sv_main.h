@@ -68,10 +68,10 @@ extern cvar_t sv_skyvec_x;
 extern cvar_t sv_skyvec_y;
 extern cvar_t sv_skyvec_z;
 
-AppId_t GetGameAppID();
+int GetGameAppID(void);
 
-bool IsGameSubscribed( const char *game );
-bool BIsValveGame();
+qboolean IsGameSubscribed( const char *game );
+qboolean BIsValveGame();
 
 extern bool g_bIsCStrike;
 extern bool g_bIsCZero;
@@ -147,5 +147,10 @@ qboolean SV_IsPlayerIndex(int index);
 void Host_Kick_f(void);
 void SV_ClearPacketEntities(client_frame_t* frame);
 int SV_GetFragmentSize(void* state);
+int SV_LookupSoundIndex(const char* sample);
+void SV_BuildHashedSoundLookupTable(void);
+void SV_WriteVoiceCodec(sizebuf_t* pBuf);
+qboolean SV_CompareUserID(USERID_t* id1, USERID_t* id2);
+void SV_AddSampleToHashedLookupTable(const char* pszSample, int iSampleIndex);
 
 #endif //ENGINE_SV_MAIN_H

@@ -91,7 +91,7 @@ int CEngine::GetState()
 
 void CEngine::SetSubState( int iSubState )
 {
-	if( iSubState != 1 )
+	if( iSubState != ENG_NORMAL )
 	{
 		GameSetSubState( iSubState );
 	}
