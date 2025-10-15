@@ -13,19 +13,20 @@ BEGIN_SRC( VGUI2_SOURCE_FILES "Source Files" )
 		"${SRCDIR}/public/interface.cpp"
 		"${SRCDIR}/public/UnicodeFileHelpers.cpp"
 		"${SRCDIR}/public/filesystem_helpers.cpp"
+
 		"Bitmap.cpp"
 		"Border.cpp"
-		"input.cpp"
 		"LocalizedStringTable.cpp"
 		"MemoryBitmap.cpp"
 		"Scheme.cpp"
-		"system_win32.cpp"
-		"vgui.cpp"
-		"vgui_internal.cpp"
 		"VGuiKeyValues.cpp"
-		"vgui_key_translation.cpp"
 		"VPanel.cpp"
 		"VPanelWrapper.cpp"
+		"system_win32.cpp"
+		"input.cpp"
+		"vgui.cpp"
+		"vgui_internal.cpp"
+		"vgui_key_translation.cpp"
 	)
 END_SRC( VGUI2_SOURCE_FILES "Source Files" )
 
@@ -63,6 +64,20 @@ BEGIN_SRC( VGUI2_HEADER_FILES "Header Files" )
 		"${SRCDIR}/public/vgui/MouseCode.h"
 		"${SRCDIR}/public/vgui/Point.h"
 		"${SRCDIR}/public/vgui/VGUI2.h"
+
+		"Bitmap.h"
+		"Border.h"
+		"LocalizedStringTable.h"
+		"MemoryBitmap.h"
+		"Scheme.h"
+		"VGuiKeyValues.h"
+		"VPanel.h"
+		"VPanelWrapper.h"
+		"input.h"
+		"system_win32.h"
+		"vgui.h"
+		"vgui_internal.h"
+		"vgui_key_translation.h"
 	)
 END_SRC( VGUI2_HEADER_FILES "Header Files" )
 
