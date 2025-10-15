@@ -13,14 +13,15 @@ elseif( POSIX )
 	set( IS_POSIX 1 )
 endif()
 
-set( IS_RELEASE 0 )
-set( IS_DEBUG 0 )
-
-if ( "${CMAKE_BUILD_TYPE}" STREQUAL "Release" )
-	set( IS_RELEASE 1 )
-elseif ( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" )
-	set( IS_DEBUG 1 )
+if( WIN32 )
+	set( _DLL_EXT ".dll" )
+elseif( LINUX )
+	set( _DLL_EXT ".so" )
 endif()
+
+add_compile_definitions(
+	_DLL_EXT=${_DLL_EXT}
+)
 
 if( ${IS_WINDOWS} )
 	string( REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" )
@@ -37,15 +38,15 @@ if( ${IS_WINDOWS} )
 		/fp:fast # Floating Point Model
 		/GS # Buffer Security Check
 
-		$<${IS_RELEASE}:/Oi> # Enable Intrinsic Functions
-		$<${IS_RELEASE}:/Ot> # Favor Fast Code
-		$<${IS_RELEASE}:/Gy> # Enable Function-Level Linking
+		$<$<CONFIG:Release>:/Oi> # Enable Intrinsic Functions
+		$<$<CONFIG:Release>:/Ot> # Favor Fast Code
+		$<$<CONFIG:Release>:/Gy> # Enable Function-Level Linking
 
 		/FC # Full path to source
 
 		# Inline Function Expansion
-		$<${IS_RELEASE}:/Ob2>
-		$<${IS_DEBUG}:/Ob0>
+		$<$<CONFIG:Release>:/Ob2>
+		$<$<CONFIG:Debug>:/Ob0>
 	)
 
 	add_link_options(
