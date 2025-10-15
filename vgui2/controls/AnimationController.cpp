@@ -248,7 +248,7 @@ void AnimationController::SetupPosition( AnimCmdAnimate_t& cmd, float *output, c
 	// scale the values
 	if (IsProportional())
 	{
-		pos = vgui2::scheme()->GetProportionalScaledValueEx( GetScheme(), pos );
+		pos = vgui2::scheme()->GetProportionalScaledValue( pos );
 	}
 
 	// adjust the positions
@@ -380,8 +380,8 @@ bool AnimationController::ParseScriptFile(char *pMem, int length)
 				{
 					if (IsProportional())
 					{
-						cmdAnimate.target.a = static_cast<float>( vgui2::scheme()->GetProportionalScaledValueEx(GetScheme(), cmdAnimate.target.a) );
-						cmdAnimate.target.b = static_cast<float>( vgui2::scheme()->GetProportionalScaledValueEx(GetScheme(), cmdAnimate.target.b) );
+						cmdAnimate.target.a = static_cast<float>( vgui2::scheme()->GetProportionalScaledValue(cmdAnimate.target.a) );
+						cmdAnimate.target.b = static_cast<float>( vgui2::scheme()->GetProportionalScaledValue(cmdAnimate.target.b) );
 					}
 				}
 				else if (cmdAnimate.variable == m_sWide ||
@@ -390,7 +390,7 @@ bool AnimationController::ParseScriptFile(char *pMem, int length)
 					if (IsProportional())
 					{
 						// Wide and tall both use.a
-						cmdAnimate.target.a = static_cast<float>( vgui2::scheme()->GetProportionalScaledValueEx(GetScheme(), cmdAnimate.target.a) );
+						cmdAnimate.target.a = static_cast<float>( vgui2::scheme()->GetProportionalScaledValue(cmdAnimate.target.a) );
 					}
 				}
 				

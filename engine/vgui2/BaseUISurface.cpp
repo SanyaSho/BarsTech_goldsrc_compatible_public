@@ -49,7 +49,7 @@ static vgui2::Dar<vgui2::VPANEL> staticPopupList;
 
 static CFontTextureCache g_FontTextureCache;
 
-EXPOSE_SINGLE_INTERFACE_GLOBALVAR( BaseUISurface, ISurface, VGUI_SURFACE_INTERFACE_VERSION_GS, g_BaseUISurface );
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR( BaseUISurface, ISurface, VGUI_SURFACE_INTERFACE_VERSION, g_BaseUISurface );
 
 bool BaseUISurface::m_bTranslateExtendedKeys = true;
 

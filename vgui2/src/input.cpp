@@ -2,7 +2,7 @@
 #include <vgui/IClientPanel.h>
 #include <vgui/ISurface.h>
 #include <vgui/IVGui.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "input.h"
 #include "VPanel.h"
@@ -10,10 +10,14 @@
 using vgui2::IInput;
 using vgui2::IInputInternal;
 
-static CInputWin32 g_Input;
-
-EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CInputWin32, IInput, VGUI_INPUT_INTERFACE_VERSION_GS, g_Input );
+CInputWin32 g_Input;
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CInputWin32, IInput, VGUI_INPUT_INTERFACE_VERSION, g_Input );
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CInputWin32, IInputInternal, VGUI_INPUTINTERNAL_INTERFACE_VERSION, g_Input );
+
+namespace vgui2
+{
+vgui2::IInputInternal *g_pInput = &g_Input;
+}
 
 CInputWin32::CInputWin32()
 {
@@ -65,7 +69,7 @@ void CInputWin32::SetMouseFocus( vgui2::VPANEL newMouseFocus )
 		if( !pCtx->_mouseCapture ||
 			pCtx->_oldMouseFocus->HasParent( pCtx->_mouseCapture ) )
 		{
-			vgui2::ivgui()->PostMessage(
+			vgui2::g_pIVgui->PostMessage(
 				vgui2::VPanelToHandle( pCtx->_oldMouseFocus ),
 				new KeyValues( "CursorExited" ),
 				NULL_HANDLE
@@ -78,7 +82,7 @@ void CInputWin32::SetMouseFocus( vgui2::VPANEL newMouseFocus )
 		if( !pCtx->_mouseCapture ||
 			pCtx->_mouseCapture->HasParent( pCtx->_mouseCapture ) )
 		{
-			vgui2::ivgui()->PostMessage(
+			vgui2::g_pIVgui->PostMessage(
 				vgui2::VPanelToHandle( pCtx->_mouseOver ),
 				new KeyValues( "CursorEntered" ),
 				NULL_HANDLE
@@ -105,12 +109,12 @@ void CInputWin32::SetMouseCapture( vgui2::VPANEL panel )
 	{
 		if( pCtx->_mouseCapture == vgui2::VHandleToPanel( panel ) )
 		{
-			vgui2::surface()->EnableMouseCapture( panel, true );
+			vgui2::g_pSurface->EnableMouseCapture( panel, true );
 			pCtx->_mouseCapture = vgui2::VHandleToPanel( panel );
 			return;
 		}
 
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseCapture ),
 			new KeyValues( "MouseCaptureLost" ),
 			NULL_HANDLE
@@ -121,7 +125,7 @@ void CInputWin32::SetMouseCapture( vgui2::VPANEL panel )
 	{
 		if( pCtx->_mouseCapture )
 		{
-			vgui2::surface()->EnableMouseCapture(
+			vgui2::g_pSurface->EnableMouseCapture(
 				vgui2::VPanelToHandle( pCtx->_mouseCapture ), false
 			);
 		}
@@ -130,7 +134,7 @@ void CInputWin32::SetMouseCapture( vgui2::VPANEL panel )
 		return;
 	}
 
-	vgui2::surface()->EnableMouseCapture( panel, true );
+	vgui2::g_pSurface->EnableMouseCapture( panel, true );
 	pCtx->_mouseCapture = vgui2::VHandleToPanel( panel );
 }
 
@@ -157,21 +161,21 @@ vgui2::VPANEL CInputWin32::GetMouseOver()
 
 void CInputWin32::SetCursorPos( int x, int y )
 {
-	if( !vgui2::surface()->HasCursorPosFunctions() )
+	if( !vgui2::g_pSurface->HasCursorPosFunctions() )
 	{
 		int px, py, pw, pt;
-		vgui2::surface()->GetAbsoluteWindowBounds( px, py, pw, pt );
+		vgui2::g_pSurface->GetAbsoluteWindowBounds( px, py, pw, pt );
 	}
 	else
 	{
-		vgui2::surface()->SurfaceSetCursorPos( x, y );
+		vgui2::g_pSurface->SurfaceSetCursorPos( x, y );
 	}
 }
 
 void CInputWin32::GetCursorPos( int &x, int &y )
 {
-	if( vgui2::surface()->HasCursorPosFunctions() )
-		vgui2::surface()->SurfaceGetCursorPos( x, y );
+	if( vgui2::g_pSurface->HasCursorPosFunctions() )
+		vgui2::g_pSurface->SurfaceGetCursorPos( x, y );
 }
 
 bool CInputWin32::WasMousePressed( vgui2::MouseCode code )
@@ -258,7 +262,7 @@ void CInputWin32::RunFrame()
 	if( pCtx->_keyFocus &&
 		IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_keyFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_keyFocus ),
 			new KeyValues( "KeyFocusTicked" ),
 			NULL_HANDLE
@@ -268,7 +272,7 @@ void CInputWin32::RunFrame()
 	if( pCtx->_mouseFocus &&
 		IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_mouseFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseFocus ),
 			new KeyValues( "MouseFocusTicked" ),
 			NULL_HANDLE
@@ -290,7 +294,7 @@ void CInputWin32::RunFrame()
 		{
 			pCtx->_keyFocus->Client()->InternalFocusChanged( true );
 
-			vgui2::ivgui()->PostMessage(
+			vgui2::g_pIVgui->PostMessage(
 				vgui2::VPanelToHandle( pCtx->_keyFocus ),
 				new KeyValues( "KillFocus" ),
 				NULL_HANDLE
@@ -322,7 +326,7 @@ void CInputWin32::RunFrame()
 
 		pNewFocus->Client()->InternalFocusChanged( false );
 
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pNewFocus ),
 			new KeyValues( "SetFocus" ),
 			NULL_HANDLE
@@ -368,20 +372,20 @@ void CInputWin32::UpdateMouseFocus( int x, int y )
 	}
 	else
 	{
-		if( !vgui2::surface()->IsCursorVisible() ||
-			!vgui2::surface()->IsWithin( x, y ) )
+		if( !vgui2::g_pSurface->IsCursorVisible() ||
+			!vgui2::g_pSurface->IsWithin( x, y ) )
 		{
 			SetMouseFocus( NULL_HANDLE );
 			return;
 		}
 
-		for( auto i = vgui2::surface()->GetPopupCount() - 1; i >= 0; --i )
+		for( auto i = vgui2::g_pSurface->GetPopupCount() - 1; i >= 0; --i )
 		{
-			auto pPopup = vgui2::VHandleToPanel( vgui2::surface()->GetPopup( i ) );
+			auto pPopup = vgui2::VHandleToPanel( vgui2::g_pSurface->GetPopup( i ) );
 
 			auto wantsMouse = pPopup->IsMouseInputEnabled();
 
-			auto isVisible = !vgui2::surface()->IsMinimized( vgui2::VPanelToHandle( pPopup ) );
+			auto isVisible = !vgui2::g_pSurface->IsMinimized( vgui2::VPanelToHandle( pPopup ) );
 
 			auto pParent = pPopup->GetParent();
 
@@ -403,7 +407,7 @@ void CInputWin32::UpdateMouseFocus( int x, int y )
 		if( !topMost )
 		{
 			topMost = vgui2::VHandleToPanel(
-				vgui2::surface()->GetEmbeddedPanel()
+				vgui2::g_pSurface->GetEmbeddedPanel()
 			)->Client()->IsWithinTraverse( x, y, false );
 		}
 	}
@@ -453,14 +457,14 @@ void CInputWin32::InternalCursorMoved( int x, int y )
 					pCtx->_mouseOver != pCtx->_mouseCapture &&
 					pCtx->_mouseOver->HasParent( pCtx->_mouseCapture ) )
 				{
-					vgui2::ivgui()->PostMessage(
+					vgui2::g_pIVgui->PostMessage(
 						vgui2::VPanelToHandle( pCtx->_mouseOver ),
 						new KeyValues( "CursorMoved", "xpos", x, "ypos", y ),
 						NULL_HANDLE
 					);
 				}
 
-				vgui2::ivgui()->PostMessage(
+				vgui2::g_pIVgui->PostMessage(
 					vgui2::VPanelToHandle( pCtx->_mouseCapture ),
 					new KeyValues( "CursorMoved", "xpos", x, "ypos", y ),
 					NULL_HANDLE
@@ -469,7 +473,7 @@ void CInputWin32::InternalCursorMoved( int x, int y )
 		}
 		else if( pCtx->_mouseFocus )
 		{
-			vgui2::ivgui()->PostMessage(
+			vgui2::g_pIVgui->PostMessage(
 				vgui2::VPanelToHandle( pCtx->_mouseFocus ),
 				new KeyValues( "CursorMoved", "xpos", x, "ypos", y ),
 				NULL_HANDLE
@@ -494,7 +498,7 @@ void CInputWin32::InternalMousePressed( vgui2::MouseCode code )
 			pCtx->_mouseOver != pCtx->_mouseCapture &&
 			pCtx->_mouseOver->HasParent( pCtx->_mouseCapture ) )
 		{
-			vgui2::ivgui()->PostMessage(
+			vgui2::g_pIVgui->PostMessage(
 				vgui2::VPanelToHandle( pCtx->_mouseOver ),
 				new KeyValues( "MousePressed", "code", code ),
 				NULL_HANDLE
@@ -503,7 +507,7 @@ void CInputWin32::InternalMousePressed( vgui2::MouseCode code )
 		else
 			bShouldSetCapture = true;
 
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseCapture ),
 			new KeyValues( "MousePressed", "code", code ),
 			NULL_HANDLE
@@ -515,7 +519,7 @@ void CInputWin32::InternalMousePressed( vgui2::MouseCode code )
 	else if( pCtx->_mouseFocus &&
 			 IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_mouseFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseFocus ),
 			new KeyValues( "MousePressed", "code", code ),
 			NULL_HANDLE
@@ -524,7 +528,7 @@ void CInputWin32::InternalMousePressed( vgui2::MouseCode code )
 
 	if( IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_mouseOver ) ) )
 	{
-		vgui2::surface()->SetTopLevelFocus( vgui2::VPanelToHandle( pCtx->_mouseOver ) );
+		vgui2::g_pSurface->SetTopLevelFocus( vgui2::VPanelToHandle( pCtx->_mouseOver ) );
 	}
 
 	if( m_hContext == DEFAULT_INPUT_CONTEXT )
@@ -547,14 +551,14 @@ void CInputWin32::InternalMouseDoublePressed( vgui2::MouseCode code )
 			pCtx->_mouseOver != pCtx->_mouseCapture &&
 			pCtx->_mouseOver->HasParent( pCtx->_mouseCapture ) )
 		{
-			vgui2::ivgui()->PostMessage(
+			vgui2::g_pIVgui->PostMessage(
 				vgui2::VPanelToHandle( pCtx->_mouseOver ),
 				new KeyValues( "MouseDoublePressed", "code", code ),
 				NULL_HANDLE
 			);
 		}
 
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseCapture ),
 			new KeyValues( "MouseDoublePressed", "code", code ),
 			NULL_HANDLE
@@ -563,7 +567,7 @@ void CInputWin32::InternalMouseDoublePressed( vgui2::MouseCode code )
 	else if( pCtx->_mouseFocus &&
 			 IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_mouseFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseFocus ),
 			new KeyValues( "MouseDoublePressed", "code", code ),
 			NULL_HANDLE
@@ -572,7 +576,7 @@ void CInputWin32::InternalMouseDoublePressed( vgui2::MouseCode code )
 
 	if( IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_mouseOver ) ) )
 	{
-		vgui2::surface()->SetTopLevelFocus( vgui2::VPanelToHandle( pCtx->_mouseOver ) );
+		vgui2::g_pSurface->SetTopLevelFocus( vgui2::VPanelToHandle( pCtx->_mouseOver ) );
 	}
 }
 
@@ -590,14 +594,14 @@ void CInputWin32::InternalMouseReleased( vgui2::MouseCode code )
 			pCtx->_mouseOver != pCtx->_mouseCapture &&
 			pCtx->_mouseOver->HasParent( pCtx->_mouseCapture ) )
 		{
-			vgui2::ivgui()->PostMessage(
+			vgui2::g_pIVgui->PostMessage(
 				vgui2::VPanelToHandle( pCtx->_mouseOver ),
 				new KeyValues( "MouseReleased", "code", code ),
 				NULL_HANDLE
 			);
 		}
 
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseCapture ),
 			new KeyValues( "MouseReleased", "code", code ),
 			NULL_HANDLE
@@ -606,7 +610,7 @@ void CInputWin32::InternalMouseReleased( vgui2::MouseCode code )
 	else if( pCtx->_mouseFocus &&
 			 IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_mouseFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseFocus ),
 			new KeyValues( "MouseReleased", "code", code ),
 			NULL_HANDLE
@@ -621,7 +625,7 @@ void CInputWin32::InternalMouseWheeled( int delta )
 	if( pCtx->_mouseFocus &&
 		IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_mouseFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_mouseFocus ),
 			new KeyValues( "MouseWheeled", "delta", delta ),
 			NULL_HANDLE
@@ -644,7 +648,7 @@ void CInputWin32::InternalKeyCodePressed( vgui2::KeyCode code )
 	if( pCtx->_keyFocus &&
 		IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_keyFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_keyFocus ),
 			pMessage,
 			NULL_HANDLE
@@ -676,7 +680,7 @@ void CInputWin32::InternalKeyCodeTyped( vgui2::KeyCode code )
 	if( pCtx->_keyFocus &&
 		IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_keyFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_keyFocus ),
 			pMessage,
 			NULL_HANDLE
@@ -697,7 +701,7 @@ void CInputWin32::InternalKeyTyped( wchar_t unichar )
 	if( pCtx->_keyFocus &&
 		IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_keyFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_keyFocus ),
 			pMessage,
 			NULL_HANDLE
@@ -725,7 +729,7 @@ void CInputWin32::InternalKeyCodeReleased( vgui2::KeyCode code )
 	if( pCtx->_keyFocus &&
 		IsChildOfModalPanel( vgui2::VPanelToHandle( pCtx->_keyFocus ) ) )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			vgui2::VPanelToHandle( pCtx->_keyFocus ),
 			pMessage,
 			NULL_HANDLE
@@ -887,14 +891,14 @@ vgui2::VPanel* CInputWin32::CalculateNewKeyFocus()
 	{
 		pFocus = nullptr;
 
-		for( auto i = vgui2::surface()->GetPopupCount() - 1; i >= 0; --i )
+		for( auto i = vgui2::g_pSurface->GetPopupCount() - 1; i >= 0; --i )
 		{
-			auto pPopup = vgui2::VHandleToPanel( vgui2::surface()->GetPopup( i ) );
+			auto pPopup = vgui2::VHandleToPanel( vgui2::g_pSurface->GetPopup( i ) );
 
 			if( !pPopup->IsPopup() ||
 				!pPopup->IsVisible() ||
 				!pPopup->IsKeyBoardInputEnabled() ||
-				vgui2::surface()->IsMinimized( vgui2::VPanelToHandle( pPopup ) ) )
+				vgui2::g_pSurface->IsMinimized( vgui2::VPanelToHandle( pPopup ) ) )
 				continue;
 
 			auto isVisible = pPopup->IsVisible();
@@ -909,7 +913,7 @@ vgui2::VPanel* CInputWin32::CalculateNewKeyFocus()
 			if( !isVisible )
 				continue;
 
-			if( !vgui2::surface()->IsMinimized( vgui2::VPanelToHandle( pPopup ) ) )
+			if( !vgui2::g_pSurface->IsMinimized( vgui2::VPanelToHandle( pPopup ) ) )
 			{
 				pFocus = vgui2::VHandleToPanel(
 					pPopup->Client()->GetCurrentKeyFocus()
@@ -922,7 +926,7 @@ vgui2::VPanel* CInputWin32::CalculateNewKeyFocus()
 		}
 	}
 
-	if( !vgui2::surface()->HasFocus() )
+	if( !vgui2::g_pSurface->HasFocus() )
 		pFocus = nullptr;
 
 	if( !IsChildOfModalPanel( vgui2::VPanelToHandle( pFocus ) ) )

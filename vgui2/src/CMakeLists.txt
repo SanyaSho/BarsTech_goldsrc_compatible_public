@@ -12,6 +12,7 @@ BEGIN_SRC( VGUI2_SOURCE_FILES "Source Files" )
 		SOURCES
 		"${SRCDIR}/public/interface.cpp"
 		"${SRCDIR}/public/UnicodeFileHelpers.cpp"
+		"${SRCDIR}/public/filesystem_helpers.cpp"
 		"Bitmap.cpp"
 		"Border.cpp"
 		"input.cpp"
@@ -20,6 +21,7 @@ BEGIN_SRC( VGUI2_SOURCE_FILES "Source Files" )
 		"Scheme.cpp"
 		"system_win32.cpp"
 		"vgui.cpp"
+		"vgui_internal.cpp"
 		"VGuiKeyValues.cpp"
 		"vgui_key_translation.cpp"
 		"VPanel.cpp"
@@ -104,6 +106,5 @@ target_link_libraries(
 
 	tier0
 	tier1
-	vgui2_controls
 	vstdlib # TODO(SanyaSho): Remove this!
 )

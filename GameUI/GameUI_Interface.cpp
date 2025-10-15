@@ -127,7 +127,7 @@ void CGameUI::Initialize( CreateInterfaceFn* factories, int count )
 	}
 
 	gameuifuncs = static_cast<IGameUIFuncs*>( pEngFactory( GAMEUIFUNCS_INTERFACE_VERSION, nullptr ) );
-	enginesurfacefuncs = static_cast<vgui2::ISurface*>( pEngFactory( VGUI_SURFACE_INTERFACE_VERSION_GS, nullptr ) );
+	enginesurfacefuncs = static_cast<vgui2::ISurface*>( pEngFactory( VGUI_SURFACE_INTERFACE_VERSION, nullptr ) );
 	baseuifuncs = static_cast<IBaseUI*>( pEngFactory( BASEUI_INTERFACE_VERSION, nullptr ) );
 
 	if( pClientFactory )

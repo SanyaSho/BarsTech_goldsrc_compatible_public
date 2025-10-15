@@ -125,15 +125,7 @@ public:
 
 }
 
-/**
-*	Interface version used by GoldSource.
-*/
-#define VGUI_SYSTEM_INTERFACE_VERSION_GS "VGUI_System009"
-
-/*
-*	Interface version used by Source 2006.
-*/
-//#define VGUI_SYSTEM_INTERFACE_VERSION "VGUI_System010"
+#define VGUI_SYSTEM_INTERFACE_VERSION "VGUI_System009"
 
 
 #endif // ISYSTEM_H

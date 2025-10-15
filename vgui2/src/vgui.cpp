@@ -7,14 +7,21 @@
 #include <vgui/IPanel.h>
 #include <vgui/ISurface.h>
 #include <vgui/ISystem.h>
-#include <vgui_controls/Controls.h>
 
 #include "vgui.h"
 #include "VPanel.h"
 
+#include "vgui_internal.h"
+
 using vgui2::IVGui;
 
-EXPOSE_SINGLE_INTERFACE( CVGui, IVGui, VGUI_IVGUI_INTERFACE_VERSION_GS );
+CVGui g_VGui;
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CVGui, IVGui, VGUI_IVGUI_INTERFACE_VERSION, g_VGui );
+
+namespace vgui2
+{
+vgui2::IVGui *g_pIVgui = &g_VGui;
+}
 
 bool PriorityQueueComp( const MessageItem_t& lhs, const MessageItem_t& rhs )
 {
@@ -44,8 +51,7 @@ bool CVGui::Init( CreateInterfaceFn *factoryList, int numFactories )
 
 	m_bInitialized = true;
 
-	//TODO: the original library uses a different function - Solokiller
-	return vgui2::VGui_InitInterfacesList( "VGUI2", factoryList, numFactories );
+	return vgui2::VGui_InternalLoadInterfaces( factoryList, numFactories );
 }
 
 void CVGui::Shutdown()
@@ -80,18 +86,18 @@ bool CVGui::IsRunning()
 
 void CVGui::RunFrame()
 {
-	vgui2::surface()->RunFrame();
+	vgui2::g_pSurface->RunFrame();
 
-	vgui2::system()->RunFrame();
+	vgui2::g_pSystem->RunFrame();
 
 	int cursorX, cursorY;
-	vgui2::input()->GetCursorPos( cursorX, cursorY );
-	vgui2::input()->UpdateMouseFocus( cursorX, cursorY );
-	vgui2::input()->RunFrame();
+	vgui2::g_pInput->GetCursorPos( cursorX, cursorY );
+	vgui2::g_pInput->UpdateMouseFocus( cursorX, cursorY );
+	vgui2::g_pInput->RunFrame();
 
 	DispatchMessages();
 
-	const auto time = vgui2::system()->GetTimeMillis();
+	const auto time = vgui2::g_pSystem->GetTimeMillis();
 
 	for( auto i = m_TickSignalVec.Count() - 1; i >= 0; --i )
 	{
@@ -113,31 +119,31 @@ void CVGui::RunFrame()
 			pTick->nexttick = time + pTick->interval;
 		}
 
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			pTick->panel,
 			new KeyValues( "Tick" ),
 			NULL_HANDLE
 		);
 	}
 
-	vgui2::surface()->SolveTraverse( vgui2::surface()->GetEmbeddedPanel() );
-	vgui2::surface()->ApplyChanges();
+	vgui2::g_pSurface->SolveTraverse( vgui2::g_pSurface->GetEmbeddedPanel() );
+	vgui2::g_pSurface->ApplyChanges();
 }
 
 void CVGui::ShutdownMessage( unsigned int shutdownID )
 {
-	auto embeddedPanel = reinterpret_cast<vgui2::VPanel*>( vgui2::surface()->GetEmbeddedPanel() );
+	auto embeddedPanel = reinterpret_cast<vgui2::VPanel*>( vgui2::g_pSurface->GetEmbeddedPanel() );
 
 	for( int i = 0; i < embeddedPanel->GetChildCount(); ++i )
 	{
-		vgui2::ivgui()->PostMessage(
+		vgui2::g_pIVgui->PostMessage(
 			reinterpret_cast<vgui2::VPANEL>( embeddedPanel->GetChild( i ) ),
 			new KeyValues( "ShutdownRequest", "id", shutdownID ),
 			NULL_HANDLE
 		);
 	}
 
-	vgui2::ivgui()->PostMessage(
+	vgui2::g_pIVgui->PostMessage(
 		reinterpret_cast<vgui2::VPANEL>( embeddedPanel ),
 		new KeyValues( "ShutdownRequest", "id", shutdownID ),
 		NULL_HANDLE
@@ -201,9 +207,9 @@ void CVGui::SpewAllActivePanelNames()
 		 index = m_PanelList.Next( index ) )
 	{
 
-		vgui2::ivgui()->DPrintf2(
+		vgui2::g_pIVgui->DPrintf2(
 			"\tpanel '%s' of type '%s' leaked\n",
-			vgui2::ipanel()->GetName( m_PanelList[ index ].m_pPanel ),
+			vgui2::g_pIPanel->GetName( m_PanelList[ index ].m_pPanel ),
 			reinterpret_cast<vgui2::VPanel*>( m_PanelList[ index ].m_pPanel )->GetClassName()
 		);
 	}
@@ -255,7 +261,7 @@ void CVGui::AddTickSignal( vgui2::VPANEL panel, int intervalMilliseconds )
 		if( pTick->panel == panel )
 		{
 			pTick->interval = intervalMilliseconds;
-			pTick->nexttick = pTick->interval + vgui2::system()->GetTimeMillis();
+			pTick->nexttick = pTick->interval + vgui2::g_pSystem->GetTimeMillis();
 			return;
 		}
 	}
@@ -265,7 +271,7 @@ void CVGui::AddTickSignal( vgui2::VPANEL panel, int intervalMilliseconds )
 
 	pTick->panel = panel;
 	pTick->interval = intervalMilliseconds;
-	pTick->nexttick = pTick->interval + vgui2::system()->GetTimeMillis();
+	pTick->nexttick = pTick->interval + vgui2::g_pSystem->GetTimeMillis();
 
 	auto pClient = reinterpret_cast<vgui2::VPanel*>( panel )->Client();
 
@@ -311,8 +317,8 @@ void CVGui::PostMessage( vgui2::VPANEL target, KeyValues *params, vgui2::VPANEL 
 		return;
 	}
 
-	auto hTarget = vgui2::ivgui()->PanelToHandle( target );
-	auto hFrom = vgui2::ivgui()->PanelToHandle( from );
+	auto hTarget = vgui2::g_pIVgui->PanelToHandle( target );
+	auto hFrom = vgui2::g_pIVgui->PanelToHandle( from );
 
 	auto messageID = m_iCurrentMessageID++;
 
@@ -323,7 +329,7 @@ void CVGui::PostMessage( vgui2::VPANEL target, KeyValues *params, vgui2::VPANEL 
 		item._params = params;
 		item._messageTo = hTarget;
 		item._from = hFrom;
-		item._arrivalTime = vgui2::system()->GetTimeMillis() + delaySeconds * 1000.0;
+		item._arrivalTime = vgui2::g_pSystem->GetTimeMillis() + delaySeconds * 1000.0;
 		item._messageID = messageID;
 
 		m_DelayedMessageQueue.Insert( item );
@@ -359,7 +365,7 @@ vgui2::HContext CVGui::CreateContext()
 
 	auto& context = m_Contexts[ index ];
 
-	context.m_hInputContext = vgui2::input()->CreateInputContext();
+	context.m_hInputContext = vgui2::g_pInput->CreateInputContext();
 
 	return static_cast<vgui2::HContext>( index );
 }
@@ -380,7 +386,7 @@ void CVGui::DestroyContext( vgui2::HContext context )
 		pContext = &m_Contexts[ context ];
 	}
 
-	vgui2::input()->DestroyInputContext( pContext->m_hInputContext );
+	vgui2::g_pInput->DestroyInputContext( pContext->m_hInputContext );
 
 	if( context != vgui2::DEFAULT_VGUI_CONTEXT )
 	{
@@ -401,7 +407,7 @@ void CVGui::AssociatePanelWithContext( vgui2::HContext context, vgui2::VPANEL pR
 		pContext = &m_Contexts[ context ];
 	}
 
-	vgui2::input()->AssociatePanelWithInputContext( pContext->m_hInputContext, pRoot );
+	vgui2::g_pInput->AssociatePanelWithInputContext( pContext->m_hInputContext, pRoot );
 }
 
 void CVGui::ActivateContext( vgui2::HContext context )
@@ -415,12 +421,12 @@ void CVGui::ActivateContext( vgui2::HContext context )
 
 	if( context == vgui2::DEFAULT_VGUI_CONTEXT )
 	{
-		vgui2::input()->ActivateInputContext( m_DefaultContext.m_hInputContext );
+		vgui2::g_pInput->ActivateInputContext( m_DefaultContext.m_hInputContext );
 	}
 	else
 	{
-		vgui2::input()->ActivateInputContext( m_Contexts[ context ].m_hInputContext );
-		vgui2::input()->RunFrame();
+		vgui2::g_pInput->ActivateInputContext( m_Contexts[ context ].m_hInputContext );
+		vgui2::g_pInput->RunFrame();
 	}
 }
 
@@ -444,15 +450,15 @@ void CVGui::PanelCreated( vgui2::VPanel* panel )
 	entry.m_pPanel = reinterpret_cast<vgui2::VPANEL>( panel );
 
 	panel->SetListEntry( listEntry );
-	vgui2::surface()->AddPanel( entry.m_pPanel );
+	vgui2::g_pSurface->AddPanel( entry.m_pPanel );
 }
 
 void CVGui::PanelDeleted( vgui2::VPanel* panel )
 {
 	auto vPanel = reinterpret_cast<vgui2::VPANEL>( panel );
 
-	vgui2::surface()->ReleasePanel( vPanel );
-	vgui2::input()->PanelDeleted( vPanel );
+	vgui2::g_pSurface->ReleasePanel( vPanel );
+	vgui2::g_pInput->PanelDeleted( vPanel );
 
 	auto listEntry = panel->GetListEntry();
 
@@ -510,7 +516,7 @@ void CVGui::ClearMessageQueues()
 
 bool CVGui::DispatchMessages()
 {
-	const auto time = vgui2::system()->GetTimeMillis();
+	const auto time = vgui2::g_pSystem->GetTimeMillis();
 
 	m_InDispatcher = true;
 
@@ -553,11 +559,11 @@ bool CVGui::DispatchMessages()
 
 		auto pKeyValues = pMsg->_params;
 
-		auto panel = reinterpret_cast<vgui2::VPanel*>( vgui2::ivgui()->HandleToPanel( pMsg->_messageTo ) );
+		auto panel = reinterpret_cast<vgui2::VPanel*>( vgui2::g_pIVgui->HandleToPanel( pMsg->_messageTo ) );
 
 		if( panel )
 		{
-			panel->SendMessage( pKeyValues, vgui2::ivgui()->HandleToPanel( pMsg->_from ) );
+			panel->SendMessage( pKeyValues, vgui2::g_pIVgui->HandleToPanel( pMsg->_from ) );
 		}
 
 		if( pKeyValues )

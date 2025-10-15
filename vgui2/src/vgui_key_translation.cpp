@@ -22,9 +22,6 @@
 #include <unordered_map>
 #include <external\SDL2\include\SDL2\SDL.h>
 
-#include "vgui/ISystem.h"
-#include "vgui_controls/Controls.h"
-
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 

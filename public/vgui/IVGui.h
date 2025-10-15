@@ -104,15 +104,7 @@ public:
 	virtual bool GetShouldVGuiControlSleep() = 0;
 };
 
-/**
-*	Interface version used by GoldSource. Inherits from IBaseInterface instead of IAppSystem.
-*/
-#define VGUI_IVGUI_INTERFACE_VERSION_GS "VGUI_ivgui006"
-
-/*
-*	Interface version used by Source 2006.
-*/
-//#define VGUI_IVGUI_INTERFACE_VERSION "VGUI_ivgui007"
+#define VGUI_IVGUI_INTERFACE_VERSION "VGUI_ivgui006"
 
 };
 

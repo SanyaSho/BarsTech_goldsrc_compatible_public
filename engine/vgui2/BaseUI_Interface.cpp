@@ -159,7 +159,7 @@ void CBaseUI::Start( cl_enginefunc_t* engineFuncs, int interfaceVersion )
 
 	staticPanel->SetZPos( 0 );
 
-	staticSurface = static_cast<BaseUISurface*>( m_FactoryList[ 0 ]( VGUI_SURFACE_INTERFACE_VERSION_GS, nullptr ) );
+	staticSurface = static_cast<BaseUISurface*>( m_FactoryList[ 0 ]( VGUI_SURFACE_INTERFACE_VERSION, nullptr ) );
 	vgui2::g_pSurface = staticSurface;
 
 	//Doesn't inherit from IBaseInterface

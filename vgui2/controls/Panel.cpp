@@ -1024,17 +1024,6 @@ void Panel::PaintTraverse( bool repaint, bool allowForce )
 		return;
 	}
 
-	float oldAlphaMultiplier = DrawGetAlphaMultiplier();
-	float newAlphaMultiplier = oldAlphaMultiplier * m_flAlpha * 1.0f/255.0f;
-
-	if ( IsXbox() && !newAlphaMultiplier )
-	{
-		// xbox optimization not suitable for pc
-		// xbox panels are compliant and can early out and not traverse their children
-		// when they have no opacity
-		return;
-	}
-
 	if( _flags.IsFlagSet( NEEDS_REPAINT ) && allowForce )
 	{
 		repaint = true;
@@ -1055,8 +1044,6 @@ void Panel::PaintTraverse( bool repaint, bool allowForce )
 		repaint = false;
 	}
 
-	// set global alpha
-	DrawSetAlphaMultiplier( newAlphaMultiplier );
 	if ( repaint && _flags.IsFlagSet( PAINT_BACKGROUND_ENABLED | PAINT_ENABLED ) )
 	{
 		// draw the background with no inset
@@ -1130,8 +1117,6 @@ void Panel::PaintTraverse( bool repaint, bool allowForce )
 		PostChildPaint();
 		surface()->PopMakeCurrent( vpanel );
 	}
-
-	DrawSetAlphaMultiplier( oldAlphaMultiplier );
 
 	if ( IsPC() )
 	{	
@@ -3720,19 +3705,19 @@ void Panel::ApplyAutoResizeSettings(KeyValues *inResourceData)
 	{
 		if ( inResourceData->FindKey( "PinnedCornerOffsetX" ) )
 		{
-            nPinnedCornerOffsetX = scheme()->GetProportionalScaledValueEx( GetScheme(), inResourceData->GetInt( "PinnedCornerOffsetX" ) );
+            nPinnedCornerOffsetX = scheme()->GetProportionalScaledValue( inResourceData->GetInt( "PinnedCornerOffsetX" ) );
 		}
 		if ( inResourceData->FindKey( "PinnedCornerOffsetY" ) )
 		{
-            nPinnedCornerOffsetY =	scheme()->GetProportionalScaledValueEx( GetScheme(), inResourceData->GetInt( "PinnedCornerOffsetY" ) );
+            nPinnedCornerOffsetY =	scheme()->GetProportionalScaledValue( inResourceData->GetInt( "PinnedCornerOffsetY" ) );
 		}
 		if ( inResourceData->FindKey( "UnpinnedCornerOffsetX" ) )
 		{
-            nUnpinnedCornerOffsetX = scheme()->GetProportionalScaledValueEx( GetScheme(), inResourceData->GetInt( "UnpinnedCornerOffsetX" ) );
+            nUnpinnedCornerOffsetX = scheme()->GetProportionalScaledValue( inResourceData->GetInt( "UnpinnedCornerOffsetX" ) );
 		}
 		if ( inResourceData->FindKey( "UnpinnedCornerOffsetY" ) )
 		{
-            nUnpinnedCornerOffsetY = scheme()->GetProportionalScaledValueEx( GetScheme(), inResourceData->GetInt( "UnpinnedCornerOffsetY" ) );
+            nUnpinnedCornerOffsetY = scheme()->GetProportionalScaledValue( inResourceData->GetInt( "UnpinnedCornerOffsetY" ) );
 		}
 	}
 	else
@@ -3806,7 +3791,7 @@ void Panel::ApplySettings(KeyValues *inResourceData)
 		// scale the x up to our screen co-ords
 		if ( IsProportional() )
 		{
-			x = scheme()->GetProportionalScaledValueEx(GetScheme(), x);
+			x = scheme()->GetProportionalScaledValue(x);
 		}
 
 		// now correct the alignment
@@ -3837,7 +3822,7 @@ void Panel::ApplySettings(KeyValues *inResourceData)
 		if (IsProportional())
 		{
 			// scale the y up to our screen co-ords
-			y = scheme()->GetProportionalScaledValueEx(GetScheme(), y);
+			y = scheme()->GetProportionalScaledValue(y);
 		}
 		// now correct the alignment
 		if (_buildModeFlags & BUILDMODE_SAVE_YPOS_BOTTOMALIGNED)
@@ -3873,7 +3858,7 @@ void Panel::ApplySettings(KeyValues *inResourceData)
 		if( IsProportional() )
 		{
 			// scale the width up to our screen co-ords
-			wide = scheme()->GetProportionalScaledValueEx( GetScheme(), wide );
+			wide = scheme()->GetProportionalScaledValue( wide );
 		}
 		// now correct the alignment
 		if( _buildModeFlags & BUILDMODE_SAVE_WIDE_FULL )
@@ -3895,7 +3880,7 @@ void Panel::ApplySettings(KeyValues *inResourceData)
 		if( IsProportional() )
 		{
 			// scale the height up to our screen co-ords
-			tall = scheme()->GetProportionalScaledValueEx( GetScheme(), tall );
+			tall = scheme()->GetProportionalScaledValue( tall );
 		}
 		// now correct the alignment
 		if( _buildModeFlags & BUILDMODE_SAVE_TALL_FULL )
@@ -4048,8 +4033,8 @@ void Panel::GetSettings( KeyValues *outResourceData )
 	GetPos( x, y );
 	if ( IsProportional() )
 	{
-		x = scheme()->GetProportionalNormalizedValueEx( GetScheme(), x );
-		y = scheme()->GetProportionalNormalizedValueEx( GetScheme(), y );
+		x = scheme()->GetProportionalNormalizedValue( x );
+		y = scheme()->GetProportionalNormalizedValue( y );
 	}
 	// correct for alignment
 	if (_buildModeFlags & BUILDMODE_SAVE_XPOS_RIGHTALIGNED)
@@ -4101,8 +4086,8 @@ void Panel::GetSettings( KeyValues *outResourceData )
 	GetSize( wide, tall );
 	if ( IsProportional() )
 	{
-		wide = scheme()->GetProportionalNormalizedValueEx( GetScheme(), wide );
-		tall = scheme()->GetProportionalNormalizedValueEx( GetScheme(), tall );
+		wide = scheme()->GetProportionalNormalizedValue( wide );
+		tall = scheme()->GetProportionalNormalizedValue( tall );
 	}
 
 	int z = ipanel()->GetZPos(GetVPanel());
@@ -4941,7 +4926,7 @@ public:
 	{
 		void *data = ( void * )( (*entry->m_pfnLookup)( panel ) );
 		float f = *(float *)data;
-		f = scheme()->GetProportionalNormalizedValueEx( panel->GetScheme(), f );
+		f = scheme()->GetProportionalNormalizedValue( f );
 		kv->SetFloat( entry->name(), f );
 	}
 	
@@ -4949,7 +4934,7 @@ public:
 	{
 		void *data = ( void * )( (*entry->m_pfnLookup)( panel ) );
 		float f = kv->GetFloat( entry->name() );
-		f = scheme()->GetProportionalScaledValueEx( panel->GetScheme(), f );
+		f = scheme()->GetProportionalScaledValue( f );
 		*(float *)data = f;
 	}
 
@@ -4957,7 +4942,7 @@ public:
 	{
 		void *data = ( void * )( (*entry->m_pfnLookup)( panel ) );
 		float f = atof( entry->defaultvalue() );
-		f = scheme()->GetProportionalScaledValueEx( panel->GetScheme(), f );
+		f = scheme()->GetProportionalScaledValue( f );
 		*(float *)data = f;
 	}
 };
@@ -4991,7 +4976,7 @@ public:
 	{
 		void *data = ( void * )( (*entry->m_pfnLookup)( panel ) );
 		int i = *(int *)data;
-		i = scheme()->GetProportionalNormalizedValueEx( panel->GetScheme(), i );
+		i = scheme()->GetProportionalNormalizedValue( i );
 		kv->SetInt( entry->name(), i );
 	}
 	
@@ -4999,14 +4984,14 @@ public:
 	{
 		void *data = ( void * )( (*entry->m_pfnLookup)( panel ) );
 		int i = kv->GetInt( entry->name() );
-		i = scheme()->GetProportionalScaledValueEx( panel->GetScheme(), i );
+		i = scheme()->GetProportionalScaledValue( i );
 		*(int *)data = i;
 	}
 	virtual void InitFromDefault( Panel *panel, PanelAnimationMapEntry *entry )
 	{
 		void *data = ( void * )( (*entry->m_pfnLookup)( panel ) );
 		int i = atoi( entry->defaultvalue() );
-		i = scheme()->GetProportionalScaledValueEx( panel->GetScheme(), i );
+		i = scheme()->GetProportionalScaledValue( i );
 		*(int *)data = i;
 	}
 };

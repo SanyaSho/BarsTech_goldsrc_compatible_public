@@ -1,7 +1,7 @@
 #include <tier0/platform.h>
 
 #include <vgui/ISurface.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "Bitmap.h"
 
@@ -35,16 +35,16 @@ void Bitmap::Paint()
 	if( !_uploaded )
 		return;
 
-	surface()->DrawSetTexture( _id );
+	g_pSurface->DrawSetTexture( _id );
 
-	surface()->DrawSetColor(
+	g_pSurface->DrawSetColor(
 		_color[ 0 ],
 		_color[ 1 ],
 		_color[ 2 ],
 		_color[ 3 ]
 	);
 
-	surface()->DrawTexturedRect(
+	g_pSurface->DrawTexturedRect(
 		_pos[ 0 ], _pos[ 1 ],
 		_pos[ 0 ] + wide,
 		 _pos[ 1 ] + tall
@@ -69,7 +69,7 @@ void Bitmap::GetSize( int &wide, int &tall )
 
 	if( _valid )
 	{
-		surface()->DrawGetTextureSize( _id, wide, tall );
+		g_pSurface->DrawGetTextureSize( _id, wide, tall );
 	}
 }
 
@@ -92,14 +92,14 @@ void Bitmap::ForceUpload()
 	}
 
 	if( NULL_HANDLE == _id )
-		_id = surface()->CreateNewTextureID();
+		_id = g_pSurface->CreateNewTextureID();
 
-	surface()->DrawSetTextureFile(
+	g_pSurface->DrawSetTextureFile(
 		_id, _filename, _filtered, false
 	);
 
 	_uploaded = true;
-	_valid = surface()->IsTextureIDValid( _id );
+	_valid = g_pSurface->IsTextureIDValid( _id );
 
 	GetSize( wide, tall );
 }

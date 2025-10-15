@@ -17,7 +17,6 @@
 #include "FileSystem_Helpers.h"
 
 #include <vgui/IInputInternal.h>
-#include <vgui_controls/Controls.h>
 
 #include "KeyValues.h"
 
@@ -25,9 +24,17 @@
 #include "vgui.h"
 #include "vgui_key_translation.h"
 
+#include "vgui_internal.h"
+
 using vgui2::ISystem;
 
-EXPOSE_SINGLE_INTERFACE( CSystem, ISystem, VGUI_SYSTEM_INTERFACE_VERSION_GS );
+CSystem g_System;
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CSystem, ISystem, VGUI_SYSTEM_INTERFACE_VERSION, g_System );
+
+namespace vgui2
+{
+vgui2::ISystem *g_pSystem = &g_System;
+};
 
 CSystem::CSystem()
 {
@@ -55,7 +62,7 @@ void CSystem::RunFrame()
 	if( m_bStaticWatchForComputerUse )
 	{
 		int x, y;
-		vgui2::input()->GetCursorPos( x, y );
+		vgui2::g_pInput->GetCursorPos( x, y );
 
 		const auto deltaX = m_iStaticMouseOldX - x;
 		const auto deltaY = m_iStaticMouseOldY - y;
@@ -582,14 +589,14 @@ void CSystem::SetUserConfigFile( const char *fileName, const char *pathName )
 	strncpy( m_szFileName, fileName, ARRAYSIZE( m_szFileName ) - 1 );
 	strncpy( m_szPathID, pathName, ARRAYSIZE( m_szPathID ) - 1 );
 
-	m_pUserConfigData->LoadFromFile( vgui2::filesystem(), m_szFileName, m_szPathID );
+	m_pUserConfigData->LoadFromFile( vgui2::g_pFileSystem, m_szFileName, m_szPathID );
 }
 
 void CSystem::SaveUserConfigFile()
 {
 	if( m_pUserConfigData )
 	{
-		m_pUserConfigData->SaveToFile( vgui2::filesystem(), m_szFileName, m_szPathID );
+		m_pUserConfigData->SaveToFile( vgui2::g_pFileSystem, m_szFileName, m_szPathID );
 	}
 }
 

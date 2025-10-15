@@ -2,7 +2,7 @@
 #include <vgui/IKeyValues.h>
 #include <vgui/ISurface.h>
 #include <vgui/ISystem.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "Bitmap.h"
 #include "Border.h"
@@ -10,7 +10,13 @@
 
 using vgui2::ISchemeManager;
 
-EXPOSE_SINGLE_INTERFACE( CSchemeManager, ISchemeManager, VGUI_SCHEME_INTERFACE_VERSION_GS );
+CSchemeManager g_Scheme;
+EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CSchemeManager, ISchemeManager, VGUI_SCHEME_INTERFACE_VERSION, g_Scheme );
+
+namespace vgui2
+{
+vgui2::ISchemeManager *g_pScheme = &g_Scheme;
+};
 
 CScheme::CScheme()
 {
@@ -27,7 +33,7 @@ const char *CScheme::GetResourceString( const char *stringName )
 
 vgui2::IBorder *CScheme::GetBorder( const char *borderName )
 {
-	auto hBorder = keyvalues()->GetSymbolForString( borderName );
+	auto hBorder = g_pKeyValues->GetSymbolForString( borderName );
 
 	if( m_BorderList.Count() <= 0 )
 		return _baseBorder;
@@ -180,13 +186,13 @@ int CScheme::GetAdjustedFontHeightForCurrentLanguage( int tall )
 
 	auto newTall = tall;
 
-	auto pszLanguage = vgui2::surface()->GetLanguage();
+	auto pszLanguage = vgui2::g_pSurface->GetLanguage();
 
 	if( pszLanguage && *pszLanguage )
 		strncpy( language, pszLanguage, ARRAYSIZE( language ) );
 
 	if( language[ 0 ] ||
-		vgui2::system()->GetRegistryString(
+		vgui2::g_pSystem->GetRegistryString(
 			"HKEY_CURRENT_USER\\Software\\Valve\\Steam\\Language",
 			language,
 			ARRAYSIZE( language ) - 1 ) )
@@ -224,16 +230,16 @@ void CScheme::LoadFonts()
 
 			if( pszFontFile && *pszFontFile )
 			{
-				vgui2::surface()->AddCustomFontFile( pszFontFile );
+				vgui2::g_pSurface->AddCustomFontFile( pszFontFile );
 			}
 		}
 	}
 
 	int screenWide, screenTall;
-	vgui2::surface()->GetScreenSize( screenWide, screenTall );
+	vgui2::g_pSurface->GetScreenSize( screenWide, screenTall );
 
 	int baseWide, baseTall;
-	vgui2::surface()->GetProportionalBase( baseWide, baseTall );
+	vgui2::g_pSurface->GetProportionalBase( baseWide, baseTall );
 
 	{
 		auto pFonts = data->FindKey( "Fonts", true );
@@ -244,7 +250,7 @@ void CScheme::LoadFonts()
 			{
 				auto pszMungedName = GetMungedFontName( pKV->GetName(), tag, i != 0 );
 
-				auto hFont = vgui2::surface()->CreateFont();
+				auto hFont = vgui2::g_pSurface->CreateFont();
 
 				for( auto pGlyph = pKV->GetFirstSubKey();
 					 pGlyph;
@@ -274,11 +280,11 @@ void CScheme::LoadFonts()
 						flags |= vgui2::ISurface::FONTFLAG_SYMBOL;
 
 					if( pGlyph->GetInt( "antialias" ) &&
-						vgui2::surface()->SupportsFeature( vgui2::ISurface::ANTIALIASED_FONTS ) )
+						vgui2::g_pSurface->SupportsFeature( vgui2::ISurface::ANTIALIASED_FONTS ) )
 						flags |= vgui2::ISurface::FONTFLAG_ANTIALIAS;
 
 					if( pGlyph->GetInt( "dropshadow" ) &&
-						vgui2::surface()->SupportsFeature( vgui2::ISurface::DROPSHADOW_FONTS ) )
+						vgui2::g_pSurface->SupportsFeature( vgui2::ISurface::DROPSHADOW_FONTS ) )
 						flags |= vgui2::ISurface::FONTFLAG_DROPSHADOW;
 
 					if( pGlyph->GetInt( "rotary" ) )
@@ -303,7 +309,7 @@ void CScheme::LoadFonts()
 					const auto weight = pGlyph->GetInt( "weight" );
 					const auto pszName = pGlyph->GetString( "name", "" );
 
-					vgui2::surface()->AddGlyphSetToFont(
+					vgui2::g_pSurface->AddGlyphSetToFont(
 						hFont, pszName,
 						tall, weight, blur, scanlines, flags,
 						0, 0xFFFF
@@ -414,8 +420,8 @@ vgui2::HScheme CSchemeManager::LoadSchemeFromFile( const char *fileName, const c
 
 	auto pData = new KeyValues( "Scheme" );
 
-	if( !pData->LoadFromFile( vgui2::filesystem(), fileName, "SKIN" ) &&
-		!pData->LoadFromFile( vgui2::filesystem(), fileName ) )
+	if( !pData->LoadFromFile( vgui2::g_pFileSystem, fileName, "SKIN" ) &&
+		!pData->LoadFromFile( vgui2::g_pFileSystem, fileName ) )
 	{
 		pData->deleteThis();
 		return NULL_HANDLE;
@@ -502,9 +508,9 @@ void CSchemeManager::Shutdown( bool full )
 int CSchemeManager::GetProportionalScaledValue( int normalizedValue )
 {
 	int wide, tall;
-	vgui2::surface()->GetScreenSize( wide, tall );
+	vgui2::g_pSurface->GetScreenSize( wide, tall );
 	int proW, proH;
-	vgui2::surface()->GetProportionalBase( proW, proH );
+	vgui2::g_pSurface->GetProportionalBase( proW, proH );
 
 	return static_cast<int>(
 		floor(
@@ -517,9 +523,9 @@ int CSchemeManager::GetProportionalScaledValue( int normalizedValue )
 int CSchemeManager::GetProportionalNormalizedValue( int scaledValue )
 {
 	int wide, tall;
-	vgui2::surface()->GetScreenSize( wide, tall );
+	vgui2::g_pSurface->GetScreenSize( wide, tall );
 	int proW, proH;
-	vgui2::surface()->GetProportionalBase( proW, proH );
+	vgui2::g_pSurface->GetProportionalBase( proW, proH );
 
 	return static_cast<int>(
 		floor(

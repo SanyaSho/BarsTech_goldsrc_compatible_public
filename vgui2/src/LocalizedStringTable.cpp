@@ -4,7 +4,7 @@
 #include <vgui/ISurface.h>
 #include <vgui/ISystem.h>
 #include <vgui/IVGui.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "LocalizedStringTable.h"
 
@@ -68,7 +68,7 @@ bool CLocalizedStringTable::AddFile( IFileSystem *fileSystem, const char *fileNa
 		strncpy( szFileName, fileName, uiLangStart );
 		szFileName[ uiLangStart ] = '\0';
 
-		if( vgui2::system()->CommandLineParamExists( "-all_languages" ) )
+		if( vgui2::g_pSystem->CommandLineParamExists( "-all_languages" ) )
 		{
 			m_bUseOnlyLongestLanguageString = true;
 
@@ -82,14 +82,14 @@ bool CLocalizedStringTable::AddFile( IFileSystem *fileSystem, const char *fileNa
 
 		language[ 0 ] = '\0';
 
-		auto pszLanguage = vgui2::surface()->GetLanguage();
+		auto pszLanguage = vgui2::g_pSurface->GetLanguage();
 
 		if( pszLanguage && *pszLanguage )
 			strncpy( language, pszLanguage, ARRAYSIZE( language ) );
 
 		if( !( *language ) )
 		{
-			vgui2::system()->GetRegistryString(
+			vgui2::g_pSystem->GetRegistryString(
 				"HKEY_CURRENT_USER\\Software\\Valve\\Steam\\Language",
 				language, ARRAYSIZE( language ) - 1 );
 		}
@@ -110,7 +110,7 @@ bool CLocalizedStringTable::AddFile( IFileSystem *fileSystem, const char *fileNa
 
 	if( FILESYSTEM_INVALID_HANDLE == hFile )
 	{
-		vgui2::ivgui()->DPrintf(
+		vgui2::g_pIVgui->DPrintf(
 			"ILocalize::AddFile() failed to load file \"%s\".\n",
 			fileName
 		);
@@ -151,7 +151,7 @@ bool CLocalizedStringTable::AddFile( IFileSystem *fileSystem, const char *fileNa
 		auto pszLangSuffix = strstr( szFileName, "_english.txt" );
 
 		//TODO: part of debug only code? - Solokiller
-		vgui2::system()->CommandLineParamExists( "-ccsyntax" );
+		vgui2::g_pSystem->CommandLineParamExists( "-ccsyntax" );
 
 		BuildFastValueLookup();
 
@@ -390,9 +390,9 @@ void CLocalizedStringTable::AddString( const char *tokenName, wchar_t *unicodeSt
 			auto pszValue = GetValueByIndex( index );
 
 			int newWide, tall;
-			vgui2::surface()->GetTextSize( 1, unicodeString, newWide, tall );
+			vgui2::g_pSurface->GetTextSize( 1, unicodeString, newWide, tall );
 			int oldWide;
-			vgui2::surface()->GetTextSize( 1, pszValue, oldWide, tall );
+			vgui2::g_pSurface->GetTextSize( 1, pszValue, oldWide, tall );
 
 			if( newWide < oldWide )
 				return;

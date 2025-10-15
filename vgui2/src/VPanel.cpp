@@ -1,6 +1,6 @@
 #include <vgui/IClientPanel.h>
 #include <vgui/ISurface.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "VPanel.h"
 
@@ -218,7 +218,7 @@ void VPanel::Solve()
 	auto pParent = GetParent();
 
 	if( IsPopup() )
-		pParent = reinterpret_cast<VPanel*>( vgui2::surface()->GetEmbeddedPanel() );
+		pParent = reinterpret_cast<VPanel*>( vgui2::g_pSurface->GetEmbeddedPanel() );
 
 	int pinset[ 4 ] = {};
 
@@ -276,12 +276,12 @@ void VPanel::SetVisible( bool state )
 {
 	if( _visible != state )
 	{
-		vgui2::surface()->SetPanelVisible( reinterpret_cast<VPANEL>( this ), state );
+		vgui2::g_pSurface->SetPanelVisible( reinterpret_cast<VPANEL>( this ), state );
 
 		_visible = state;
 
 		if( IsPopup() )
-			vgui2::surface()->CalculateMouseVisible();
+			vgui2::g_pSurface->CalculateMouseVisible();
 	}
 }
 
@@ -350,7 +350,7 @@ VPanel* VPanel::GetParent()
 
 void VPanel::MoveToFront()
 {
-	vgui2::surface()->MovePopupToFront( reinterpret_cast<VPANEL>( this ) );
+	vgui2::g_pSurface->MovePopupToFront( reinterpret_cast<VPANEL>( this ) );
 
 	if( !_parent )
 		return;

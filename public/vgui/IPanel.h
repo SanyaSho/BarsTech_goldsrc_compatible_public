@@ -131,15 +131,7 @@ public:
 	virtual const char* GetModuleName( VPANEL vguiPanel ) = 0;
 };
 
-/**
-*	Interface version used by GoldSource.
-*/
-#define VGUI_PANEL_INTERFACE_VERSION_GS "VGUI_Panel007"
-
-/*
-*	Interface version used by Source 2006.
-*/
-//#define VGUI_PANEL_INTERFACE_VERSION "VGUI_Panel009"
+#define VGUI_PANEL_INTERFACE_VERSION "VGUI_Panel007"
 
 } // namespace vgui2
 

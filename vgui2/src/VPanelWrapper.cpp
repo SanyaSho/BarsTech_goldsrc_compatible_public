@@ -1,14 +1,15 @@
 #include <vgui/IClientPanel.h>
 #include <vgui/ISurface.h>
-#include <vgui_controls/Controls.h>
 #include <vgui_controls/Panel.h>
 
 #include "VPanel.h"
 #include "VPanelWrapper.h"
 
+#include "vgui_internal.h"
+
 using vgui2::IPanel;
 
-EXPOSE_SINGLE_INTERFACE( VPanelWrapper, IPanel, VGUI_PANEL_INTERFACE_VERSION_GS );
+EXPOSE_SINGLE_INTERFACE( VPanelWrapper, IPanel, VGUI_PANEL_INTERFACE_VERSION );
 
 void VPanelWrapper::Init( vgui2::VPANEL vguiPanel, vgui2::IClientPanel *panel )
 {
@@ -285,7 +286,7 @@ void VPanelWrapper::SetPlat( vgui2::VPANEL vguiPanel, vgui2::SurfacePlat *Plat )
 
 vgui2::Panel *VPanelWrapper::GetPanel( vgui2::VPANEL vguiPanel, const char *destinationModule )
 {
-	if( vgui2::surface()->GetEmbeddedPanel() != vguiPanel &&
+	if( vgui2::g_pSurface->GetEmbeddedPanel() != vguiPanel &&
 		!stricmp( GetModuleName( vguiPanel ), destinationModule ) )
 	{
 		return static_cast<vgui2::Panel*>( Client( vguiPanel )->QueryInterface( vgui2::ICLIENTPANEL_STANDARD_INTERFACE ) );

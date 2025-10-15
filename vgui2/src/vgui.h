@@ -8,6 +8,8 @@
 #include <vgui/IInputInternal.h>
 #include <vgui/IVGui.h>
 
+#include "vgui_internal.h"
+
 namespace vgui2
 {
 class VPanel;

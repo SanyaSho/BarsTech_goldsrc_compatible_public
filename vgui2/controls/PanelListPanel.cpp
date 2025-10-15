@@ -45,8 +45,8 @@ PanelListPanel::PanelListPanel( vgui2::Panel *parent, char const *panelName ) : 
 	if ( IsProportional() )
 	{
 		m_iScrollbarSize = scheme()->GetProportionalScaledValue( DEFAULT_SCROLLBARSIZE );
-		m_iDefaultHeight = scheme()->GetProportionalScaledValueEx( GetScheme(), DEFAULT_HEIGHT );
-		m_iPanelBuffer = scheme()->GetProportionalScaledValueEx( GetScheme(), PANELBUFFER );
+		m_iDefaultHeight = scheme()->GetProportionalScaledValue( DEFAULT_HEIGHT );
+		m_iPanelBuffer = scheme()->GetProportionalScaledValue( PANELBUFFER );
 	}
 	else
 	{

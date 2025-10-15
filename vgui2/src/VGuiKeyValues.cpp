@@ -1,5 +1,5 @@
 #include <vgui/ILocalize.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "VGuiKeyValues.h"
 
@@ -99,11 +99,11 @@ void CVGuiKeyValues::GetLocalizedFromANSI( const char* ansi, wchar_t* outBuf, in
 {
 	if( *ansi == '#' )
 	{
-		auto pszLocalized = vgui2::localize()->Find( ansi );
+		auto pszLocalized = vgui2::g_pLocalize->Find( ansi );
 
 		if( pszLocalized )
 		{
-			vgui2::localize()->ConstructString(
+			vgui2::g_pLocalize->ConstructString(
 				outBuf,
 				unicodeBufferSizeInBytes,
 				const_cast<wchar_t*>(L"%s1"), 1,
@@ -113,12 +113,12 @@ void CVGuiKeyValues::GetLocalizedFromANSI( const char* ansi, wchar_t* outBuf, in
 		}
 	}
 
-	vgui2::localize()->ConvertANSIToUnicode( ansi, outBuf, unicodeBufferSizeInBytes );
+	vgui2::g_pLocalize->ConvertANSIToUnicode( ansi, outBuf, unicodeBufferSizeInBytes );
 }
 
 void CVGuiKeyValues::GetANSIFromLocalized( const wchar_t* wchar, char* outBuf, int ansiBufferSizeInBytes )
 {
-	vgui2::localize()->ConvertUnicodeToANSI( wchar, outBuf, ansiBufferSizeInBytes );
+	vgui2::g_pLocalize->ConvertUnicodeToANSI( wchar, outBuf, ansiBufferSizeInBytes );
 }
 
 void CVGuiKeyValues::AddKeyValuesToMemoryLeakList( void *pMem, HKeySymbol name )

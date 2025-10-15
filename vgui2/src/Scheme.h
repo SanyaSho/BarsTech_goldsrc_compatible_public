@@ -79,7 +79,7 @@ private:
 	CScheme& operator=( const CScheme& ) = delete;
 };
 
-class CSchemeManager : public vgui2::ISchemeManager009
+class CSchemeManager : public vgui2::ISchemeManager
 {
 private:
 	struct CachedBitmapHandle_t

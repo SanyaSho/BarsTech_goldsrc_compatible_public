@@ -184,15 +184,7 @@ public:
 	//virtual VPANEL 	GetMouseCapture() = 0;
 };
 
-/**
-*	Interface version used by GoldSource.
-*/
-#define VGUI_INPUT_INTERFACE_VERSION_GS "VGUI_Input004"
-
-/*
-*	Interface version used by Source 2006.
-*/
-//#define VGUI_INPUT_INTERFACE_VERSION "VGUI_Input005"
+#define VGUI_INPUT_INTERFACE_VERSION "VGUI_Input004"
 
 } // namespace vgui2
 

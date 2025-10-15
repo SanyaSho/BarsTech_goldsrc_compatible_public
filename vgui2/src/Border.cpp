@@ -1,6 +1,6 @@
 #include <vgui/IScheme.h>
 #include <vgui/ISurface.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "Border.h"
 #include "KeyValues.h"
@@ -47,11 +47,11 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 		{
 			auto& line = side.lines[ i ];
 
-			vgui2::surface()->DrawSetColor( line.col );
+			vgui2::g_pSurface->DrawSetColor( line.col );
 
 			if( breakSide )
 			{
-				vgui2::surface()->DrawFilledRect(
+				vgui2::g_pSurface->DrawFilledRect(
 					left,
 					line.startOffset + y0,
 					left + 1,
@@ -62,7 +62,7 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 			{
 				if( breakStart > 0 )
 				{
-					vgui2::surface()->DrawFilledRect(
+					vgui2::g_pSurface->DrawFilledRect(
 						left,
 						line.startOffset + y0,
 						left + 1,
@@ -72,7 +72,7 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 
 				if( ( y1 - line.endOffset ) > breakStop )
 				{
-					vgui2::surface()->DrawFilledRect(
+					vgui2::g_pSurface->DrawFilledRect(
 						left,
 						y0 + breakStop + 1,
 						left + 1,
@@ -92,13 +92,13 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 		{
 			auto& line = side.lines[ i ];
 
-			vgui2::surface()->DrawSetColor( line.col );
+			vgui2::g_pSurface->DrawSetColor( line.col );
 
 			if( breakSide == 1 )
 			{
 				if( breakStart > 0 )
 				{
-					vgui2::surface()->DrawFilledRect(
+					vgui2::g_pSurface->DrawFilledRect(
 						line.startOffset + x0,
 						top,
 						breakStart + 1,
@@ -108,7 +108,7 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 
 				if( ( x1 - line.endOffset ) > breakStop )
 				{
-					vgui2::surface()->DrawFilledRect(
+					vgui2::g_pSurface->DrawFilledRect(
 						x0 + breakStop + 1,
 						top,
 						x1 - line.endOffset,
@@ -118,7 +118,7 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 			}
 			else
 			{
-				vgui2::surface()->DrawFilledRect(
+				vgui2::g_pSurface->DrawFilledRect(
 					line.startOffset + x0,
 					top,
 					x1 - line.endOffset,
@@ -137,9 +137,9 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 		{
 			auto& line = side.lines[ i ];
 
-			vgui2::surface()->DrawSetColor( line.col );
+			vgui2::g_pSurface->DrawSetColor( line.col );
 
-			vgui2::surface()->DrawFilledRect(
+			vgui2::g_pSurface->DrawFilledRect(
 				right,
 				line.startOffset + y0,
 				right + 1,
@@ -157,9 +157,9 @@ void Border::Paint( int x0, int y0, int x1, int y1, int breakSide, int breakStar
 		{
 			auto& line = side.lines[ i ];
 
-			vgui2::surface()->DrawSetColor( line.col );
+			vgui2::g_pSurface->DrawSetColor( line.col );
 
-			vgui2::surface()->DrawFilledRect(
+			vgui2::g_pSurface->DrawFilledRect(
 				line.startOffset + x0,
 				bottom,
 				x1 - line.endOffset,

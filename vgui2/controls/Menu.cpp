@@ -75,7 +75,7 @@ Menu::Menu(Panel *parent, const char *panelName) : Panel(parent, panelName)
 	if (IsProportional())
 	{
 		m_iProportionalScrollBarSize = scheme()->GetProportionalScaledValue( 18 );
-		m_iMenuItemHeight =  scheme()->GetProportionalScaledValueEx( GetScheme(), DEFAULT_MENU_ITEM_HEIGHT );
+		m_iMenuItemHeight =  scheme()->GetProportionalScaledValue( DEFAULT_MENU_ITEM_HEIGHT );
 	}
 	else
 	{

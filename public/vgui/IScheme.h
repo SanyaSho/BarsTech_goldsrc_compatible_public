@@ -42,14 +42,13 @@ public:
 	// returns a pointer to an existing font
 	virtual HFont GetFont(const char *fontName, bool proportional = false) = 0;
 
-	// inverse font lookup
-	//virtual char const *GetFontName( const HFont& font ) = 0;
-
 	// colors
 	virtual Color GetColor(const char *colorName, Color defaultColor) = 0;
 };
 
-class ISchemeManager009 : public IBaseInterface
+
+
+class ISchemeManager : public IBaseInterface
 {
 public:
 	// loads a scheme from a file
@@ -58,9 +57,6 @@ public:
 
 	// reloads the scheme from the file - should only be used during development
 	virtual void ReloadSchemes() = 0;
-
-	// reloads scheme fonts
-	//virtual void ReloadFonts() = 0;
 
 	// returns a handle to the default (first loaded) scheme
 	virtual HScheme GetDefaultScheme() = 0;
@@ -71,9 +67,6 @@ public:
 	// returns a pointer to an image
 	virtual IImage *GetImage( const char *imageName, bool hardwareFiltered ) = 0;
 	virtual HTexture GetImageID( const char *imageName, bool hardwareFiltered ) = 0;
-#ifdef _XBOX
-	virtual void DeleteImage( const char *pImageName ) = 0;
-#endif
 
 	// This can only be called at certain times, like during paint()
 	// It will assert-fail if you call it at the wrong time...
@@ -90,30 +83,16 @@ public:
 	// use these for font, image and panel size scaling (they all use the pixel height of the display for scaling)
 	virtual int GetProportionalScaledValue( int normalizedValue ) = 0;
 	virtual int GetProportionalNormalizedValue( int scaledValue ) = 0;
+
+#if defined( FEATURE_HL25 )
+	virtual float GetProportionalScale() = 0;
+
+	virtual int GetHDProportionalScaledValue( int normalizedValue ) = 0;
+	virtual int GetHDProportionalNormalizedValue( int scaledValue ) = 0;
+#endif // FEATURE_HL25
 };
 
-class ISchemeManager: public ISchemeManager009
-{
-public:
-	// loads a scheme from a file
-	// first scheme loaded becomes the default scheme, and all subsequent loaded scheme are derivitives of that
-	virtual HScheme LoadSchemeFromFileEx( VPANEL sizingPanel, const char *fileName, const char *tag) = 0;
-	// gets the proportional coordinates for doing screen-size independant panel layouts
-	// use these for font, image and panel size scaling (they all use the pixel height of the display for scaling)
-	virtual int GetProportionalScaledValueEx( HScheme scheme, int normalizedValue ) = 0;
-	virtual int GetProportionalNormalizedValueEx( HScheme scheme, int scaledValue ) = 0;
-
-};
-
-/**
-*	Interface version used by GoldSource.
-*/
-#define VGUI_SCHEME_INTERFACE_VERSION_GS "VGUI_Scheme009"
-
-/*
-*	Interface version used by Source 2006.
-*/
-//#define VGUI_SCHEME_INTERFACE_VERSION "VGUI_Scheme010"
+#define VGUI_SCHEME_INTERFACE_VERSION "VGUI_Scheme009"
 
 
 } // namespace vgui2

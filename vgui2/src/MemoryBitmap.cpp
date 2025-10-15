@@ -1,5 +1,5 @@
 #include <vgui/ISurface.h>
-#include <vgui_controls/Controls.h>
+#include "vgui_internal.h"
 
 #include "MemoryBitmap.h"
 
@@ -31,9 +31,9 @@ void MemoryBitmap::Paint()
 	if( !_uploaded )
 		return;
 
-	surface()->DrawSetTexture( _id );
+	vgui2::g_pSurface->DrawSetTexture( _id );
 
-	surface()->DrawSetColor(
+	vgui2::g_pSurface->DrawSetColor(
 		_color[ 0 ],
 		_color[ 1 ],
 		_color[ 2 ],
@@ -41,9 +41,9 @@ void MemoryBitmap::Paint()
 	);
 
 	int wide, tall;
-	surface()->DrawGetTextureSize( _id, wide, tall );
+	vgui2::g_pSurface->DrawGetTextureSize( _id, wide, tall );
 
-	surface()->DrawTexturedRect(
+	vgui2::g_pSurface->DrawTexturedRect(
 		_pos[ 0 ], _pos[ 1 ],
 		_pos[ 0 ] + wide,
 		_pos[ 1 ] + tall
@@ -67,7 +67,7 @@ void MemoryBitmap::GetSize( int &wide, int &tall )
 	tall = 0;
 
 	if( _valid )
-		surface()->DrawGetTextureSize( _id, wide, tall );
+		vgui2::g_pSurface->DrawGetTextureSize( _id, wide, tall );
 }
 
 void MemoryBitmap::SetSize( int wide, int tall )
@@ -83,12 +83,12 @@ void MemoryBitmap::SetColor( Color col )
 void MemoryBitmap::ForceUpload()
 {
 	if( NULL_HANDLE == _id )
-		_id = surface()->CreateNewTextureID();
+		_id = vgui2::g_pSurface->CreateNewTextureID();
 
-	surface()->DrawSetTextureRGBA( _id, _texture, _w, _h, false, true );
+	vgui2::g_pSurface->DrawSetTextureRGBA( _id, _texture, _w, _h, false, true );
 
 	_uploaded = true;
 
-	_valid = surface()->IsTextureIDValid( _id );
+	_valid = vgui2::g_pSurface->IsTextureIDValid( _id );
 }
 }
