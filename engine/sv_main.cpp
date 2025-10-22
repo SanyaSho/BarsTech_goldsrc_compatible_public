@@ -6432,7 +6432,7 @@ void SV_SetMaxclients()
 	{
 		client_t* client = &svs.clients[i];
 
-		Q_memset(&client, 0, sizeof(client));
+		Q_memset(client, 0, sizeof(*client));
 		client->resourcesneeded.pPrev = &client->resourcesneeded;
 		client->resourcesneeded.pNext = &client->resourcesneeded;
 		client->resourcesonhand.pPrev = &client->resourcesonhand;
