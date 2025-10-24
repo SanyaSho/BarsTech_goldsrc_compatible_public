@@ -421,7 +421,7 @@ void SCR_UpdateScreen()
 
 	recursionGuard = true;
 	
-	V_CheckGamma();
+	V_UpdatePalette();
 
 	if (!gfBackground && !scr_skipupdate)
 	{

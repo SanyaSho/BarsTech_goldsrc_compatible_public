@@ -20,9 +20,10 @@
 
 #if defined(GLQUAKE)
 float v_blend[4];
-int lightgammatable[1024];
+byte ramps[3][256];
 #endif
-float v_lambert1 = 1.4953241;
+int lightgammatable[1024];
+float v_lambert1 = 1.4953241f;
 
 cvar_t		lcd_x = { const_cast<char*>("lcd_x"), const_cast<char*>("0") };
 cvar_t		lcd_yaw = { const_cast<char*>("lcd_yaw"), const_cast<char*>("0") };
@@ -85,66 +86,47 @@ struct
 	float appliedAngle;
 } gVShake;
 
-void BuildGammaTable(float gamma);
-
-void V_Init()
+void FilterLightParams()
 {
-	Cvar_RegisterVariable(&v_dark);
-	Cvar_RegisterVariable(&crosshair);
-	Cvar_RegisterVariable(&v_gamma);
-	Cvar_RegisterVariable(&v_lightgamma);
-	Cvar_RegisterVariable(&v_texgamma);
-	Cvar_RegisterVariable(&v_brightness);
-	Cvar_RegisterVariable(&v_lambert);
-	Cvar_RegisterVariable(&v_direct);
-	BuildGammaTable(2.5f);
-}
-
-#if defined(GLQUAKE)
-void V_CalcBlend()
-{
-	v_blend[0] = 0.0f;
-	v_blend[1] = 0.0f;
-	v_blend[2] = 0.0f;
-	v_blend[3] = 0.0f;
-}
-#endif
-
-void V_InitLevel()
-{
-	Q_memset(&gVShake, 0, sizeof(gVShake));
-
-	cl.sf.fader = cl.sf.fadeg = cl.sf.fadeb = 0;
-	cl.sf.fadeFlags = 0;
-
-	if (v_dark.value == 0.0)
+	if (g_bIsCStrike)
 	{
-		cl.sf.fadeSpeed = 0.0;
-		cl.sf.fadeEnd = 0.0;
-		cl.sf.fadeReset = 0.0;
-		cl.sf.fadealpha = 0;
+		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("2.5"));
+		Cvar_DirectSet(&v_texgamma, const_cast<char*>("2.0"));
 	}
-	else
-	{
-		cl.sf.fadeReset = cl.time + 5.0;
-		cl.sf.fadealpha = 255;
-		cl.sf.fadeSpeed = 51.0f;
-		cl.sf.fadeEnd = cl.sf.fadeReset + 5.0f;
-		Cvar_DirectSet(&v_dark, const_cast < char*>("0"));
-	}
+
+	if (Host_GetMaxClients() > 1 && v_brightness.value > 2.0)
+		Cvar_DirectSet(&v_brightness, const_cast<char*>("2.0"));
+
+	if (v_gamma.value < 1.8)
+		Cvar_DirectSet(&v_gamma, const_cast<char*>("1.8"));
+	else if (v_gamma.value > 3.0)
+		Cvar_DirectSet(&v_gamma, const_cast<char*>("3.0"));
+
+	if (v_texgamma.value < 1.8)
+		Cvar_DirectSet(&v_texgamma, const_cast<char*>("1.8"));
+	else if (v_texgamma.value > 3.0)
+		Cvar_DirectSet(&v_texgamma, const_cast<char*>("3.0"));
+
+	if (v_lightgamma.value < 1.8)
+		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("1.8"));
+	else if (v_lightgamma.value > 3.0)
+		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("3.0"));
+
+	if (v_brightness.value < 0.0)
+		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("100.0"));
+	else if (v_brightness.value > 3.0)
+		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("3.0"));
 }
 
-void BuildGammaTable(float gamma)
+void BuildGammaTable(float g)
 {
 	int		i, inf;
-	float	g, g1, g3;
+	float	g1, g3;
 
 	// Con_Printf("BuildGammaTable %.1f %.1f %.1f\n", g, v_lightgamma.value, v_texgamma.value );
 
-	if (!gamma)
-		gamma = 2.5;
-
-	g = gamma;
+	if (!g)
+		g = 2.5;
 
 	g = 1.0 / g;
 	g1 = v_texgamma.value * g; 
@@ -208,41 +190,13 @@ void BuildGammaTable(float gamma)
 	}
 }
 
-void FilterLightParams()
+qboolean V_CheckGamma()
 {
-	if (g_bIsCStrike)
-	{
-		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("2.5"));
-		Cvar_DirectSet(&v_texgamma, const_cast<char*>("2.0"));
-	}
-
-	if (Host_GetMaxClients() > 1 && v_brightness.value > 2.0)
-		Cvar_DirectSet(&v_brightness, const_cast<char*>("2.0"));
-
-	if (v_gamma.value < 1.8)
-		Cvar_DirectSet(&v_gamma, const_cast<char*>("1.8"));
-	else if (v_gamma.value > 3.0)
-		Cvar_DirectSet(&v_gamma, const_cast<char*>("3.0"));
-
-	if (v_texgamma.value < 1.8)
-		Cvar_DirectSet(&v_texgamma, const_cast<char*>("1.8"));
-	else if (v_texgamma.value > 3.0)
-		Cvar_DirectSet(&v_texgamma, const_cast<char*>("3.0"));
-
-	if (v_lightgamma.value < 1.8)
-		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("1.8"));
-	else if (v_lightgamma.value > 3.0)
-		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("3.0"));
-
-	if (v_brightness.value < 0.0)
-		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("100.0"));
-	else if (v_brightness.value > 3.0)
-		Cvar_DirectSet(&v_lightgamma, const_cast<char*>("3.0"));
-}
-
-qboolean V_UpdatePalette()
-{
-	static float oldgammavalue, oldlightgamma, oldtexgamma, oldbrightness, ambientr, ambientg, ambientb;
+	static float oldgammavalue, oldlightgamma, oldtexgamma, oldbrightness
+#if !defined (GLQUAKE)
+		, ambientr, ambientg, ambientb
+#endif
+		;
 
 	FilterLightParams();
 
@@ -261,10 +215,12 @@ qboolean V_UpdatePalette()
 	}
 
 	BuildGammaTable(v_gamma.value);
+
 	oldgammavalue = v_gamma.value;
 	oldlightgamma = v_lightgamma.value;
 	oldtexgamma = v_texgamma.value;
 	oldbrightness = v_brightness.value;
+
 #if !defined(GLQUAKE)
 	ambientr = r_ambient_r.value;
 	ambientg = r_ambient_g.value;
@@ -272,6 +228,7 @@ qboolean V_UpdatePalette()
 #else
 	V_CalcBlend();
 #endif
+
 	D_FlushCaches();
 	vid.recalc_refdef = 1;				// force a surface cache flush
 
@@ -279,9 +236,224 @@ qboolean V_UpdatePalette()
 
 }
 
-qboolean V_CheckGamma()
+#if defined(GLQUAKE)
+void V_CalcBlend()
 {
-	return V_UpdatePalette();
+	v_blend[0] = 0.0f;
+	v_blend[1] = 0.0f;
+	v_blend[2] = 0.0f;
+	v_blend[3] = 0.0f;
+}
+#endif
+
+qboolean V_UpdatePalette()
+{
+#if defined(GLQUAKE)
+	if (V_CheckGamma())
+	{
+		V_CalcBlend();
+
+		float a = v_blend[3];
+		float r = 255.0 * v_blend[0] * a;
+		float g = 255.0 * v_blend[1] * a;
+		float b = 255.0 * v_blend[2] * a;
+
+		a = 1.0 - a;
+		for (int i = 0; i < 256; i++)
+		{
+			int ir = r + i * a;
+			int ig = g + i * a;
+			int ib = b + i * a;
+			if (ir > 255)
+				ir = 255;
+			if (ig > 255)
+				ig = 255;
+			if (ib > 255)
+				ib = 255;
+
+			ramps[0][i] = texgammatable[ir];
+			ramps[1][i] = texgammatable[ig];
+			ramps[2][i] = texgammatable[ib];
+		}
+	}
+#else
+	return V_CheckGamma();
+#endif
+}
+
+void V_SetRefParams(ref_params_t *pparams)
+{
+	Q_memset(pparams, 0, sizeof(ref_params_t));
+	VectorCopy(r_refdef.vieworg, pparams->vieworg);
+	VectorCopy(r_refdef.viewangles, pparams->viewangles);
+	VectorCopy(forward, pparams->forward);
+	VectorCopy(right, pparams->right);
+	VectorCopy(up, pparams->up);
+	pparams->time = cl.time;
+	pparams->frametime = host_frametime;
+	pparams->intermission = cl.intermission != 0;
+	pparams->paused = cl.paused != false;
+	pparams->spectator = cls.spectator != false;
+	pparams->onground = cl.onground != -1;
+	pparams->waterlevel = cl.waterlevel;
+	VectorCopy(cl.simvel, pparams->simvel);
+	VectorCopy(cl.simorg, pparams->simorg);
+	VectorCopy(cl.viewheight, pparams->viewheight);
+	VectorCopy(cl.viewangles, pparams->cl_viewangles);
+	pparams->idealpitch = cl.idealpitch;
+	pparams->health = cl.stats[STAT_HEALTH];
+	VectorCopy(cl.crosshairangle, pparams->crosshairangle);
+	VectorCopy(cl.punchangle, pparams->punchangle);
+	pparams->viewsize = scr_viewsize.value;
+	pparams->maxclients = cl.maxclients;
+	pparams->viewentity = cl.viewentity;
+	pparams->playernum = cl.playernum;
+	pparams->max_entities = cl.max_edicts;
+	pparams->cmd = &cl.cmd;
+	pparams->demoplayback = cls.demoplayback;
+	pparams->movevars = &movevars;
+	pparams->hardware = 1;
+	pparams->smoothing = cl.pushmsec;
+	pparams->viewport[0] = 0;
+	pparams->viewport[1] = 0;
+	pparams->viewport[2] = vid.width;
+	pparams->viewport[3] = vid.height;
+	pparams->nextView = 0;
+	pparams->onlyClientDraw = 0;
+}
+
+void V_GetRefParams(ref_params_t *pparams)
+{
+	VectorCopy(pparams->vieworg, r_refdef.vieworg);
+	VectorCopy(pparams->viewangles, r_refdef.viewangles);
+	VectorCopy(pparams->forward, forward);
+	VectorCopy(pparams->right, right);
+	VectorCopy(pparams->up, up);
+	VectorCopy(pparams->simvel, cl.simvel);
+	VectorCopy(pparams->simorg, cl.simorg);
+	VectorCopy(pparams->cl_viewangles, cl.viewangles);
+	VectorCopy(pparams->crosshairangle, cl.crosshairangle);
+	VectorCopy(pparams->viewheight, cl.viewheight);
+	VectorCopy(pparams->punchangle, cl.punchangle);
+	r_refdef.vrect.x = pparams->viewport[0];
+	r_refdef.vrect.y = pparams->viewport[1];
+	r_refdef.vrect.width = pparams->viewport[2];
+	r_refdef.vrect.height = pparams->viewport[3];
+	r_refdef.onlyClientDraws = pparams->onlyClientDraw;
+}
+
+void V_RenderView(void)
+{
+	model_t *clmodel;
+	ref_params_s angles;
+#if defined(GLQUAKE)
+	int viewnum;
+#endif
+	
+	r_soundOrigin[0] = r_soundOrigin[1] = r_soundOrigin[2] = 0.0;
+	r_playerViewportAngles[0] = r_playerViewportAngles[1] = r_playerViewportAngles[2] = 0.0;
+
+	if (con_forcedup || cls.state != ca_active || cls.signon != SIGNONS)
+		return;
+
+	clmodel = CL_GetModelByIndex(cl.stats[STAT_WEAPON]);
+
+	cl.viewent.curstate.frame = 0.0;
+	cl.viewent.model = clmodel;
+	cl.viewent.curstate.modelindex = cl.stats[STAT_WEAPON];
+	cl.viewent.curstate.colormap = 0;
+	cl.viewent.index = cl.playernum + 1;
+
+	V_SetRefParams(&angles);
+
+#if defined(GLQUAKE)
+	viewnum = 0;
+	do
+	{
+#endif
+		ClientDLL_CalcRefdef(&angles);
+
+#if defined(GLQUAKE)
+		if (viewnum == 0)
+#endif
+		if (cls.demoplayback || (CL_SetDemoViewInfo(&angles, cl.viewent.origin, cl.stats[STAT_WEAPON]), cls.demoplayback))
+		{
+			if (!cls.spectator)
+			{
+				CL_GetDemoViewInfo(&angles, cl.viewent.origin, &cl.stats[STAT_WEAPON]);
+				cl.viewent.angles[0] = -angles.viewangles[0];
+				cl.viewent.angles[1] = angles.viewangles[1];
+				cl.viewent.angles[2] = angles.viewangles[2];
+				cl.viewent.curstate.angles[0] = cl.viewent.angles[0];
+				cl.viewent.curstate.angles[1] = angles.viewangles[1];
+				cl.viewent.curstate.angles[2] = angles.viewangles[2];
+				cl.viewent.latched.prevangles[0] = cl.viewent.angles[0];
+				cl.viewent.latched.prevangles[1] = angles.viewangles[1];
+				cl.viewent.latched.prevangles[2] = angles.viewangles[2];
+				angles.nextView = 0;
+			}
+		}
+
+		V_GetRefParams(&angles);
+		if (angles.intermission)
+		{
+			cl.viewent.model = 0;
+		}
+		else if (!angles.paused && chase_active.value != 0.0)
+		{
+			Chase_Update();
+		}
+		R_PushDlights();
+
+#if defined(GLQUAKE)
+		if (viewnum == 0 && r_refdef.onlyClientDraws)
+		{
+			qglClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			qglClear(GL_COLOR_BUFFER_BIT);
+		}
+#endif
+
+		if (lcd_x.value == 0.0)
+		{
+			R_RenderView();
+		}
+		else
+		{
+			vid.rowbytes *= 2;
+			vid.aspect /= 2;
+			r_refdef.viewangles[YAW] -= lcd_yaw.value;
+
+			for (int i = 0; i < 3; i++)
+				r_refdef.vieworg[i] = r_refdef.vieworg[i] - angles.right[i] * lcd_x.value;
+
+			R_RenderView();
+
+			vid.buffer += vid.rowbytes >> 1;
+
+			R_PushDlights();
+
+			r_refdef.viewangles[YAW] += lcd_yaw.value * 2;
+
+			for (int i = 0; i < 3; i++)
+				r_refdef.vieworg[i] = (angles.right[i] * 2) * lcd_x.value + r_refdef.vieworg[i];
+
+			R_RenderView();
+
+			r_refdef.vrect.height *= 2;
+			vid.rowbytes /= 2;
+			vid.buffer -= vid.rowbytes;
+			vid.aspect *= 2;
+		}
+
+		if (!angles.onlyClientDraw)
+		{
+			VectorCopy(r_origin, r_soundOrigin);
+			VectorCopy(angles.viewangles, r_playerViewportAngles);
+		}
+#if defined(GLQUAKE)
+		viewnum++;
+	} while (angles.nextView != 0);
+#endif
 }
 
 void V_CalcShake()
@@ -459,177 +631,39 @@ int V_FadeAlpha()
 	return iFadeAlpha;
 }
 
-void V_SetRefParams(ref_params_t *pparams)
+void V_Init()
 {
-	Q_memset(pparams, 0, sizeof(ref_params_t));
-	VectorCopy(r_refdef.vieworg, pparams->vieworg);
-	VectorCopy(r_refdef.viewangles, pparams->viewangles);
-	VectorCopy(forward, pparams->forward);
-	VectorCopy(right, pparams->right);
-	VectorCopy(up, pparams->up);
-	pparams->time = cl.time;
-	pparams->frametime = host_frametime;
-	pparams->intermission = cl.intermission != 0;
-	pparams->paused = cl.paused != false;
-	pparams->spectator = cls.spectator != false;
-	pparams->onground = cl.onground != -1;
-	pparams->waterlevel = cl.waterlevel;
-	VectorCopy(cl.simvel, pparams->simvel);
-	VectorCopy(cl.simorg, pparams->simorg);
-	VectorCopy(cl.viewheight, pparams->viewheight);
-	VectorCopy(cl.viewangles, pparams->cl_viewangles);
-	pparams->idealpitch = cl.idealpitch;
-	pparams->health = cl.stats[STAT_HEALTH];
-	VectorCopy(cl.crosshairangle, pparams->crosshairangle);
-	VectorCopy(cl.punchangle, pparams->punchangle);
-	pparams->viewsize = scr_viewsize.value;
-	pparams->maxclients = cl.maxclients;
-	pparams->viewentity = cl.viewentity;
-	pparams->playernum = cl.playernum;
-	pparams->max_entities = cl.max_edicts;
-	pparams->cmd = &cl.cmd;
-	pparams->demoplayback = cls.demoplayback;
-	pparams->movevars = &movevars;
-	pparams->hardware = 1;
-	pparams->smoothing = cl.pushmsec;
-	pparams->viewport[0] = 0;
-	pparams->viewport[1] = 0;
-	pparams->viewport[2] = vid.width;
-	pparams->viewport[3] = vid.height;
-	pparams->nextView = 0;
-	pparams->onlyClientDraw = 0;
+	Cvar_RegisterVariable(&v_dark);
+	Cvar_RegisterVariable(&crosshair);
+	Cvar_RegisterVariable(&v_gamma);
+	Cvar_RegisterVariable(&v_lightgamma);
+	Cvar_RegisterVariable(&v_texgamma);
+	Cvar_RegisterVariable(&v_brightness);
+	Cvar_RegisterVariable(&v_lambert);
+	Cvar_RegisterVariable(&v_direct);
+	BuildGammaTable(2.5f);
 }
 
-void V_GetRefParams(ref_params_t *pparams)
+void V_InitLevel()
 {
-	VectorCopy(pparams->vieworg, r_refdef.vieworg);
-	VectorCopy(pparams->viewangles, r_refdef.viewangles);
-	VectorCopy(pparams->forward, forward);
-	VectorCopy(pparams->right, right);
-	VectorCopy(pparams->up, up);
-	VectorCopy(pparams->simvel, cl.simvel);
-	VectorCopy(pparams->simorg, cl.simorg);
-	VectorCopy(pparams->cl_viewangles, cl.viewangles);
-	VectorCopy(pparams->crosshairangle, cl.crosshairangle);
-	VectorCopy(pparams->viewheight, cl.viewheight);
-	VectorCopy(pparams->punchangle, cl.punchangle);
-	r_refdef.vrect.x = pparams->viewport[0];
-	r_refdef.vrect.y = pparams->viewport[1];
-	r_refdef.vrect.width = pparams->viewport[2];
-	r_refdef.vrect.height = pparams->viewport[3];
-	r_refdef.onlyClientDraws = pparams->onlyClientDraw;
-}
+	Q_memset(&gVShake, 0, sizeof(gVShake));
 
-void V_RenderView(void)
-{
-	model_t *clmodel;
-	ref_params_s angles;
-#if defined(GLQUAKE)
-	int viewnum;
-#endif
-	
-	r_soundOrigin[0] = r_soundOrigin[1] = r_soundOrigin[2] = 0.0;
-	r_playerViewportAngles[0] = r_playerViewportAngles[1] = r_playerViewportAngles[2] = 0.0;
+	cl.sf.fader = cl.sf.fadeg = cl.sf.fadeb = 0;
+	cl.sf.fadeFlags = 0;
 
-	if (con_forcedup || cls.state != ca_active || cls.signon != SIGNONS)
-		return;
-
-	clmodel = CL_GetModelByIndex(cl.stats[STAT_WEAPON]);
-
-	cl.viewent.curstate.frame = 0.0;
-	cl.viewent.model = clmodel;
-	cl.viewent.curstate.modelindex = cl.stats[STAT_WEAPON];
-	cl.viewent.curstate.colormap = 0;
-	cl.viewent.index = cl.playernum + 1;
-
-	V_SetRefParams(&angles);
-
-#if defined(GLQUAKE)
-	viewnum = 0;
-	do
+	if (v_dark.value == 0.0)
 	{
-#endif
-		ClientDLL_CalcRefdef(&angles);
-
-#if defined(GLQUAKE)
-		if (viewnum == 0)
-#endif
-		if (cls.demoplayback || (CL_SetDemoViewInfo(&angles, cl.viewent.origin, cl.stats[STAT_WEAPON]), cls.demoplayback))
-		{
-			if (!cls.spectator)
-			{
-				CL_GetDemoViewInfo(&angles, cl.viewent.origin, &cl.stats[STAT_WEAPON]);
-				cl.viewent.angles[0] = -angles.viewangles[0];
-				cl.viewent.angles[1] = angles.viewangles[1];
-				cl.viewent.angles[2] = angles.viewangles[2];
-				cl.viewent.curstate.angles[0] = cl.viewent.angles[0];
-				cl.viewent.curstate.angles[1] = angles.viewangles[1];
-				cl.viewent.curstate.angles[2] = angles.viewangles[2];
-				cl.viewent.latched.prevangles[0] = cl.viewent.angles[0];
-				cl.viewent.latched.prevangles[1] = angles.viewangles[1];
-				cl.viewent.latched.prevangles[2] = angles.viewangles[2];
-				angles.nextView = 0;
-			}
-		}
-
-		V_GetRefParams(&angles);
-		if (angles.intermission)
-		{
-			cl.viewent.model = 0;
-		}
-		else if (!angles.paused && chase_active.value != 0.0)
-		{
-			Chase_Update();
-		}
-		R_PushDlights();
-
-#if defined(GLQUAKE)
-		if (viewnum == 0 && r_refdef.onlyClientDraws)
-		{
-			qglClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-			qglClear(GL_COLOR_BUFFER_BIT);
-		}
-#endif
-
-		if (lcd_x.value == 0.0)
-		{
-			R_RenderView();
-		}
-		else
-		{
-			vid.rowbytes *= 2;
-			vid.aspect /= 2;
-			r_refdef.viewangles[YAW] -= lcd_yaw.value;
-
-			for (int i = 0; i < 3; i++)
-				r_refdef.vieworg[i] = r_refdef.vieworg[i] - angles.right[i] * lcd_x.value;
-
-			R_RenderView();
-
-			vid.buffer += vid.rowbytes >> 1;
-
-			R_PushDlights();
-
-			r_refdef.viewangles[YAW] += lcd_yaw.value * 2;
-
-			for (int i = 0; i < 3; i++)
-				r_refdef.vieworg[i] = (angles.right[i] * 2) * lcd_x.value + r_refdef.vieworg[i];
-
-			R_RenderView();
-
-			r_refdef.vrect.height *= 2;
-			vid.rowbytes /= 2;
-			vid.buffer -= vid.rowbytes;
-			vid.aspect *= 2;
-		}
-
-		if (!angles.onlyClientDraw)
-		{
-			VectorCopy(r_origin, r_soundOrigin);
-			VectorCopy(angles.viewangles, r_playerViewportAngles);
-		}
-#if defined(GLQUAKE)
-		viewnum++;
-	} while (angles.nextView != 0);
-#endif
+		cl.sf.fadeSpeed = 0.0;
+		cl.sf.fadeEnd = 0.0;
+		cl.sf.fadeReset = 0.0;
+		cl.sf.fadealpha = 0;
+	}
+	else
+	{
+		cl.sf.fadeReset = cl.time + 5.0;
+		cl.sf.fadealpha = 255;
+		cl.sf.fadeSpeed = 51.0f;
+		cl.sf.fadeEnd = cl.sf.fadeReset + 5.0f;
+		Cvar_DirectSet(&v_dark, const_cast < char*>("0"));
+	}
 }

@@ -30,15 +30,16 @@ extern	byte		texgammatable[256];	// palette is sent through this
 extern	int			lightgammatable[1024];
 extern	int			screengammatable[1024];
 extern	int			lineargammatable[1024];
+extern	float		v_lambert1;
+#if defined(GLQUAKE)
 extern	byte		ramps[3][256];
-extern float v_blend[4];
-extern float v_lambert1;
+extern	float		v_blend[4];
+#endif
 
 extern cvar_t lcd_x;
 extern cvar_t v_direct;
 
 void V_RenderView(void);
-float V_CalcRoll(vec3_t angles, vec3_t velocity);
 qboolean V_UpdatePalette(void);
 
 void V_Init();
