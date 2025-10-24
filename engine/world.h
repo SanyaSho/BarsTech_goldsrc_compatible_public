@@ -15,8 +15,8 @@ typedef struct areanode_s
 	link_t solid_edicts;
 } areanode_t;
 
-const int AREA_DEPTH = 4;
-const int AREA_NODES = 32;
+#define AREA_DEPTH 4
+#define AREA_NODES 32
 
 typedef struct moveclip_s	// TODO: Move it to world.cpp someday
 {
@@ -48,7 +48,7 @@ typedef dclipnode_t box_clipnodes_t[6];
 typedef mplane_t box_planes_t[6];
 typedef mplane_t beam_planes_t[6];
 
-bool SV_RecursiveHullCheck( hull_t* hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t* trace );
+qboolean SV_RecursiveHullCheck( hull_t* hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t* trace );
 hull_t *SV_HullForEntity(edict_t *ent, const vec_t *mins, const vec_t *maxs, vec_t *offset);
 void SV_ClearWorld();
 void SV_UnlinkEdict(edict_t *ent);
@@ -59,6 +59,7 @@ trace_t SV_Move(const vec_t *start, const vec_t *mins, const vec_t *maxs, const 
 int SV_PointContents(const vec_t *p);
 edict_t *SV_TestEntityPosition(edict_t *ent);
 trace_t SV_MoveNoEnts(const vec_t *start, vec_t *mins, vec_t *maxs, const vec_t *end, int type, edict_t *passedict);
+int SV_HullPointContents(hull_t* hull, int num, const vec_t* p);
 
 extern areanode_t sv_areanodes[AREA_NODES];
 

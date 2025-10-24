@@ -2932,3 +2932,32 @@ void Q_strncpy_s(char *dest, const char *src, int count)
 	strncpy(dest, src, count);
 	dest[count - 1] = 0;
 }
+
+void ClearLink(link_t* l)
+{
+	l->next = l->prev = l;
+}
+
+// Remove link from chain
+void RemoveLink(link_t* l)
+{
+	l->next->prev = l->prev;
+	l->prev->next = l->next;
+}
+
+void InsertLinkBefore(link_t* l, link_t* before)
+{
+	l->next = before;
+	l->prev = before->prev;
+	l->next->prev = l;
+	l->prev->next = l;
+}
+
+void InsertLinkAfter(link_t* l, link_t* after)
+{
+	l->prev = after;
+	l->next = after->next;
+
+	after->next = l;
+	l->next->prev = l;
+}

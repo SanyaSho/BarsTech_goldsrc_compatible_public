@@ -333,4 +333,9 @@ void MSG_ReadUsercmd(usercmd_t *to, usercmd_t* from);
 const char *Q_stristr(const char *pStr, const char *pSearch);
 void Q_strncpy_s(char *dest, const char *src, int count);
 
+void ClearLink(struct link_s* l);
+void RemoveLink(struct link_s* l);
+void InsertLinkBefore(struct link_s* l, struct link_s* before);
+void InsertLinkAfter(struct link_s* l, struct link_s* after);
+
 #endif //ENGINE_COMMON_H
