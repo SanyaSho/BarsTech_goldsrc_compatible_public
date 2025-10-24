@@ -42,9 +42,10 @@ extern float g_SND_VoiceOverdrive;
 
 void VoiceSE_NotifyFreeChannel(int entchan);
 sfxcache_t* VoiceSE_GetSFXCache(sfx_t *pSFX);
+void VoiceSE_RegisterCvars();
 
 //! Initialize the sound engine interface.
-bool VoiceSE_Init();
+int VoiceSE_Init();
 
 //! Shutdown the sound engine interface.
 void VoiceSE_Term();

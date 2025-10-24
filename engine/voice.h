@@ -25,8 +25,6 @@ extern cvar_t voice_showincoming;	// show incoming voice data
 extern cvar_t voice_enable;
 extern cvar_t voice_forcemicrecord;
 
-void Voice_RegisterCvars();
-
 qboolean Voice_Init( const char* pCodecName, int quality );
 void Voice_Deinit();
 
@@ -42,6 +40,9 @@ int VoiceTweak_GetSpeakingVolume();
 
 void Voice_NotifyFreeChannel(int entchan);
 
+#ifdef __cplusplus
+extern "C"
+#endif
 void Voice_RegisterCvars();
 
 void Voice_LocalPlayerTalkingAck();
@@ -54,7 +55,7 @@ int Voice_AddIncomingData(int nChannel, const char *pchData, int nCount, int iSe
 
 BOOL Voice_GetLoopback();
 
-BOOL Voice_IsRecording();
+qboolean Voice_IsRecording();
 
 int Voice_GetCompressedData(char *pchDest, int nCount, qboolean bFinal);
 
