@@ -48,9 +48,7 @@ void Log_Printf( const char* fmt, ... )
 			pTime->tm_min,
 			pTime->tm_sec );
 
-		const size_t uiLength = Q_strlen( string );
-
-		vsnprintf( &string[ uiLength ], sizeof( string ) - uiLength, fmt, va );
+		vsnprintf( &string[Q_strlen(string)], sizeof( string ) - Q_strlen(string), fmt, va );
 
 		if( svs.log.net_log )
 		{
@@ -59,7 +57,7 @@ void Log_Printf( const char* fmt, ... )
 			
 		}
 
-		for( auto pLog = firstLog; pLog; pLog = pLog->next )
+		for (LOGLIST_T* pLog = firstLog; pLog; pLog = pLog->next)
 		{
 			if( !sv_logsecret.value )
 			{
@@ -114,7 +112,7 @@ void Log_Close()
 
 void Log_Open()
 {
-	if( svs.log.active && ( !sv_log_onefile.value || !svs.log.file ) )
+	if ( svs.log.active && ( !sv_log_onefile.value || !svs.log.file ) )
 	{
 		if( !mp_logfile.value )
 		{
@@ -228,7 +226,8 @@ void SV_SetLogAddress_f(void)
 	}
 
 	svs.log.net_log = TRUE;
-	Q_memcpy(&svs.log.net_address, &adr, sizeof(netadr_t));
+	svs.log.net_address = adr;
+
 	Con_Printf(const_cast<char*>("logaddress:  %s\n"), NET_AdrToString(adr));
 }
 
@@ -275,7 +274,7 @@ void SV_AddLogAddress_f(void)
 	{
 		for (list = firstLog; list != NULL; list = list->next)
 		{
-			if (Q_memcmp(adr.ip, list->log.net_address.ip, 4) == 0 && adr.port == list->log.net_address.port)
+			if (adr.ip == list->log.net_address.ip && adr.port == list->log.net_address.port)
 			{
 				found = TRUE;
 				break;
@@ -294,7 +293,7 @@ void SV_AddLogAddress_f(void)
 		}
 
 		tmp->next = NULL;
-		Q_memcpy(&tmp->log.net_address, &adr, sizeof(netadr_t));
+		tmp->log.net_address = adr;
 
 		list = firstLog;
 
@@ -312,10 +311,13 @@ void SV_AddLogAddress_f(void)
 			return;
 		}
 		firstLog->next = NULL;
-		Q_memcpy(&firstLog->log.net_address, &adr, sizeof(netadr_t));
+		firstLog->log.net_address = adr;
 	}
 
 	Con_Printf(const_cast<char*>("logaddress_add:  %s\n"), NET_AdrToString(adr));
+
+	for (list = firstLog; list != NULL; list = list->next)
+		Con_Printf("current:  %s\n", NET_AdrToString(list->log.net_address));
 }
 
 void SV_DelLogAddress_f(void)
@@ -348,20 +350,23 @@ void SV_DelLogAddress_f(void)
 		Con_Printf(const_cast<char*>("logaddress_del:  unparseable address\n"));
 		return;
 	}
+	
 	_snprintf(szAdr, sizeof(szAdr), "%s:%i", s, nPort);
 	if (!NET_StringToAdr(szAdr, &adr))
 	{
 		Con_Printf(const_cast<char*>("logaddress_del:  unable to resolve %s\n"), szAdr);
 		return;
 	}
+	
 	if (!firstLog)
 	{
 		Con_Printf(const_cast<char*>("logaddress_del:  No addresses added yet\n"));
 		return;
 	}
+
 	for (list = firstLog, prev = firstLog; list != NULL; list = list->next)
 	{
-		if (Q_memcmp(adr.ip, list->log.net_address.ip, 4) == 0 && adr.port == list->log.net_address.port)
+		if (adr.ip == list->log.net_address.ip && adr.port == list->log.net_address.port)
 		{
 			found = TRUE;
 			if (list == prev)
@@ -383,6 +388,7 @@ void SV_DelLogAddress_f(void)
 		Con_Printf(const_cast<char*>("logaddress_del:  Couldn't find address in list\n"));
 		return;
 	}
+
 	Con_Printf(const_cast<char*>("deleting:  %s\n"), NET_AdrToString(adr));
 }
 
@@ -394,15 +400,15 @@ void SV_ServerLog_f(void)
 
 		if (svs.log.active)
 			Con_Printf(const_cast<char*>("currently logging\n"));
-
-		else Con_Printf(const_cast<char*>("not currently logging\n"));
+		else
+			Con_Printf(const_cast<char*>("not currently logging\n"));
 		return;
 	}
 
-	const char *s = Cmd_Argv(1);
-	if (Q_strcasecmp(s, "off"))
+	char *s = Cmd_Argv(1);
+	if (Q_stricmp(s, "off"))
 	{
-		if (Q_strcasecmp(s, "on"))
+		if (Q_stricmp(s, "on"))
 			Con_Printf(const_cast<char*>("log:  unknown parameter %s, 'on' and 'off' are valid\n"), s);
 		else
 		{

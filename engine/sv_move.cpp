@@ -3,6 +3,10 @@
 #include "sv_phys.h"
 #include "pr_cmds.h"
 
+int c_yes, c_no;
+
+void SV_NewChaseDir2(edict_t* actor, vec_t* vecGoal, float dist);
+
 qboolean SV_CheckBottom(edict_t *ent)
 {
 	vec3_t mins;
@@ -39,10 +43,12 @@ qboolean SV_CheckBottom(edict_t *ent)
 		}
 	}
 
+	c_yes++;
 	// we got out easy
 	return TRUE;
 
 realcheck:
+	c_no++;
 
 	// check it for real...
 	start[2] = mins[2] + sv_stepsize.value;
@@ -77,6 +83,7 @@ realcheck:
 		}
 	}
 
+	c_yes++;
 	return TRUE;
 }
 
@@ -344,7 +351,12 @@ void SV_FixCheckBottom(edict_t *ent)
 	ent->v.flags |= FL_PARTIALGROUND;
 }
 
-const int DI_NODIR = -1;
+void SV_NewChaseDir(edict_t* actor, edict_t* enemy, float dist)
+{
+	SV_NewChaseDir2(actor, enemy->v.origin, dist);
+}
+
+#define DI_NODIR -1
 
 qboolean SV_CloseEnough(edict_t *ent, edict_t *goal, float dist)
 {
@@ -463,19 +475,14 @@ void SV_NewChaseDir2(edict_t *actor, vec_t *vecGoal, float dist)
 	}
 }
 
-void SV_NewChaseDir(edict_t* actor, edict_t* enemy, float dist)
-{
-	SV_NewChaseDir2(actor, enemy->v.origin, dist);
-}
-
-void SV_MoveToOrigin_I(edict_t *ent, const float *pflGoal, float dist, int iMoveType)
+void SV_MoveToOrigin_I(edict_t *ent, const float *pflGoal, float dist, int iStrafe)
 {
 	vec3_t vecGoal;
 	VectorCopy(pflGoal, vecGoal);
 
 	if (ent->v.flags & (FL_FLY | FL_SWIM | FL_ONGROUND))
 	{
-		if (iMoveType == MOVE_NORMAL)
+		if (iStrafe == MOVE_NORMAL)
 		{
 			if (!SV_StepDirection(ent, ent->v.ideal_yaw, dist))
 			{

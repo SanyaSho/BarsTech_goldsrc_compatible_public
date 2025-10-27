@@ -20,13 +20,13 @@ void SV_CreateCustomizationList( client_t* pHost );
 
 void SV_RegisterResources();
 
-bool SV_UploadComplete( client_t* cl );
+qboolean SV_UploadComplete( client_t* cl );
 
-bool SV_RequestMissingResources();
+qboolean SV_RequestMissingResources();
 
 void SV_RequestMissingResourcesFromClients();
 
-void SV_Customization( client_t* pPlayer, resource_t* pResource, bool bSkipPlayer );
+void SV_Customization( client_t* pPlayer, resource_t* pResource, qboolean bSkipPlayer );
 
 void SV_ParseResourceList(client_t *pSenderClient);
 

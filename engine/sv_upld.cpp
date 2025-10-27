@@ -4,58 +4,30 @@
 #include "sv_upld.h"
 #include "sv_main.h"
 
-void SV_MoveToOnHandList( resource_t* pResource )
+qboolean SV_CheckFile(sizebuf_t* msg, char* filename)
 {
-	if( pResource )
-	{
-		SV_RemoveFromResourceList( pResource );
-		SV_AddToResourceList( pResource, &host_client->resourcesonhand );
-	}
-	else
-	{
-		Con_DPrintf( const_cast<char*>("Null resource passed to SV_MoveToOnHandList\n") );
-	}
-}
+	resource_t p = {};
 
-void SV_AddToResourceList( resource_t* pResource, resource_t* pList )
-{
-	if( pResource->pPrev || pResource->pNext )
+	if (Q_strlen(filename) == 36 && Q_strncasecmp(filename, "!MD5", 4) == 0)
 	{
-		Con_Printf( const_cast<char*>("Resource already linked\n") );
-	}
-	else
-	{
-		pResource->pPrev = pList->pPrev;
-		pList->pPrev->pNext = pResource;
-		pList->pPrev = pResource;
-		pResource->pNext = pList;
-	}
-}
-
-void SV_RemoveFromResourceList( resource_t* pResource )
-{
-	pResource->pPrev->pNext = pResource->pNext;
-	pResource->pNext->pPrev = pResource->pPrev;
-	pResource->pPrev = nullptr;
-	pResource->pNext = nullptr;
-}
-
-void SV_ClearResourceList( resource_t* pList )
-{
-	resource_t *p, *n;
-
-	for( p = pList->pNext; p && p != pList; p = n )
-	{
-		n = p->pNext;
-
-		SV_RemoveFromResourceList(p);
-		Mem_Free(p);
+		// MD5 signature is correct, lets try to find this resource locally
+		COM_HexConvert(filename + 4, 32, p.rgucMD5_hash);
+		if (HPAK_GetDataPointer(const_cast<char*>("custom.hpk"), &p, 0, 0))
+		{
+			return TRUE;
+		}
 	}
 
+	if (sv_allow_upload.value == 0.0f)
+	{
+		// Downloads are not allowed, continue with the state we have
+		return TRUE;
+	}
 
-	pList->pPrev = pList;
-	pList->pNext = pList;
+	MSG_WriteByte(msg, svc_stufftext);
+	MSG_WriteString(msg, va(const_cast<char*>("upload \"!MD5%s\"\n"), MD5_Print(p.rgucMD5_hash)));
 
+	return FALSE;
 }
 
 void SV_ClearResourceLists(client_t* cl)
@@ -67,84 +39,8 @@ void SV_ClearResourceLists(client_t* cl)
 	SV_ClearResourceList(&cl->resourcesonhand);
 }
 
-int SV_EstimateNeededResources(void)
+void SV_CreateCustomizationList(client_t* pHost)
 {
-	resource_t* p;
-	int size = 0;
-
-	for (p = host_client->resourcesneeded.pNext; p != &host_client->resourcesneeded; p = p->pNext)
-	{
-		if (p->type == t_decal)
-		{
-			if (HPAK_ResourceForHash(const_cast<char*>("custom.hpk"), p->rgucMD5_hash, NULL) == false)
-			{
-				if (p->nDownloadSize)
-				{
-					size += p->nDownloadSize;
-					p->ucFlags |= RES_WASMISSING;
-				}
-			}
-		}
-	}
-
-	return size;
-}
-
-void SV_CreateCustomizationList( client_t* pHost )
-{
-	//int nLumps;
-	//customization_t* pCust;
-	//bool bIgnoreDup;
-
-	//for( auto pResource = pHost->resourcesonhand.pNext; pResource != &pHost->resourcesonhand; )
-	//{
-	//	nLumps = 0;
-
-	//	if( COM_CreateCustomization( &pHost->customdata, pResource, -1, RES_FATALIFMISSING | RES_WASMISSING, &pCust, &nLumps ) )
-	//	{
-	//		pCust->nUserData2 = nLumps;
-
-	//		int iEdict = pHost->edict - sv.edicts;
-	//		Con_Printf((char*)"trying to register customization of edict %d\n", iEdict);
-	//		gEntityInterface.pfnPlayerCustomization( pHost->edict, pCust );
-	//	}
-	//	else
-	//	{
-	//		if( !sv_allow_upload.value )
-	//		{
-	//			Con_Printf( const_cast<char*>("Ignoring custom decal from %s\n"), pHost->name );
-	//		}
-	//		else
-	//		{
-	//			Con_Printf( const_cast<char*>("Ignoring invalid custom decal from %s\n"), pHost->name );
-	//		}
-	//	}
-
-	//	pResource = pResource->pNext;
-
-	//	bIgnoreDup = false;
-
-	//	//Check if the next resource is a duplicate
-	//	while( pResource )
-	//	{
-	//		for( auto pCustom = pHost->customdata.pNext;
-	//			 pCustom;
-	//			 pCustom = pCustom->pNext )
-	//		{
-	//			if( !Q_memcmp( pCustom->resource.rgucMD5_hash, pResource->rgucMD5_hash, sizeof( pResource->rgucMD5_hash ) ) )
-	//			{
-	//				Con_DPrintf( const_cast<char*>("SV_CreateCustomization list, ignoring dup. resource for player %s\n"), pHost->name );
-	//				bIgnoreDup = true;
-	//				break;
-	//			}
-	//		}
-
-	//		if( !bIgnoreDup )
-	//			break;
-
-	//		pResource = pResource->pNext;
-	//	}
-	//}
 	resource_t* pResource;
 
 	pHost->customdata.pNext = NULL;
@@ -174,8 +70,10 @@ void SV_CreateCustomizationList( client_t* pHost )
 			if (bNoError)
 			{
 				pCust->nUserData2 = nLumps;
+#ifdef _DEBUG
 				int iEdict = pHost->edict - sv.edicts;
 				Con_Printf((char*)"trying to register customization of edict %d\n", iEdict);
+#endif
 				gEntityInterface.pfnPlayerCustomization(pHost->edict, pCust);
 			}
 			else
@@ -185,6 +83,43 @@ void SV_CreateCustomizationList( client_t* pHost )
 				else
 					Con_DPrintf(const_cast<char*>("Ignoring invalid custom decal from %s\n"), pHost->name);
 			}
+		}
+	}
+}
+
+void SV_Customization(client_t* pPlayer, resource_t* pResource, qboolean bSkipPlayer)
+{
+	int i;
+
+	host_client = svs.clients;
+
+	for (i = 0; i < svs.maxclients; ++i, ++host_client)
+	{
+		if (host_client == pPlayer)
+			break;
+	}
+
+	if (i == svs.maxclients)
+		Sys_Error("Couldn't find player index for customization.");
+
+	for (int cl = 0; cl < svs.maxclients; ++cl)
+	{
+		if ((host_client->active || host_client->spawned) &&
+			!host_client->fakeclient &&
+			(pPlayer != host_client || !bSkipPlayer))
+		{
+
+			MSG_WriteByte(&host_client->netchan.message, svc_customization);
+			MSG_WriteByte(&host_client->netchan.message, i);
+			MSG_WriteByte(&host_client->netchan.message, pResource->type);
+			MSG_WriteString(&host_client->netchan.message, pResource->szFileName);
+			MSG_WriteShort(&host_client->netchan.message, pResource->nIndex);
+			MSG_WriteLong(&host_client->netchan.message, pResource->nDownloadSize);
+			MSG_WriteByte(&host_client->netchan.message, pResource->ucFlags);
+
+			if (pResource->ucFlags & RES_CUSTOM)
+				SZ_Write(&host_client->netchan.message, pResource->rgucMD5_hash, 16);
+
 		}
 	}
 }
@@ -200,7 +135,97 @@ void SV_RegisterResources()
 	}
 }
 
-bool SV_UploadComplete( client_t* cl )
+void SV_MoveToOnHandList( resource_t* pResource )
+{
+	if( pResource )
+	{
+		SV_RemoveFromResourceList( pResource );
+		SV_AddToResourceList( pResource, &host_client->resourcesonhand );
+	}
+	else
+	{
+		Con_DPrintf( const_cast<char*>("Null resource passed to SV_MoveToOnHandList\n") );
+	}
+}
+
+void SV_AddToResourceList( resource_t* pResource, resource_t* pList )
+{
+	if( pResource->pPrev || pResource->pNext )
+	{
+		Con_Printf( const_cast<char*>("Resource already linked\n") );
+	}
+	else
+	{
+		pResource->pPrev = pList->pPrev;
+		pList->pPrev->pNext = pResource;
+		pList->pPrev = pResource;
+		pResource->pNext = pList;
+	}
+}
+
+void SV_ClearResourceList(resource_t* pList)
+{
+	resource_t* p, * n;
+
+	for (p = pList->pNext; p && p != pList; p = n)
+	{
+		n = p->pNext;
+
+		SV_RemoveFromResourceList(p);
+		Mem_Free(p);
+	}
+
+
+	pList->pPrev = pList;
+	pList->pNext = pList;
+}
+
+void SV_RemoveFromResourceList( resource_t* pResource )
+{
+	pResource->pPrev->pNext = pResource->pNext;
+	pResource->pNext->pPrev = pResource->pPrev;
+	pResource->pPrev = NULL;
+	pResource->pNext = NULL;
+}
+
+int SV_EstimateNeededResources(void)
+{
+	resource_t* p;
+	int size = 0;
+
+	for (p = host_client->resourcesneeded.pNext; p != &host_client->resourcesneeded; p = p->pNext)
+	{
+		if (p->type == t_decal)
+		{
+			if (HPAK_ResourceForHash(const_cast<char*>("custom.hpk"), p->rgucMD5_hash, NULL) == false)
+			{
+				if (p->nDownloadSize)
+				{
+					size += p->nDownloadSize;
+					p->ucFlags |= RES_WASMISSING;
+				}
+			}
+		}
+	}
+
+	return size;
+}
+
+void SV_RequestMissingResourcesFromClients()
+{
+	host_client = svs.clients;
+
+	for (int i = 0; i < svs.maxclients; i++, host_client++)
+	{
+		if (host_client->active == true || host_client->spawned == true)
+		{
+			while (SV_RequestMissingResources())
+				;
+		}
+	}
+}
+
+qboolean SV_UploadComplete( client_t* cl )
 {
 	// SH_CODE: TODO: remove this
 	if (cl->edict->pvPrivateData == NULL)
@@ -221,89 +246,6 @@ bool SV_UploadComplete( client_t* cl )
 	}
 
 	return false;
-}
-
-bool SV_RequestMissingResources()
-{
-	if( host_client->uploading && !host_client->uploaddoneregistering )
-	{
-		SV_UploadComplete( host_client );
-	}
-
-	return false;
-}
-
-void SV_RequestMissingResourcesFromClients()
-{
-	host_client = svs.clients;
-	
-	for( int i = 0; i < svs.maxclients; ++i, ++host_client )
-	{
-		SV_RequestMissingResources();
-	}
-}
-
-void SV_Customization( client_t* pPlayer, resource_t* pResource, bool bSkipPlayer )
-{
-	int i;
-
-	host_client = svs.clients;
-
-	for( i = 0; i < svs.maxclients; ++i, ++host_client )
-	{
-		if( host_client == pPlayer )
-			break;
-	}
-
-	if( i == svs.maxclients )
-		Sys_Error( "Couldn't find player index for customization." );
-
-	for( int cl = 0; cl < svs.maxclients; ++cl )
-	{
-		if( ( host_client->active || host_client->spawned ) &&
-			!host_client->fakeclient &&
-			( pPlayer != host_client || !bSkipPlayer ) )
-		{
-			
-			MSG_WriteByte( &host_client->netchan.message, svc_customization );
-			MSG_WriteByte( &host_client->netchan.message, i );
-			MSG_WriteByte( &host_client->netchan.message, pResource->type );
-			MSG_WriteString( &host_client->netchan.message, pResource->szFileName );
-			MSG_WriteShort( &host_client->netchan.message, pResource->nIndex );
-			MSG_WriteLong( &host_client->netchan.message, pResource->nDownloadSize );
-			MSG_WriteByte( &host_client->netchan.message, pResource->ucFlags );
-
-			if( pResource->ucFlags & RES_CUSTOM )
-				SZ_Write( &host_client->netchan.message, pResource->rgucMD5_hash, 16 );
-				
-		}
-	}
-}
-
-qboolean SV_CheckFile(sizebuf_t *msg, char *filename)
-{
-	resource_t p = {};
-
-	if (Q_strlen(filename) == 36 && Q_strncasecmp(filename, "!MD5", 4) == 0)
-	{
-		// MD5 signature is correct, lets try to find this resource locally
-		COM_HexConvert(filename + 4, 32, p.rgucMD5_hash);
-		if (HPAK_GetDataPointer(const_cast<char*>("custom.hpk"), &p, 0, 0))
-		{
-			return TRUE;
-		}
-	}
-
-	if (sv_allow_upload.value == 0.0f)
-	{
-		// Downloads are not allowed, continue with the state we have
-		return TRUE;
-	}
-
-	MSG_WriteByte(msg, svc_stufftext);
-	MSG_WriteString(msg, va(const_cast<char*>("upload \"!MD5%s\"\n"), MD5_Print(p.rgucMD5_hash)));
-
-	return FALSE;
 }
 
 void SV_BatchUploadRequest(client_t *cl)
@@ -336,6 +278,16 @@ void SV_BatchUploadRequest(client_t *cl)
 			}
 		}
 	}
+}
+
+qboolean SV_RequestMissingResources()
+{
+	if (host_client->uploading == true && host_client->uploaddoneregistering == false)
+	{
+		SV_UploadComplete(host_client);
+	}
+
+	return false;
 }
 
 void SV_ParseResourceList(client_t *pSenderClient)

@@ -430,7 +430,7 @@ int SV_HullPointContents(hull_t *hull, int num, const vec_t *p)
 		if (plane->type < 3)
 			d = p[plane->type] - plane->dist;
 		else
-			d = _DotProduct(plane->normal, (vec_t*)p) - plane->dist;
+			d = DotProduct(plane->normal, p) - plane->dist;
 
 		if (d < 0)
 			num = node->children[1];
