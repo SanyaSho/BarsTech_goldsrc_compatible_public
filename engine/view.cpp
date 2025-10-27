@@ -246,7 +246,7 @@ void V_CalcBlend()
 }
 #endif
 
-qboolean V_UpdatePalette()
+void V_UpdatePalette()
 {
 #if defined(GLQUAKE)
 	if (V_CheckGamma())
@@ -277,7 +277,7 @@ qboolean V_UpdatePalette()
 		}
 	}
 #else
-	return V_CheckGamma();
+	V_CheckGamma();
 #endif
 }
 

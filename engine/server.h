@@ -1,22 +1,3 @@
-/*
-Copyright (C) 1996-1997 Id Software, Inc.
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-
-*/
 #ifndef ENGINE_SERVER_H
 #define ENGINE_SERVER_H
 
@@ -91,11 +72,10 @@ typedef enum server_state_e
 
 struct server_t
 {
-	bool active;					// false when server is going down
-	//TODO: implement - Solokiller
+	qboolean active;					// false when server is going down
 	
-	bool paused;
-	bool loadgame;
+	qboolean paused;
+	qboolean loadgame;
 
 	double time;
 	double oldtime;
@@ -104,7 +84,6 @@ struct server_t
 	double lastchecktime;
 	
 	char name[ 64 ];
-	//TODO: implement - Solokiller
 	
 	char oldname[ 64 ];
 	char startspot[ 64 ];
@@ -177,23 +156,23 @@ struct client_frame_t
 
 typedef struct client_s
 {
-	bool active;						// false = client is free
-	bool spawned;						// false = don't send datagrams
-	bool fully_connected;				// true = client has fully connected, set after sendents command is received
-	bool connected;						// Has been assigned to a client_t, but not in game yet
-	bool uploading;						// true = client uploading custom resources
-	bool hasusrmsgs;					// Whether this client has received the list of user messages
-	bool has_force_unmodified;			// true = mp_consistency is set and at least one file is forced to be consistent
+	qboolean active;						// false = client is free
+	qboolean spawned;						// false = don't send datagrams
+	qboolean fully_connected;				// true = client has fully connected, set after sendents command is received
+	qboolean connected;						// Has been assigned to a client_t, but not in game yet
+	qboolean uploading;						// true = client uploading custom resources
+	qboolean hasusrmsgs;					// Whether this client has received the list of user messages
+	qboolean has_force_unmodified;			// true = mp_consistency is set and at least one file is forced to be consistent
 
 	//===== NETWORK ============
-	//TODO: implement - Solokiller
+
 	netchan_t netchan;
 
 	int chokecount;						// amount of choke since last client message
 	int delta_sequence;					// -1 = no compression
 
-	bool fakeclient;					// Bot
-	bool proxy;							// HLTV proxy
+	qboolean fakeclient;					// Bot
+	qboolean proxy;							// HLTV proxy
 
 	usercmd_t lastcmd;					// for filling in big drops and partial predictions
 
@@ -213,12 +192,12 @@ typedef struct client_s
 	sizebuf_t datagram;
 	byte datagram_buf[ MAX_DATAGRAM ];
 
-	double connection_started;			// or time of disconnect for zombies TODO verify that zombies still exist - Solokiller
+	double connection_started;			// or time of disconnect for zombies
 	double next_messagetime;			// Earliest time to send another message
 	double next_messageinterval;		// Minimum interval between messages
 
-	bool send_message;					// set on frames a datagram arived on
-	bool skip_message;					// Skip sending message next frame
+	qboolean send_message;					// set on frames a datagram arived on
+	qboolean skip_message;					// Skip sending message next frame
 
 	client_frame_t* frames;				// updates can be deltad from here
 
@@ -228,11 +207,11 @@ typedef struct client_s
 	const edict_t* pViewEntity;			// View entity, equal to edict if not overridden
 
 	int userid;							// identifying number
-	//TODO: implement - Solokiller
+
 	USERID_t network_userid;
 
 	char userinfo[ MAX_INFO_STRING ];	// infostring
-	bool sendinfo;						// at end of frame, send info to all
+	qboolean sendinfo;						// at end of frame, send info to all
 										// this prevents malicious multiple broadcasts
 	float sendinfo_time;				// Time when userinfo was sent
 
@@ -243,14 +222,14 @@ typedef struct client_s
 	int topcolor;						// top color for model
 	int bottomcolor;					// bottom color for model
 
-	int entityId;						// unused TODO verify - Solokiller
+	int entityId;
 
 	resource_t resourcesonhand;			// Head of resources accounted for list
 	resource_t resourcesneeded;			// Head of resources to download list
 
 	FileHandle_t upload;				// Handle of file being uploaded
 
-	bool uploaddoneregistering;			// If client files have finished uploading
+	qboolean uploaddoneregistering;			// If client files have finished uploading
 
 	customization_t customdata;			// Head of custom client data list
 
@@ -261,9 +240,9 @@ typedef struct client_s
 
 	char physinfo[ MAX_PHYSINFO_STRING ];	//Physics info string
 
-	bool m_bLoopback;					// True if client has voice loopback enabled
+	qboolean m_bLoopback;					// True if client has voice loopback enabled
 
-	uint32 m_VoiceStreams[ 2 ];			// Bit mask for whether client is listening to other client TODO 64 clients? - Solokiller
+	uint32 m_VoiceStreams[ 2 ];			// Bit mask for whether client is listening to other client
 	double m_lastvoicetime;				// Last time client voice data was processed on server
 
 	int m_sendrescount;					// Count of times resources sent to client
@@ -278,12 +257,12 @@ struct server_log_t
 	/**
 	*	Is the log file active?
 	*/
-	bool active;
+	qboolean active;
 
 	/**
 	*	Are we logging to a remote address?
 	*/
-	bool net_log;
+	qboolean net_log;
 
 	/**
 	*	Remote address to log to
@@ -374,7 +353,7 @@ typedef struct server_static_s
 	/**
 	*	Whether the server dll has been loaded and initialized
 	*/
-	bool dll_initialized;
+	qboolean dll_initialized;
 
 	/**
 	*	Array of maxclientslimit clients
@@ -397,10 +376,6 @@ typedef struct server_static_s
 	*/
 	int spawncount;
 
-	/**
-	*	episode completion information
-	*	TODO: unused? - Solokiller
-	*/
 	int serverflags;
 
 	server_log_t log;
@@ -420,11 +395,7 @@ typedef struct server_static_s
 	*/
 	server_stats_t stats;
 
-	/**
-	*	Whether server is secure
-	*	TODO: unused? - Solokiller
-	*/
-	bool isSecure;
+	qboolean isSecure;
 } server_static_t;
 
 struct startup_timing_t

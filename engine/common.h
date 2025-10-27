@@ -314,7 +314,7 @@ extern int msg_readcount;
 /**
 *	set if a read goes beyond end of message
 */
-extern bool msg_badread;
+extern qboolean msg_badread;
 
 void MSG_BeginReading();
 int MSG_ReadChar();

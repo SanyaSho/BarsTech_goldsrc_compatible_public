@@ -40,7 +40,7 @@ extern cvar_t lcd_x;
 extern cvar_t v_direct;
 
 void V_RenderView(void);
-qboolean V_UpdatePalette(void);
+void V_UpdatePalette(void);
 
 void V_Init();
 

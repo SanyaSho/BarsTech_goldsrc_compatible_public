@@ -20,6 +20,7 @@
 #include "sv_user.h"
 #include "pmove.h"
 #include "server.h"
+#include "protocol.h"
 
 vec_t gHullMins[4][3] = {
 	{ 0.0f, 0.0f, 0.0f },
@@ -2135,7 +2136,7 @@ void PF_makestatic_I(edict_t* ent)
 
 void PF_StaticDecal(const float* origin, int decalIndex, int entityIndex, int modelIndex)
 {
-	MSG_WriteByte(&sv.signon, svc_temp_entity);
+	MSG_WriteByte(&sv.signon, svc_tempentity);
 	MSG_WriteByte(&sv.signon, TE_BSPDECAL);
 	MSG_WriteCoord(&sv.signon, origin[0]);
 	MSG_WriteCoord(&sv.signon, origin[1]);

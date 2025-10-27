@@ -2198,7 +2198,7 @@ void MSG_WriteUsercmd(sizebuf_t *buf, usercmd_t *to, usercmd_t *from)
 // reading functions
 //
 int msg_readcount = 0;
-bool msg_badread = false;
+qboolean msg_badread = false;
 
 const uint32 BITTABLE[] =
 {

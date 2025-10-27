@@ -59,7 +59,7 @@ void CL_RunUsercmd( local_state_t* from, local_state_t* to, usercmd_t* u, bool r
 	local_state_t temp;
 
 	// recursive calling
-	if (u->msec > 50.f)
+	if ((float)u->msec > 50.f)
 	{
 		split = *u;
 		split.msec = ((float)split.msec / 2.0f);
@@ -71,7 +71,7 @@ void CL_RunUsercmd( local_state_t* from, local_state_t* to, usercmd_t* u, bool r
 
 	cmd = *u;
 	
-	pmove->time = *pfElapsed * 1000.f;
+	pmove->time = (float)(*pfElapsed * 1000.0);
 	pmove->server = false;
 	pmove->runfuncs = runfuncs;
 	pmove->multiplayer = cl.maxclients > 1;
@@ -183,7 +183,7 @@ void CL_RunUsercmd( local_state_t* from, local_state_t* to, usercmd_t* u, bool r
 
 	ClientDLL_PostRunCmd(from, to, &cmd, runfuncs, *pfElapsed, random_seed);
 
-	*pfElapsed += (float)cmd.msec / 1000.f;
+	*pfElapsed += (double)cmd.msec / 1000.0;
 }
 
 void CL_SetIdealPitch()

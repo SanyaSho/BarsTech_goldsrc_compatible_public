@@ -9,7 +9,7 @@ extern cvar_t cl_fixmodelinterpolationartifacts;
 
 void CL_SetSolidPlayers( int playernum );
 
-void CL_SetUpPlayerPrediction( bool dopred, bool bIncludeLocalClient );
+void CL_SetUpPlayerPrediction( qboolean dopred, qboolean bIncludeLocalClient );
 
 void CL_AddStateToEntlist( physent_t* pe, entity_state_t* state );
 void CL_Particle(float *origin, int color, float life, int zpos, int zvel);

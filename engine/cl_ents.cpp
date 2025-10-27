@@ -37,9 +37,6 @@
 cvar_t cl_showerror = { const_cast<char*>("cl_showerror"), const_cast<char*>("0") };
 cvar_t cl_nosmooth = { const_cast<char*>("cl_nosmooth"), const_cast<char*>("0") };
 cvar_t cl_smoothtime = { const_cast<char*>("cl_smoothtime"), const_cast<char*>("0.1"), FCVAR_ARCHIVE };
-#if !defined(GLQUAKE)
-cvar_t r_bmodelinterp = { const_cast<char*>("r_bmodelinterp"), const_cast<char*>("0") };
-#endif
 cvar_t cl_fixmodelinterpolationartifacts = { const_cast<char*>("cl_fixmodelinterpolationartifacts"), const_cast<char*>("1") };
 
 qboolean CL_EntityTeleported(cl_entity_t *ent)
@@ -1522,7 +1519,7 @@ void CL_SetSolidEntities()
 }
 
 
-void CL_SetUpPlayerPrediction(bool dopred, bool bIncludeLocalClient)
+void CL_SetUpPlayerPrediction(qboolean dopred, qboolean bIncludeLocalClient)
 {
 	entity_state_t* state;
 	predicted_player* pplayer;

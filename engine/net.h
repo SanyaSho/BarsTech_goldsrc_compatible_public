@@ -1,22 +1,3 @@
-/*
-Copyright (C) 1996-1997 Id Software, Inc.
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-
-*/
 #ifndef ENGINE_NET_H
 #define ENGINE_NET_H
 
@@ -29,10 +10,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /**
 *	Maximum size for a fragment rgba.
 */
-//TODO: unrelated to actual net constants, remove - Solokiller
 const size_t NET_MAX_FRAG_BUFFER = 1400;
-
-//const int PROTOCOL_VERSION = 48;
 
 const int MAX_CHALLENGES = 1024;
 
@@ -138,93 +116,6 @@ const int NET_MAX_PAYLOAD = 65536;
 //#define NET_MAX_MESSAGE PAD_NUMBER( ( MAX_MSGLEN + HEADER_BYTES ), 16 )
 // This is currently used value in the engine. TODO: define above gives 4016, check it why.
 const int NET_MAX_MESSAGE = 6037;
-
-typedef enum svc_commands_e
-{
-	svc_bad,
-	svc_nop,
-	svc_disconnect,
-	svc_event,
-	svc_version,
-	svc_setview,
-	svc_sound,
-	svc_time,
-	svc_print,
-	svc_stufftext,
-	svc_setangle,
-	svc_serverinfo,
-	svc_lightstyle,
-	svc_updateuserinfo,
-	svc_deltadescription,
-	svc_clientdata,
-	svc_stopsound,
-	svc_pings,
-	svc_particle,
-	svc_damage,
-	svc_spawnstatic,
-	svc_event_reliable,
-	svc_spawnbaseline,
-	svc_temp_entity,
-	svc_setpause,
-	svc_signonnum,
-	svc_centerprint,
-	svc_killedmonster,
-	svc_foundsecret,
-	svc_spawnstaticsound,
-	svc_intermission,
-	svc_finale,
-	svc_cdtrack,
-	svc_restore,
-	svc_cutscene,
-	svc_weaponanim,
-	svc_decalname,
-	svc_roomtype,
-	svc_addangle,
-	svc_newusermsg,
-	svc_packetentities,
-	svc_deltapacketentities,
-	svc_choke,
-	svc_resourcelist,
-	svc_newmovevars,
-	svc_resourcerequest,
-	svc_customization,
-	svc_crosshairangle,
-	svc_soundfade,
-	svc_filetxferfailed,
-	svc_hltv,
-	svc_director,
-	svc_voiceinit,
-	svc_voicedata,
-	svc_sendextrainfo,
-	svc_timescale,
-	svc_resourcelocation,
-	svc_sendcvarvalue,
-	svc_sendcvarvalue2,
-	svc_exec,
-	svc_reserve60,
-	svc_reserve61,
-	svc_reserve62,
-	svc_reserve63,
-	svc_startofusermessages = svc_exec,
-	svc_endoflist = 255,
-} svc_commands_t;
-
-typedef enum clc_commands_e
-{
-	clc_bad,
-	clc_nop,
-	clc_move,
-	clc_stringcmd,
-	clc_delta,
-	clc_resourcelist,
-	clc_tmove,
-	clc_fileconsistency,
-	clc_voicedata,
-	clc_hltv,
-	clc_cvarvalue,
-	clc_cvarvalue2,
-	clc_endoflist = 255,
-} clc_commands_t;
 
 extern sizebuf_t net_message;
 

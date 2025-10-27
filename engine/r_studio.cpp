@@ -81,7 +81,10 @@ vec3_t r_blightvec[MAXSTUDIOBONES];
 int					r_ambientlight;
 float				r_shadelight;
 
+#if !defined(GLQUAKE)
 int drawstyle;
+float zishift;
+#endif
 
 int g_NormalIndex[MAXSTUDIOVERTS];
 vec3_t g_ChromeOrigin;
@@ -109,7 +112,6 @@ int g_rendermode;
 
 int r_dointerp = 1;
 
-float zishift;
 int g_iBackFaceCull;
 
 int boxpnt[6][4] =
@@ -172,6 +174,7 @@ cvar_t* cl_righthand = NULL;
 
 vec3_t r_colormix;
 colorVec r_icolormix;
+colorVec r_icolormix32;
 
 #if !defined(GLQUAKE)
 float filterColorRed = 1.0f, filterColorGreen = 1.0f, filterColorBlue = 1.0f, filterBrightness = 1.0f;
@@ -2052,6 +2055,10 @@ void R_StudioSetupLighting(alight_t* plight)
 	r_icolormix.g = int(plight->color[1] * studiolightmax16f) & 0xFF00;
 	r_icolormix.b = int(plight->color[2] * studiolightmax16f) & 0xFF00;
 
+	r_icolormix32.r = int(plight->color[0] * (255.0f * 256.0f)) & 0xFF00;
+	r_icolormix32.g = int(plight->color[1] * (255.0f * 256.0f)) & 0xFF00;
+	r_icolormix32.b = int(plight->color[2] * (255.0f * 256.0f)) & 0xFF00;
+
 	VectorCopy(plight->color, r_colormix);
 }
 
@@ -3276,7 +3283,7 @@ void R_StudioDrawPoints(void)
 
 	for (i = 0; i < psubmodel->nummesh; i++)
 	{
-		if (r_fullbright.value > 1)
+		if (r_fullbright.value < 0 || r_fullbright.value > 1)
 			drawstyle = 1;
 		else
 			drawstyle = pstudiotex[pstudioskin[pstudiomesh[i].skinref]].flags & STUDIO_NF_CHROME;

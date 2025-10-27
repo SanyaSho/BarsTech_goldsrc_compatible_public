@@ -519,9 +519,9 @@ void D_PolysetDrawSpans32(spanpackage_t *pspanpackage)
 			{
 				if (lzi >= *lpz)
 				{
-					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
-					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
-					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix32.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix32.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix32.b & 0xFF00) >> 8)) / 255;
 
 					int lightcomp = (llight & 0xFF00) >> 8;
 
@@ -678,9 +678,9 @@ void D_PolysetDrawHole32(spanpackage_t *pspanpackage)
 			{
 				if (lzi >= *lpz && *lptex != TRANSPARENT_COLOR)
 				{
-					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
-					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
-					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix32.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix32.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix32.b & 0xFF00) >> 8)) / 255;
 
 					int lightcomp = (llight & 0xFF00) >> 8;
 
@@ -835,9 +835,9 @@ void D_PolysetDrawSpansTrans32(spanpackage_t *pspanpackage)
 			{
 				if (lzi >= *lpz)
 				{
-					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
-					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
-					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix32.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix32.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix32.b & 0xFF00) >> 8)) / 255;
 
 					int lightcomp = (llight & 0xFF00) >> 8;
 
@@ -1013,9 +1013,9 @@ void D_PolysetDrawSpansTransAdd32(spanpackage_t *pspanpackage)
 			{
 				if (lzi >= *lpz)
 				{
-					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix.r & 0xFF00) >> 8)) / 255;
-					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix.g & 0xFF00) >> 8)) / 255;
-					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix.b & 0xFF00) >> 8)) / 255;
+					int step1_r = (((PackedColorVec*)r_palette)[*lptex].r * ((r_icolormix32.r & 0xFF00) >> 8)) / 255;
+					int step1_g = (((PackedColorVec*)r_palette)[*lptex].g * ((r_icolormix32.g & 0xFF00) >> 8)) / 255;
+					int step1_b = (((PackedColorVec*)r_palette)[*lptex].b * ((r_icolormix32.b & 0xFF00) >> 8)) / 255;
 
 					int lightcomp = (llight & 0xFF00) >> 8;
 

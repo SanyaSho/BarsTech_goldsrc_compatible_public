@@ -9,6 +9,7 @@
 #include "host.h"
 
 int filterMode;
+cvar_t r_bmodelinterp = { const_cast<char*>("r_bmodelinterp"), const_cast<char*>("1") };
 
 /*
 ===============

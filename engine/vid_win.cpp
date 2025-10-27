@@ -16,7 +16,6 @@ qboolean scr_skiponeupdate = false;
 
 int            minimum_memory;
 qboolean       is15bit;
-int			   lightgammatable[1024];
 int            vid_stretched;
 
 byte* vid_surfcache;

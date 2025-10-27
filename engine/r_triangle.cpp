@@ -395,6 +395,7 @@ void tri_Soft_Color4f( float r, float g, float b, float a )
 		b = filterBrightness * filterColorBlue;
 	}
 
+	// @SH_CODE: this block fixes wrong values from cl_dll which are responsible for gauss/egon beam
 	if (r_pixbytes != 1)
 	{
 		if (r > 1) r /= 255.0f;
@@ -406,6 +407,11 @@ void tri_Soft_Color4f( float r, float g, float b, float a )
 	r_icolormix.r = (int)(r * 49280.0f) & 0xFF00;
 	r_icolormix.g = (int)(g * 49280.0f) & 0xFF00;
 	r_icolormix.b = (int)(b * 49280.0f) & 0xFF00;
+
+	r_icolormix32.r = (int)(r * (255 * 256)) & 0xFF00;
+	r_icolormix32.g = (int)(g * (255 * 256)) & 0xFF00;
+	r_icolormix32.b = (int)(b * (255 * 256)) & 0xFF00;
+
 	r_blend = (int)(a * 255.0f);
 }
 
@@ -414,6 +420,11 @@ void tri_Soft_Color4ub( byte r, byte g, byte b, byte a )
 	r_icolormix.r = (r * 192) & 0xFF00;
 	r_icolormix.g = (g * 192) & 0xFF00;
 	r_icolormix.b = (b * 192) & 0xFF00;
+
+	r_icolormix32.r = (r * (255 * 256)) & 0xFF00;
+	r_icolormix32.g = (g * (255 * 256)) & 0xFF00;
+	r_icolormix32.b = (b * (255 * 256)) & 0xFF00;
+
 	r_blend = a;
 }
 
@@ -542,12 +553,24 @@ void tri_Soft_Vertex3f( float x, float y, float z )
 
 void tri_Soft_Brightness( float brightness )
 {
+	if (r_pixbytes != 1)
+	{
+		if (filterMode)
+			pfinalverts[r_anumverts].v[4] = filterBrightness * (255.0f * 256.0f);
+		else if (r_fullbright.value == 1)
+			pfinalverts[r_anumverts].v[4] = (255 * 256);
+		else
+			pfinalverts[r_anumverts].v[4] = min((int)(brightness * (255.0f * 256.0f)), MAXWORD);
+
+		return;
+	}
+
 	if (filterMode)
-		pfinalverts[r_anumverts].v[4] = filterBrightness * 49280.0f;
+		pfinalverts[r_anumverts].v[4] = filterBrightness * lightmax16f;
 	else if (r_fullbright.value == 1)
-		pfinalverts[r_anumverts].v[4] = 49280.0f;
+		pfinalverts[r_anumverts].v[4] = lightmax16f;
 	else
-		pfinalverts[r_anumverts].v[4] = min((int)(brightness * 49280.0f), MAXWORD);
+		pfinalverts[r_anumverts].v[4] = min((int)(brightness * lightmax16f), MAXWORD);
 }
 
 void tri_Soft_CullFace( TRICULLSTYLE style )
@@ -680,9 +703,13 @@ void tri_Soft_Color4fRendermode( float r, float g, float b, float a, int renderm
 		b = filterColorBlue;
 	}
 
-	r_icolormix.r = (int)(r * 49280.0f) & 0xFF00;
-	r_icolormix.g = (int)(g * 49280.0f) & 0xFF00;
-	r_icolormix.b = (int)(b * 49280.0f) & 0xFF00;
+	r_icolormix.r = (int)(r * lightmax16f) & 0xFF00;
+	r_icolormix.g = (int)(g * lightmax16f) & 0xFF00;
+	r_icolormix.b = (int)(b * lightmax16f) & 0xFF00;
+
+	r_icolormix32.r = (int)(r * (255 * 256)) & 0xFF00;
+	r_icolormix32.g = (int)(g * (255 * 256)) & 0xFF00;
+	r_icolormix32.b = (int)(b * (255 * 256)) & 0xFF00;
 
 	r_blend = a * 255;
 }
