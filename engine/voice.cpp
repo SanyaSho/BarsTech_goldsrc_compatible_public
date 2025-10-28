@@ -6,7 +6,6 @@
 #include "client.h"
 #include "voice_sound_engine_interface.h"
 #include "voice_mixer_controls.h"
-#include "ivoicecodec.h"
 #include "ivoicerecord.h"
 #include "voice_wavefile.h"
 

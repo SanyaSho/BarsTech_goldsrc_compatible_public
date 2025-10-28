@@ -69,7 +69,6 @@ extern int r_blend;
 #endif
 extern vec3_t r_colormix;
 extern colorVec r_icolormix;
-extern colorVec r_icolormix32;
 extern int r_dointerp;
 
 extern cvar_t* cl_righthand;

@@ -5,9 +5,9 @@
 #include "r_studio.h"
 
 int g_contentsresult;
-hull_t box_hull_0;
-box_clipnodes_t box_clipnodes_0;
-box_planes_t box_planes_0;
+static hull_t box_hull;
+static box_clipnodes_t box_clipnodes;
+static box_planes_t box_planes;
 
 qboolean PM_RecursiveHullCheck(hull_t* hull, int num, float p1f, float p2f, const vec_t* p1, const vec_t* p2, pmtrace_t* trace);
 
@@ -94,13 +94,13 @@ void* PM_HullForBsp(physent_t *pe, vec_t *offset)
 
 hull_t *PM_HullForBox(vec_t *mins, vec_t *maxs)
 {
-	box_planes_0[0].dist = maxs[0];
-	box_planes_0[1].dist = mins[0];
-	box_planes_0[2].dist = maxs[1];
-	box_planes_0[3].dist = mins[1];
-	box_planes_0[4].dist = maxs[2];
-	box_planes_0[5].dist = mins[2];
-	return &box_hull_0;
+	box_planes[0].dist = maxs[0];
+	box_planes[1].dist = mins[0];
+	box_planes[2].dist = maxs[1];
+	box_planes[3].dist = mins[1];
+	box_planes[4].dist = maxs[2];
+	box_planes[5].dist = mins[2];
+	return &box_hull;
 }
 
 hull_t *PM_HullForStudioModel(model_t *pModel, vec_t *offset, float frame, int sequence, const vec_t *angles, const vec_t *origin, const unsigned char *pcontroller, const unsigned char *pblending, int *pNumHulls)
@@ -378,19 +378,19 @@ pmtrace_t* PM_TraceLine(float* start, float* end, int flags, int usehull, int ig
 
 void PM_InitBoxHull(void)
 {
-	box_hull_0.clipnodes = &box_clipnodes_0[0];
-	box_hull_0.planes = &box_planes_0[0];
-	box_hull_0.firstclipnode = 0;
-	box_hull_0.lastclipnode = 5;
+	box_hull.clipnodes = &box_clipnodes[0];
+	box_hull.planes = &box_planes[0];
+	box_hull.firstclipnode = 0;
+	box_hull.lastclipnode = 5;
 
 	for (int i = 0; i < 6; i++)
 	{
 		int side = i & 1;
-		box_clipnodes_0[i].planenum = i;
-		box_clipnodes_0[i].children[side] = -1;
-		box_clipnodes_0[i].children[side ^ 1] = (i != 5) ? i + 1 : CONTENTS_SOLID;
-		box_planes_0[i].type = i >> 1;
-		box_planes_0[i].normal[i >> 1] = 1.0f;
+		box_clipnodes[i].planenum = i;
+		box_clipnodes[i].children[side] = -1;
+		box_clipnodes[i].children[side ^ 1] = (i != 5) ? i + 1 : CONTENTS_SOLID;
+		box_planes[i].type = i >> 1;
+		box_planes[i].normal[i >> 1] = 1.0f;
 	}
 }
 

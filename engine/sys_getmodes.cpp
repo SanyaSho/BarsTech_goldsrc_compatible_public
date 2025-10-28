@@ -1205,8 +1205,13 @@ public:
 
 	virtual bool		AddMode( int width, int height, int bpp )
 	{
+#if defined(SW_EXTEND_LIMITS)
+		if (width >= MAXWIDTH || height >= MAXHEIGHT)
+			return true;
+#else
 		if (width >= 1600 || height >= 1200)
 			return true;
+#endif
 
 		return CVideoMode_Common::AddMode(width, height, bpp);
 	}

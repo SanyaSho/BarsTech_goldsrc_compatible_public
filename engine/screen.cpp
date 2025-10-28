@@ -558,7 +558,7 @@ void SCR_BeginLoadingPlaque(bool reconnect)
 	if ((cls.state == ca_connected ||
 		cls.state == ca_uninitialized ||
 		cls.state == ca_active) &&
-		cls.signon == 2)
+		cls.signon == SIGNONS)
 	{
 		Con_ClearNotify();
 		scr_drawloading = true;

@@ -221,7 +221,7 @@ void WaterTextureUpdate(word * pPalette, float dropTime, texture_t* texture)
 					]
 				];
 
-				gWaterTextureBuffer32[j] = 0xFF000000 | PACKEDRGB888(RGB_BLUE888(color), RGB_GREEN888(color), RGB_RED888(color));
+				gWaterTextureBuffer32[j] = 0xFF000000 | color; // PACKEDRGB888(RGB_BLUE888(color), RGB_GREEN888(color), RGB_RED888(color));
 			}
 		}
 

@@ -408,10 +408,6 @@ void tri_Soft_Color4f( float r, float g, float b, float a )
 	r_icolormix.g = (int)(g * 49280.0f) & 0xFF00;
 	r_icolormix.b = (int)(b * 49280.0f) & 0xFF00;
 
-	r_icolormix32.r = (int)(r * (255 * 256)) & 0xFF00;
-	r_icolormix32.g = (int)(g * (255 * 256)) & 0xFF00;
-	r_icolormix32.b = (int)(b * (255 * 256)) & 0xFF00;
-
 	r_blend = (int)(a * 255.0f);
 }
 
@@ -420,10 +416,6 @@ void tri_Soft_Color4ub( byte r, byte g, byte b, byte a )
 	r_icolormix.r = (r * 192) & 0xFF00;
 	r_icolormix.g = (g * 192) & 0xFF00;
 	r_icolormix.b = (b * 192) & 0xFF00;
-
-	r_icolormix32.r = (r * (255 * 256)) & 0xFF00;
-	r_icolormix32.g = (g * (255 * 256)) & 0xFF00;
-	r_icolormix32.b = (b * (255 * 256)) & 0xFF00;
 
 	r_blend = a;
 }
@@ -706,10 +698,6 @@ void tri_Soft_Color4fRendermode( float r, float g, float b, float a, int renderm
 	r_icolormix.r = (int)(r * lightmax16f) & 0xFF00;
 	r_icolormix.g = (int)(g * lightmax16f) & 0xFF00;
 	r_icolormix.b = (int)(b * lightmax16f) & 0xFF00;
-
-	r_icolormix32.r = (int)(r * (255 * 256)) & 0xFF00;
-	r_icolormix32.g = (int)(g * (255 * 256)) & 0xFF00;
-	r_icolormix32.b = (int)(b * (255 * 256)) & 0xFF00;
 
 	r_blend = a * 255;
 }

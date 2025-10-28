@@ -174,7 +174,6 @@ cvar_t* cl_righthand = NULL;
 
 vec3_t r_colormix;
 colorVec r_icolormix;
-colorVec r_icolormix32;
 
 #if !defined(GLQUAKE)
 float filterColorRed = 1.0f, filterColorGreen = 1.0f, filterColorBlue = 1.0f, filterBrightness = 1.0f;
@@ -2055,10 +2054,6 @@ void R_StudioSetupLighting(alight_t* plight)
 	r_icolormix.g = int(plight->color[1] * studiolightmax16f) & 0xFF00;
 	r_icolormix.b = int(plight->color[2] * studiolightmax16f) & 0xFF00;
 
-	r_icolormix32.r = int(plight->color[0] * (255.0f * 256.0f)) & 0xFF00;
-	r_icolormix32.g = int(plight->color[1] * (255.0f * 256.0f)) & 0xFF00;
-	r_icolormix32.b = int(plight->color[2] * (255.0f * 256.0f)) & 0xFF00;
-
 	VectorCopy(plight->color, r_colormix);
 }
 
@@ -2727,6 +2722,39 @@ void R_StudioSetupSkin(studiohdr_t* ptexturehdr, int index)
 	{
 		r_affinetridesc.pskin = &white_texture;
 		r_palette = white_pal;
+		return;
+	}
+#endif
+
+#if 0
+	if (&cl.viewent == currententity && strstr(ptexture[index].name, "gordon"))
+	{
+		byte tmp_palette[768];
+		char name[256];
+		skin_t vmskin{};
+
+		byte* pData = R_StudioReloadSkin(r_model, index, &vmskin);
+
+		_snprintf(name, sizeof(name), "%s", ptexture[index].name);
+		Q_memcpy(tmp_palette, &pData[ptexture[index].height * ptexture[index].width], sizeof(tmp_palette));
+
+		vmskin.topcolor = r_topcolor;
+		vmskin.bottomcolor = r_bottomcolor;
+		vmskin.model = r_model;
+
+		// Remap palette
+		PaletteHueReplace((color24*)tmp_palette, vmskin.topcolor, 0, 255);
+
+		GL_UnloadTexture(name);
+
+		float fOldDither = gl_dither.value;
+		gl_dither.value = 0.0;
+		vmskin.gl_index = GL_LoadTexture(name, GLT_STUDIO, vmskin.width, vmskin.height, pData, false, TEX_TYPE_NONE, tmp_palette);
+		gl_dither.value = fOldDither;
+
+		if (vmskin.gl_index != 0)
+			GL_Bind(vmskin.gl_index);
+
 		return;
 	}
 #endif

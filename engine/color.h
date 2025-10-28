@@ -41,7 +41,7 @@
 
 #define RGBPAL(p,i)		( ( ( (short) *(((p)+((i)*4)) + 2) << 8 ) & 0xf800 ) | ( ( (short) *(((p)+((i)*4)) + 1) << 3 ) & 0x07e0 ) | ( (short) *(((p)+((i)*4)) + 0) >> 3 ) )
 #define RGBPAL555(p,i)	( ( ( (short) *(((p)+((i)*4)) + 2) << 7 ) & 0x7C00 ) | ( ( (short) *(((p)+((i)*4)) + 1) << 2 ) & 0x03e0 ) | ( (short) *(((p)+((i)*4)) + 0) >> 3 ) )
-#define RGBPAL888(p,i)	( ( (unsigned char) *(((p)+((i)*4)) + 2) ) | ( (unsigned char) *(((p)+((i)*4)) + 1) ) << 8 | ( (unsigned char) *(((p)+((i)*4)) + 0) ) << 16 )
+#define RGBPAL888(p,i)	( ( (unsigned char) *(((p)+((i)*4)) + 0) ) | ( (unsigned char) *(((p)+((i)*4)) + 1) ) << 8 | ( (unsigned char) *(((p)+((i)*4)) + 2) ) << 16 )
 
 extern "C" qboolean is15bit;
 extern "C" word *r_palette;
