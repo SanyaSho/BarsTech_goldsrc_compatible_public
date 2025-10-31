@@ -19,7 +19,6 @@
 #define VK_RETURN -1
 #endif
 
-#include <unordered_map>
 #include <external\SDL2\include\SDL2\SDL.h>
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -146,41 +145,52 @@ static const vgui_to_virtual_t keyMap[] =
 	{ vgui2::KEY_F12, SDLK_F12 },
 };
 
-static std::unordered_map<int, vgui2::KeyCode> s_pVirtualKeyToVGUI;
-static std::unordered_map<vgui2::KeyCode, int> s_pVGUIToVirtualKey;
+static vgui2::KeyCode s_pVirtualKeyToVGUI[ 256 ];
+static int s_pVGUIToVirtualKey[ 256 ];
 
 namespace vgui2
 {
-	void InitKeyTranslationTable()
-	{
-		if( !s_pVirtualKeyToVGUI.empty() )
-			return;
+void InitKeyTranslationTable()
+{
+	static bool bInitted = false;
 
-		for( const auto& entry : keyMap )
+	if( !bInitted )
+	{
+		bInitted = true;
+
+		memset( s_pVirtualKeyToVGUI, 0, sizeof( s_pVirtualKeyToVGUI ) );
+
+		for( int i = 0; i < ARRAYSIZE( keyMap ); ++i )
 		{
-			s_pVirtualKeyToVGUI[ entry.sdlKeyCode ] = entry.vguiKeyCode;
+			s_pVirtualKeyToVGUI[ keyMap[ i ].sdlKeyCode ] = keyMap[ i ].vguiKeyCode;
 		}
 	}
+}
 
-	void InitVGUIToVKTranslationTable()
+void InitVGUIToVKTranslationTable()
+{
+	static bool bInitted = false;
+
+	if( !bInitted )
 	{
-		if( !s_pVirtualKeyToVGUI.empty() )
-			return;
+		bInitted = true;
 
-		for( const auto& entry : keyMap )
+		memset( s_pVGUIToVirtualKey, 0, sizeof( s_pVGUIToVirtualKey ) );
+
+		for( int i = 0; i < ARRAYSIZE( keyMap ); ++i )
 		{
-			s_pVGUIToVirtualKey[ entry.vguiKeyCode ] = entry.sdlKeyCode;
+			s_pVGUIToVirtualKey[ keyMap[ i ].vguiKeyCode ] = keyMap[ i ].sdlKeyCode;
 		}
 	}
+}
 }
 
 vgui2::KeyCode KeyCode_VirtualKeyToVGUI( int key )
 {
 	vgui2::InitKeyTranslationTable();
 
-	auto it = s_pVirtualKeyToVGUI.find( key );
-	if( it != s_pVirtualKeyToVGUI.end() )
-		return it->second;
+	if( key >= 0 && key <= 255 )
+		return s_pVirtualKeyToVGUI[ key ];
 
 	return vgui2::KEY_NONE;
 }
@@ -189,9 +199,8 @@ int KeyCode_VGUIToVirtualKey( vgui2::KeyCode code )
 {
 	vgui2::InitVGUIToVKTranslationTable();
 
-	auto it = s_pVirtualKeyToVGUI.find( code );
-	if( it != s_pVirtualKeyToVGUI.end() )
-		return it->second;
+	if( code >= 0 && code <= 255 )
+		return s_pVGUIToVirtualKey[ code ];
 
 	return -1;
 }
