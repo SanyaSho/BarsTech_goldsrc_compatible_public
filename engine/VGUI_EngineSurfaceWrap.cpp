@@ -162,7 +162,7 @@ void EngineSurfaceWrap::GetMousePos( int &x, int &y )
 		y = int((float)vT / (float)wT * (float)y);
 
 		x += (GetXMouseAspectRatioAdjustment() - 1.0f) * float(x - vW / 2);
-		x += (GetYMouseAspectRatioAdjustment() - 1.0f) * float(y - vT / 2);
+		y += (GetYMouseAspectRatioAdjustment() - 1.0f) * float(y - vT / 2);
 	}
 	else
 	{
@@ -558,7 +558,7 @@ void EngineSurfaceWrap::AppHandler( void* event, void* userData )
 					int y = int((float)vT / (float)wT * (float)ev.motion.y);
 
 					x += (GetXMouseAspectRatioAdjustment() - 1.0f) * float(x - vW / 2);
-					x += (GetYMouseAspectRatioAdjustment() - 1.0f) * float(y - vT / 2);
+					y += (GetYMouseAspectRatioAdjustment() - 1.0f) * float(y - vT / 2);
 
 					pApp->internalCursorMoved(x, y, this);
 				}
