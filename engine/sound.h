@@ -248,7 +248,7 @@ void S_StartDynamicSound( int entnum, int entchannel, sfx_t* sfx, vec_t* origin,
 void S_StartStaticSound(int entnum, int entchannel, sfx_t *sfxin, vec_t* origin, float fvol, float attenuation, int flags, int pitch);
 void S_StopSound( int entnum, int entchannel );
 
-void S_StopAllSounds( bool clear );
+void S_StopAllSounds( qboolean clear );
 
 void Snd_AcquireBuffer();
 void Snd_ReleaseBuffer();

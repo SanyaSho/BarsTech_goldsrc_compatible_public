@@ -35,7 +35,7 @@ typedef struct packetlag_s
 {
 	unsigned char* pPacketData;	// Raw stream data is stored.
 	int nSize;
-	netadr_t net_from_;
+	netadr_t net_from;
 	float receivedTime;
 	struct packetlag_s* pNext;
 	struct packetlag_s* pPrev;
@@ -165,7 +165,7 @@ qboolean NET_GetLoopPacket(netsrc_t sock, netadr_t* in_from, sizebuf_t* msg);
 void NET_SendLoopPacket(netsrc_t sock, int length, void* data, netadr_t to);
 void NET_RemoveFromPacketList(packetlag_t* pPacket);
 void NET_ClearLaggedList(packetlag_t* pList);
-void NET_AddToLagged(netsrc_t sock, packetlag_t* pList, packetlag_t* pPacket, netadr_t* net_from_, sizebuf_t messagedata, float timestamp);
+void NET_AddToLagged(netsrc_t sock, packetlag_t* pList, packetlag_t* pPacket, netadr_t* net_from, sizebuf_t messagedata, float timestamp);
 void NET_AdjustLag();
 qboolean NET_LagPacket(qboolean newdata, netsrc_t sock, netadr_t* from, sizebuf_t* data);
 void NET_FlushSocket(netsrc_t sock);

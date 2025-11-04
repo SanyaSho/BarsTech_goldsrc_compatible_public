@@ -31,7 +31,7 @@ void Net_SendRequest( int context, int request, int flags, double timeout, netad
 
 void Net_CancelRequest( int context );
 
-void Net_CancelAllRequests();
+void Net_APIClearQueries();
 
 char* Net_AdrToString( netadr_t* a );
 

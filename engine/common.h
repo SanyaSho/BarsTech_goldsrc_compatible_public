@@ -54,6 +54,7 @@ typedef struct sizebuf_s
 
 void SZ_Alloc( const char* name, sizebuf_t* buf, int startsize );
 void SZ_Clear( sizebuf_t* buf );
+qboolean SZ_HasSpace(sizebuf_t* buf, int length);
 void* SZ_GetSpace( sizebuf_t* buf, int length );
 void SZ_Write( sizebuf_t* buf, const void* data, int length );
 
@@ -98,6 +99,7 @@ int	Q_atoi(const char *str);
 float Q_atof(const char *str);
 char* Q_strlwr(char* s1);
 char* Q_strstr(const char* s1, const char* search);
+qboolean Q_striprefix(const char* str, const char* prefix);
 
 
 /**

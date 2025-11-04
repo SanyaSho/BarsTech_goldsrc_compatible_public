@@ -18,6 +18,8 @@
 
 #define SURFCACHE_SIZE_AT_320X200	/*600*1024*/ /*3072*1024*/ 1024*1024
 
+#if !defined(GLQUAKE)
+
 typedef struct surfcache_s
 {
 	struct surfcache_s	*next;
@@ -134,6 +136,8 @@ extern void (*d_drawspans) (espan_t *pspan);
 extern void (*spritedraw) (sspan_t* pspan);
 extern void (*polysetdraw)(spanpackage_t *pspanpackage);
 extern cvar_t	d_spriteskip;
+
+#endif
 
 typedef int (*SurfaceCacheForResFn)(int, int);
 

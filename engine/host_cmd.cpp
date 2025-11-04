@@ -27,9 +27,9 @@
 
 CareerStateType g_careerState = CAREER_NONE;
 qboolean noclip_anglehack;
-bool g_iQuitCommandIssued = false;
+int g_iQuitCommandIssued = false;
 
-bool g_bMajorMapChange = false;
+qboolean g_bMajorMapChange = false;
 
 int current_skill;
 int gHostSpawnCount;
@@ -38,7 +38,7 @@ typedef int(*SV_BLENDING_INTERFACE_FUNC)(int, struct sv_blending_interface_s **,
 
 void Host_SavegameComment(char* pszBuffer, int iSizeBuffer);
 
-SV_SAVEGAMECOMMENT_FUNC g_pSaveGameCommentFunc = &Host_SavegameComment;
+SV_SAVEGAMECOMMENT_FUNC g_pSaveGameCommentFunc = Host_SavegameComment;
 
 cvar_t voice_recordtofile = { const_cast<char*>("voice_recordtofile"), const_cast<char*>("0") };
 cvar_t voice_inputfromfile = { const_cast<char*>("voice_inputfromfile"), const_cast<char*>("0") };
@@ -175,6 +175,21 @@ TYPEDESCRIPTION gLightstyleDescription[] =
 	DEFINE_ARRAY(SAVELIGHTSTYLE, style, FIELD_CHARACTER, MAX_LIGHTSTYLES),
 };
 
+void Master_Heartbeat_f();
+void CareerAudio_Command_f();
+
+void SV_CheckBlendingInterface(void);
+void SV_CheckSaveGameCommentInterface(void);
+void Host_ClearGameState(void);
+int LoadGamestate(char* level, int createPlayers);
+int Host_Load(const char* pName);
+SAVERESTOREDATA* SaveGamestate(void);
+int DirectoryCount(const char* pPath);
+void DirectoryCopy(const char* pPath, FileHandle_t pFile);
+void DirectoryExtract(FileHandle_t pFile, int fileCount);
+void EntityPatchWrite(SAVERESTOREDATA* pSaveData, const char* level);
+void CL_Save(const char* name);
+
 void SV_GetPlayerHulls(void)
 {
 	int i;
@@ -185,63 +200,19 @@ void SV_GetPlayerHulls(void)
 	}
 }
 
-void SV_CheckBlendingInterface(void)
-{
-	int i;
-	SV_BLENDING_INTERFACE_FUNC studio_interface;
-
-	R_ResetSvBlending();
-	for (i = 0; i < g_iextdllMac; i++)
-	{
-#ifdef _WIN32
-		studio_interface = (SV_BLENDING_INTERFACE_FUNC)GetProcAddress((HMODULE)g_rgextdll[i].pDLLHandle, "Server_GetBlendingInterface");
-#else
-		studio_interface = (SV_BLENDING_INTERFACE_FUNC)dlsym(g_rgextdll[i].lDLLHandle, "Server_GetBlendingInterface");
-#endif
-		if (studio_interface)
-		{
-			if (studio_interface(SV_BLENDING_INTERFACE_VERSION, &g_pSvBlendingAPI, &server_studio_api, (float*)rotationmatrix, (float*)bonetransform))
-				return;
-
-			Con_DPrintf(const_cast<char*>("Couldn't get server .dll studio model blending interface. Version mismatch?\n"));
-			R_ResetSvBlending();
-		}
-	}
-}
-
-void SV_CheckSaveGameCommentInterface(void)
-{
-	int i;
-	SV_SAVEGAMECOMMENT_FUNC pTemp = NULL;
-	for (i = 0; i < g_iextdllMac; i++)
-	{
-#ifdef _WIN32
-		pTemp = (SV_SAVEGAMECOMMENT_FUNC)GetProcAddress((HMODULE)g_rgextdll[i].pDLLHandle, "SV_SaveGameComment");
-#else
-		pTemp = (SV_SAVEGAMECOMMENT_FUNC)dlsym(g_rgextdll[i].lDLLHandle, "SV_SaveGameComment");
-#endif
-		if (pTemp)
-		{
-			g_pSaveGameCommentFunc = pTemp;
-			break;
-		}
-	}
-}
-
 void Host_InitializeGameDLL()
 {
 	Cbuf_Execute();
-	NET_Config( svs.maxclients > 1 );
+	NET_Config(svs.maxclients > 1);
 
-	if( svs.dll_initialized )
-		return Con_DPrintf( const_cast<char*>("Sys_InitializeGameDLL called twice, skipping second call\n") );
-		
+	if (svs.dll_initialized)
+		return Con_DPrintf(const_cast<char*>("Sys_InitializeGameDLL called twice, skipping second call\n"));
 
 	svs.dll_initialized = true;
-	LoadEntityDLLs( host_parms.basedir );
-	
+	LoadEntityDLLs(host_parms.basedir);
+
 	gEntityInterface.pfnGameInit();
-	gEntityInterface.pfnPM_Init( &g_svmove );
+	gEntityInterface.pfnPM_Init(&g_svmove);
 	gEntityInterface.pfnRegisterEncoders();
 
 	SV_InitEncoders();
@@ -252,46 +223,274 @@ void Host_InitializeGameDLL()
 	Cbuf_Execute();
 }
 
-void Host_ClearSaveDirectory()
+void Host_Motd_f(void)
 {
-	char szName[MAX_PATH];
-	const char* pfn;
+	int length;
+	FileHandle_t pFile;
+	char* pFileList;
+	char* next;
+	char* ext;
 
-	_snprintf(szName, sizeof(szName), "%s", Host_SaveGameDirectory());
-	strncat(szName, "*.HL?", sizeof(szName) - Q_strlen(szName) - 1);
-	COM_FixSlashes(szName);
-
-	if (Sys_FindFirstPathID(szName, const_cast<char*>("GAMECONFIG")) != NULL)
+	pFileList = motdfile.string;
+	if (*pFileList == '/' || strstr(pFileList, ":") || strstr(pFileList, "..") || strstr(pFileList, "\\"))
 	{
-		Sys_FindClose();
-		_snprintf(szName, sizeof(szName), "%s", Host_SaveGameDirectory());
-		COM_FixSlashes(szName);
-		FS_CreateDirHierarchy(szName, "GAMECONFIG");
-		strncat(szName, "*.HL?", sizeof(szName) - Q_strlen(szName) - 1);
+		Con_Printf(const_cast<char*>("Unable to open %s (contains illegal characters)\n"), pFileList);
+		return;
+	}
 
-		for (pfn = Sys_FindFirstPathID(szName, const_cast<char*>("GAMECONFIG")); pfn; pfn = Sys_FindNext(NULL))
+	ext = COM_LastFileExtension(motdfile.string);
+
+	if (Q_stricmp(ext, "txt"))
+	{
+		Con_Printf("Invalid motdfile name %s (wrong file extension, must be .txt)\n", motdfile.string);
+		return;
+	}
+
+	pFile = FS_Open(pFileList, "rb");
+	if (!pFile)
+	{
+		Con_Printf(const_cast<char*>("Unable to open %s\n"), pFileList);
+		return;
+	}
+
+	length = FS_Size(pFile);
+	if (length > 0)
+	{
+		char* buf = (char*)malloc(length + 1);
+		if (buf)
 		{
-			_snprintf(szName, sizeof(szName), "%s%s", Host_SaveGameDirectory(), pfn);
-			FS_RemoveFile(szName, const_cast<char*>("GAMECONFIG"));
+			FS_Read(buf, length, 1, pFile);
+			buf[length] = 0;
+			char* now = buf;
+			Con_Printf(const_cast<char*>("motd:"));
+			next = strchr(now, '\n');
+			while (next != NULL)
+			{
+				*next = 0;
+				Con_Printf(const_cast<char*>("%s\n"), now);
+				now = next + 1;
+				next = strchr(now, '\n');
+			}
+
+			Con_Printf(const_cast<char*>("%s\n"), now);
+
+			free(buf);
 		}
 	}
-	Sys_FindClose();
+	FS_Close(pFile);
+}
+
+void Host_Motd_Write_f(void)
+{
+	char newFile[2048] = "";
+	unsigned int i;
+	FileHandle_t pFile;
+
+	if (!sv.active || cmd_source != src_command || cls.state)
+		return;
+
+	if (!IsSafeFileToDownload(motdfile.string) || Q_stricmp(COM_LastFileExtension(motdfile.string), "txt"))
+	{
+		Con_Printf(const_cast<char*>("Invalid motdfile name (%s)\n"), motdfile.string);
+		return;
+	}
+
+	pFile = FS_Open(motdfile.string, "wb+");
+	if (!pFile)
+	{
+		Con_Printf(const_cast<char*>("Unable to open %s\n"), motdfile.string);
+		return;
+	}
+
+	Q_strncpy(newFile, Cmd_Args(), ARRAYSIZE(newFile));
+
+	int len = Q_strlen(newFile);
+	for (i = 0; i < len; i++)
+	{
+		if (newFile[i] == '\\' && newFile[i + 1] == 'n')
+		{
+			newFile[i] = '\n';
+			memmove(&newFile[i + 1], &newFile[i + 2], Q_strlen(&newFile[i + 2]) + 1);
+		}
+	}
+
+	FS_Write(newFile, Q_strlen(newFile), 1, pFile);
+	FS_Close(pFile);
+
+	Con_Printf(const_cast<char*>("Done.\n"));
+}
+
+int Host_GetStartTime()
+{
+	return startTime;
+}
+
+void Host_UpdateStats(void)
+{
+	uint32 runticks = 0;
+	uint32 cputicks = 0;
+
+	static float last = 0.0f;
+	static float lastAvg = 0.0f;
+
+	static uint64 lastcputicks = 0;
+	static uint64 lastrunticks = 0;
+
+#ifdef _WIN32
+
+	struct _FILETIME ExitTime;
+	struct _FILETIME UserTime;
+	struct _FILETIME KernelTime;
+	struct _FILETIME CreationTime;
+	struct _FILETIME SystemTimeAsFileTime;
+
+	if (!startTime)
+		startTime = Sys_FloatTime();
+
+	if (last + 1.0 < Sys_FloatTime())
+	{
+		GetProcessTimes(GetCurrentProcess(), &CreationTime, &ExitTime, &KernelTime, &UserTime);
+		GetSystemTimeAsFileTime(&SystemTimeAsFileTime);
+
+		if (!lastcputicks)
+		{
+			cputicks = CreationTime.dwLowDateTime;
+			runticks = CreationTime.dwHighDateTime;
+
+			lastcputicks = FILETIME_TO_QWORD(CreationTime);
+		}
+		else
+		{
+			cputicks = (uint32)(lastcputicks & 0xFFFFFFFF);
+			runticks = (uint32)(lastcputicks >> 32);
+		}
+
+		cpuPercent =
+			(FILETIME_TO_QWORD(UserTime) + FILETIME_TO_QWORD(KernelTime) - lastrunticks)
+			/ (FILETIME_TO_QWORD(SystemTimeAsFileTime)
+				- (double)FILETIME_TO_PAIR(runticks, cputicks));
+
+		if (lastAvg + 5.0f < Sys_FloatTime())
+		{
+			lastcputicks = FILETIME_TO_QWORD(SystemTimeAsFileTime);
+			lastrunticks = FILETIME_TO_QWORD(UserTime) + FILETIME_TO_QWORD(KernelTime);
+			lastAvg = last;
+		}
+		last = Sys_FloatTime();
+	}
+
+#else // _WIN32
+
+	FILE* pFile;
+	int32 dummy;
+	int32 ctime;
+	int32 stime;
+	int32 start_time;
+	char statFile[4096];
+	struct sysinfo infos;
+
+	if (!startTime)
+		startTime = Sys_FloatTime();
+
+	if (Sys_FloatTime() > last + 1.0f)
+	{
+		time(NULL);
+		pid_t pid = getpid();
+		Q_snprintf(statFile, sizeof(statFile), "/proc/%i/stat", pid);
+		pFile = fopen(statFile, "rt");
+		if (!pFile)
+		{
+			last = Sys_FloatTime();
+			return;
+		}
+		sysinfo(&infos);
+		fscanf(pFile, "%d %s %c %d %d %d %d %d %lu %lu \t\t\t%lu %lu %lu %ld %ld %ld %ld %ld %ld %lu \t\t\t%lu %ld %lu %lu %lu %lu %lu %lu %lu %lu \t\t\t%lu %lu %lu %lu %lu %lu",
+			&dummy,
+			statFile,
+			&dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy,
+			&ctime,
+			&stime,
+			&dummy, &dummy, &dummy, &dummy, &dummy,
+			&start_time,
+			&dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy,
+			&dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy
+		);
+		fclose(pFile);
+
+		runticks = 100 * infos.uptime - start_time;
+		cputicks = ctime + stime;
+
+		if (!lastcputicks)
+			lastcputicks = cputicks;
+
+		if (lastrunticks)
+			cpuPercent = (double)(cputicks - lastcputicks) / (double)(runticks - lastrunticks);
+		else
+			lastrunticks = runticks;
+
+		if (lastAvg + 5.0f < Sys_FloatTime())
+		{
+			lastcputicks = cputicks;
+			lastrunticks = runticks;
+			lastAvg = Sys_FloatTime();
+		}
+		if (cpuPercent > 0.999)
+			cpuPercent = 0.999;
+		else if (cpuPercent < 0.0)
+			cpuPercent = 0.0;
+		last = Sys_FloatTime();
+	}
+
+#endif // _WIN32
+}
+
+void GetStatsString(char* buf, int bufSize)
+{
+	long double avgOut = 0.0;
+	long double avgIn = 0.0;
+	int players = 0;
+
+	for (int i = 0; i < svs.maxclients; i++)
+	{
+		host_client = &svs.clients[i];
+		if (!host_client->active && !host_client->connected && !host_client->spawned || host_client->fakeclient)
+			continue;
+
+		players++;
+		avgIn = avgIn + host_client->netchan.flow[FLOW_INCOMING].avgkbytespersec;
+		avgOut = avgOut + host_client->netchan.flow[FLOW_OUTGOING].avgkbytespersec;
+	}
+
+	_snprintf(buf, bufSize - 1, "%5.2f %5.2f %5.2f %7i %5i %7.2f %7i",
+		(float)(100.0 * cpuPercent),
+		(float)avgIn,
+		(float)avgOut,
+		(int)floor(Sys_FloatTime() - startTime) / 60,
+		g_userid - 1,
+		(float)(1.0 / host_frametime),
+		players);
+	buf[bufSize - 1] = 0;
+}
+
+void Host_Stats_f(void)
+{
+	char stats[512];
+	GetStatsString(stats, sizeof(stats));
+	Con_Printf(const_cast<char*>("CPU   In    Out   Uptime  Users   FPS    Players\n%s\n"), stats);
 }
 
 void Host_Quit_f()
 {
-	if( Cmd_Argc() == 1 )
+	if (Cmd_Argc() == 1)
 	{
 		giActive = DLL_CLOSE;
 		g_iQuitCommandIssued = true;
 
-		extern void DbgPrint(FILE*, const char* format, ...);
-		extern FILE* m_fMessages;
-		DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
-		if( cls.state != ca_dedicated )
+		if (cls.state != ca_dedicated)
 			CL_Disconnect();
-		Host_ShutdownServer( 0 );
-		
+
+		Host_ShutdownServer(0);
+
 		Sys_Quit();
 	}
 	else
@@ -301,70 +500,25 @@ void Host_Quit_f()
 	}
 }
 
-void CareerAudio_Command_f()
+void Host_Quit_Restart_f(void)
 {
-	s_careerAudioPaused = 0;
-}
+	giActive = DLL_RESTART;
+	giStateInfo = 4;
 
-void Host_KillServer_f(void)
-{
-	if (cls.state != ca_dedicated)
-		CL_Disconnect_f();
-
-	else if (sv.active)
+	if (sv.active)
 	{
-		Host_ShutdownServer(FALSE);
-
-		if (cls.state != ca_dedicated)
-			NET_Config(FALSE);
+		if (svs.maxclients == 1 && cls.state == ca_active && g_pPostRestartCmdLineArgs)
+		{
+			Cbuf_AddText(const_cast<char*>("save quick\n"));
+			Cbuf_Execute();
+			Q_strcat(g_pPostRestartCmdLineArgs, const_cast<char*>(" +load quick"));
+		}
 	}
-}
-
-void Host_Soundfade_f(void)
-{
-	int percent;
-	int inTime;
-	int holdTime;
-	int outTime;
-
-	if (Cmd_Argc() != 3 && Cmd_Argc() != 5)
+	else if (cls.state == ca_active && cls.trueaddress[0] && g_pPostRestartCmdLineArgs)
 	{
-		Con_Printf(const_cast<char*>("soundfade <percent> <hold> [<out> <int>]\n"));
-		return;
+		Q_strcat(g_pPostRestartCmdLineArgs, const_cast<char*>(" +connect "));
+		Q_strcat(g_pPostRestartCmdLineArgs, cls.servername);
 	}
-
-	percent = Q_atoi(Cmd_Argv(1));
-
-	if (percent > 100)
-		percent = 100;
-	if (percent < 0)
-		percent = 0;
-
-	holdTime = Q_atoi(Cmd_Argv(2));
-	if (holdTime > 255)
-		holdTime = 255;
-
-	if (Cmd_Argc() == 5)
-	{
-		outTime = Q_atoi(Cmd_Argv(3));
-		if (outTime > 255)
-			outTime = 255;
-
-		inTime = Q_atoi(Cmd_Argv(4));
-		if (inTime > 255)
-			inTime = 255;
-	}
-	else
-	{
-		outTime = 0;
-		inTime = 0;
-	}
-
-	cls.soundfade.nStartPercent = percent;
-	cls.soundfade.soundFadeStartTime = realtime;
-	cls.soundfade.soundFadeOutTime = outTime;
-	cls.soundfade.soundFadeHoldTime = holdTime;
-	cls.soundfade.soundFadeInTime = inTime;
 }
 
 void Host_Status_Printf(qboolean conprint, qboolean log, char* fmt, ...)
@@ -379,8 +533,8 @@ void Host_Status_Printf(qboolean conprint, qboolean log, char* fmt, ...)
 
 	if (conprint)
 		Con_Printf(const_cast<char*>("%s"), string);
-
-	else SV_ClientPrintf("%s", string);
+	else 
+		SV_ClientPrintf("%s", string);
 
 	if (log)
 	{
@@ -442,6 +596,7 @@ void Host_Status_f(void)
 			pchConnectionString = "(secure mode enabled, disconnected from Steam3)";
 		}
 	}
+
 	if (sv.active)
 	{
 		pchSteamUniverse = Steam_GetGSUniverse();
@@ -456,14 +611,18 @@ void Host_Status_f(void)
 	{
 		Host_Status_Printf(conprint, log, const_cast<char*>("tcp/ip  :  %s\n"), NET_AdrToString(net_local_adr));
 	}
+
 #ifdef _WIN32
 	if (!noipx)
 	{
 		Host_Status_Printf(conprint, log, const_cast<char*>("ipx     :  %s\n"), NET_AdrToString(net_local_ipx_adr));
 	}
 #endif // _WIN32
+	
 	Host_Status_Printf(conprint, log, const_cast<char*>("map     :  %s at: %d x, %d y, %d z\n"), sv.name, r_origin[0], r_origin[1], r_origin[2]);
+
 	SV_CountPlayers(&nClients);
+	
 	Host_Status_Printf(conprint, log, const_cast<char*>("players :  %i active (%i max)\n\n"), nClients, svs.maxclients);
 	Host_Status_Printf(conprint, log, const_cast<char*>("#      name userid uniqueid frag time ping loss adr\n"));
 
@@ -489,9 +648,11 @@ void Host_Status_f(void)
 
 		if (!client->fakeclient)
 			val = SV_GetClientIDString(client);
-		else val = "BOT";
+		else 
+			val = "BOT";
 
 		Host_Status_Printf(conprint, log, const_cast<char*>("#%2i %8s %i %s"), count++, va(const_cast<char*>("\"%s\""), client->name), client->userid, val);
+
 		if (client->proxy)
 		{
 			const char* userInfo = Info_ValueForKey(client->userinfo, "hspecs");
@@ -513,15 +674,19 @@ void Host_Status_f(void)
 
 		if (hours)
 			Host_Status_Printf(conprint, log, const_cast<char*>(" %2i:%02i:%02i"), hours, minutes, seconds);
-		else Host_Status_Printf(conprint, log, const_cast<char*>(" %02i:%02i"), minutes, seconds);
+		else 
+			Host_Status_Printf(conprint, log, const_cast<char*>(" %02i:%02i"), minutes, seconds);
 
 		Host_Status_Printf(conprint, log, const_cast<char*>(" %4i  %3i"), SV_CalcPing(client), (int)client->packet_loss);
+
 		if ((conprint || client->proxy) && client->netchan.remote_address.type == NA_IP)
 		{
 			Host_Status_Printf(conprint, log, const_cast<char*>(" %s\n"), NET_AdrToString(client->netchan.remote_address));
 		}
-		else Host_Status_Printf(conprint, log, const_cast<char*>("\n"));
+		else 
+			Host_Status_Printf(conprint, log, const_cast<char*>("\n"));
 	}
+
 	Host_Status_Printf(conprint, log, const_cast<char*>("%i users\n"), nClients);
 }
 
@@ -569,6 +734,7 @@ void Host_Status_Formatted_f(void)
 	{
 		Host_Status_Printf(conprint, log, const_cast<char*>("tcp/ip  :  %s\n"), NET_AdrToString(net_local_adr));
 	}
+
 #ifdef _WIN32
 	if (!noipx)
 	{
@@ -577,7 +743,9 @@ void Host_Status_Formatted_f(void)
 #endif // _WIN32
 
 	Host_Status_Printf(conprint, log, const_cast<char*>("map     :  %s at: %d x, %d y, %d z\n"), sv.name, r_origin[0], r_origin[1], r_origin[2]);
+
 	SV_CountPlayers(&nClients);
+	
 	Host_Status_Printf(conprint, log, const_cast<char*>("players :  %i active (%i max)\n\n"), nClients, svs.maxclients);
 	Host_Status_Printf(conprint, log, const_cast<char*>("%-2.2s\t%-9.9s\t%-7.7s\t%-20.20s\t%-4.4s\t%-8.8s\t%-4.4s\t%-4.4s\t%-21.21s\n"), "# ", "name", "userid   ", "uniqueid ", "frag", "time    ", "ping", "loss", "adr");
 
@@ -602,452 +770,208 @@ void Host_Status_Formatted_f(void)
 
 		if (conprint)
 			szRemoteAddr = NET_AdrToString(client->netchan.remote_address);
-		else szRemoteAddr = const_cast<char*>("");
+		else 
+			szRemoteAddr = const_cast<char*>("");
 
 		szIDString = SV_GetClientIDString(client);
+
 		Host_Status_Printf(conprint, log, const_cast<char*>("%-2.2s\t%-9.9s\t%-7.7s\t%-20.20s\t%-4.4s\t%-8.8s\t%-4.4s\t%-4.4s\t%-21.21s\n"),
 			va(const_cast<char*>("%-2i"), count++), va(const_cast<char*>("\"%s\""), client->name), va(const_cast<char*>("%-7i"), client->userid), szIDString,
 			va(const_cast<char*>("%-4i"), (int)client->edict->v.frags), sz, va(const_cast<char*>("%-4i"), SV_CalcPing(client)), va(const_cast<char*>("%-4i"), (int)client->packet_loss), szRemoteAddr);
 	}
+
 	Host_Status_Printf(conprint, log, const_cast<char*>("%i users\n"), nClients);
 }
 
-void Host_Quit_Restart_f(void)
+void Host_God_f()
 {
-	giActive = DLL_RESTART;
-	giStateInfo = 4;
-
-	if (sv.active)
+	if (cmd_source == src_command)
 	{
-		if (svs.maxclients == 1 && cls.state == ca_active && g_pPostRestartCmdLineArgs)
+		Cmd_ForwardToServer();
+	}
+	else if (!gGlobalVariables.deathmatch && sv_cheats.value)
+	{
+		sv_player->v.flags ^= FL_GODMODE;
+		if (sv_player->v.flags & FL_GODMODE)
+			SV_ClientPrintf("godmode ON\n");
+		else
+			SV_ClientPrintf("godmode OFF\n");
+	}
+}
+
+void Host_Notarget_f()
+{
+	if (cmd_source == src_command)
+	{
+		Cmd_ForwardToServer();
+	}
+	else if (!gGlobalVariables.deathmatch && sv_cheats.value)
+	{
+		sv_player->v.flags ^= FL_NOTARGET;
+		if (sv_player->v.flags & FL_NOTARGET)
+			SV_ClientPrintf("notarget ON\n");
+		else
+			SV_ClientPrintf("notarget OFF\n");
+	}
+}
+
+int FindPassableSpace(edict_t* pEdict, vec_t* direction, float step)
+{
+	for (int i = 0; i < 100; i++)
+	{
+		VectorMA(pEdict->v.origin, step, direction, pEdict->v.origin);
+
+		if (!SV_TestEntityPosition(pEdict))
 		{
-			Cbuf_AddText(const_cast<char*>("save quick\n"));
-			Cbuf_Execute();
-			Q_strcat(g_pPostRestartCmdLineArgs, const_cast<char*>(" +load quick"));
-		}
-	}
-	else if (cls.state == ca_active && cls.trueaddress[0] && g_pPostRestartCmdLineArgs)
-	{
-		Q_strcat(g_pPostRestartCmdLineArgs, const_cast<char*>(" +connect "));
-		Q_strcat(g_pPostRestartCmdLineArgs, cls.servername);
-	}
-}
-
-//-----------------------------------------------------------------------------
-// Purpose: Change to hardware renderer
-//-----------------------------------------------------------------------------
-void Host_SetRenderer_f(void)
-{
-	bool fullscreen = true;
-	int mode = 0;
-
-	if (cls.state == ca_dedicated)
-		return;
-
-	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
-	{
-		return;
-	}
-
-	if (stricmp(Cmd_Argv(1), "software"))
-	{
-		mode = 1;
-		if (stricmp(Cmd_Argv(1), "gl"))
-		{
-			mode = 2 - stricmp(Cmd_Argv(5), "d3d");
-		}
-	}
-
-	if (Cmd_Argc() == 3 && !stricmp(Cmd_Argv(2), "windowed"))
-	{
-		fullscreen = false;
-	}
-
-	VideoMode_SwitchMode(mode, fullscreen);
-}
-
-void Host_SetVideoMode_f(void)
-{
-	int w, h, bpp = 16;
-
-	if (cls.state == ca_dedicated)
-		return;
-
-	if (Cmd_Argc() != 3 &&
-		Cmd_Argc() != 4)
-	{
-		return;
-	}
-
-	w = Q_atoi(Cmd_Argv(1));
-	h = Q_atoi(Cmd_Argv(2));
-	if (Cmd_Argc() == 4)
-	{
-		bpp = Q_atoi(Cmd_Argv(3));
-	}
-
-	VideoMode_SetVideoMode(w, h, bpp);
-}
-
-void Host_SetGameDir_f()
-{
-	char* psz;
-	
-	if (Cmd_Argc() < 1 || !g_pPostRestartCmdLineArgs)
-		return;
-
-	psz = (char*)Cmd_Argv(1);
-
-	if (!psz[0] || psz[0] == '/' || strstr(psz, ":") || strstr(psz, "..") || strstr(psz, "\\"))
-		return Con_Printf(const_cast<char*>("Couldn't set gamedir to %s (contains illegal characters)\n"), psz);
-
-	strcpy(&g_pPostRestartCmdLineArgs[strlen(g_pPostRestartCmdLineArgs)], " -game ");
-	strcat(g_pPostRestartCmdLineArgs, Cmd_Argv(1));
-}
-
-void Host_ClearGameState(void)
-{
-	S_StopAllSounds(TRUE);
-	Host_ClearSaveDirectory();
-	if (gEntityInterface.pfnResetGlobalState)
-		gEntityInterface.pfnResetGlobalState();
-}
-
-SAVERESTOREDATA* LoadSaveData(const char* level)
-{
-	char name[MAX_PATH];
-	char* pszTokenList;
-	FILE* pFile;
-	int i;
-	int size;
-	int tokenCount;
-	int tokenSize;
-	int tableCount;
-	int chunkSize;
-	SAVERESTOREDATA* pSaveData;
-
-	_snprintf(name, sizeof(name), "%s%s.HL1", Host_SaveGameDirectory(), level);
-	COM_FixSlashes(name);
-	Con_Printf(const_cast<char*>("Loading game from %s...\n"), name);
-	pFile = (FILE*)FS_OpenPathID(name, "rb", "GAMECONFIG");
-	if (!pFile)
-	{
-		Con_Printf(const_cast<char*>("ERROR: couldn't open.\n"));
-		return NULL;
-	}
-	FS_Read(&i, sizeof(int), 1, pFile);
-	if (i != SAVEFILE_HEADER)
-	{
-		FS_Close(pFile);
-		return NULL;
-	}
-	FS_Read(&i, sizeof(int), 1, pFile);
-	if (i != SAVEGAME_VERSION)
-	{
-		FS_Close(pFile);
-		return NULL;
-	}
-
-	FS_Read(&size, sizeof(int), 1, pFile);
-	FS_Read(&tableCount, sizeof(int), 1, pFile);
-	FS_Read(&tokenCount, sizeof(int), 1, pFile);
-	FS_Read(&tokenSize, sizeof(int), 1, pFile);
-
-	chunkSize = size + tokenSize + sizeof(ENTITYTABLE) * tableCount;
-
-	if (size < 0 || tokenCount < 0 || tokenSize < 0 || 0x7FFFFFFF - size < tokenSize || 0x7FFFFFFF - (size + tokenSize) < sizeof(ENTITYTABLE) * tableCount || chunkSize < sizeof(SAVERESTOREDATA) || 
-		(pSaveData = (SAVERESTOREDATA*)Mem_Calloc(chunkSize + sizeof(SAVERESTOREDATA), 1)) == NULL)
-	{
-		FS_Close(pFile);
-		return NULL;
-	}
-
-//	pSaveData = (SAVERESTOREDATA*)Mem_Calloc(size + tokenSize + sizeof(ENTITYTABLE) * tableCount + sizeof(SAVERESTOREDATA), 1u);
-	pSaveData->tableCount = tableCount;
-	pSaveData->tokenCount = tokenCount;
-	pSaveData->tokenSize = tokenSize;
-	Q_strncpy(pSaveData->szCurrentMapName, level, sizeof(pSaveData->szCurrentMapName) - 1);
-	pSaveData->szCurrentMapName[sizeof(pSaveData->szCurrentMapName) - 1] = 0;
-
-	pszTokenList = (char*)(pSaveData + 1);
-	if (tokenSize > 0)
-	{
-		FS_Read(pszTokenList, tokenSize, 1, pFile);
-		if (!pSaveData->pTokens)
-		{
-			pSaveData->pTokens = (char**)Mem_Calloc(tokenCount, sizeof(char*));
-		}
-		for (i = 0; i < tokenCount; i++)
-		{
-			if (*pszTokenList)
-				pSaveData->pTokens[i] = pszTokenList;
-			else
-				pSaveData->pTokens[i] = NULL;
-			while (*pszTokenList++);
+			VectorCopy(pEdict->v.origin, pEdict->v.oldorigin);
+			return true;
 		}
 	}
 
-	pSaveData->pTable = (ENTITYTABLE*)pszTokenList;
-	pSaveData->connectionCount = 0;
-	pSaveData->size = 0;
-
-	pSaveData->pBaseData = pszTokenList;
-	pSaveData->pCurrentData = pszTokenList;
-
-	pSaveData->fUseLandmark = 1;
-	pSaveData->bufferSize = size;
-	pSaveData->time = 0.0f;
-	pSaveData->vecLandmarkOffset[0] = 0.0f;
-	pSaveData->vecLandmarkOffset[1] = 0.0f;
-	pSaveData->vecLandmarkOffset[2] = 0.0f;
-	gGlobalVariables.pSaveData = pSaveData;
-
-	FS_Read(pSaveData->pBaseData, size, 1, pFile);
-	FS_Close(pFile);
-
-	return pSaveData;
+	return false;
 }
 
-void ParseSaveTables(SAVERESTOREDATA* pSaveData, SAVE_HEADER* pHeader, int updateGlobals)
+void Host_Noclip_f()
+{
+	vec3_t vforward, right, up;
+
+	if (cmd_source == src_command)
+		return Cmd_ForwardToServer();
+
+	if (gGlobalVariables.deathmatch || !sv_cheats.value)
+		return;
+
+	if (sv_player->v.movetype != MOVETYPE_NOCLIP)
+	{
+		sv_player->v.movetype = MOVETYPE_NOCLIP;
+		noclip_anglehack = true;
+		return SV_ClientPrintf("noclip ON\n");
+	}
+
+	sv_player->v.movetype = MOVETYPE_WALK;
+	noclip_anglehack = false;
+	VectorCopy(sv_player->v.origin, sv_player->v.oldorigin);
+	SV_ClientPrintf("noclip OFF\n");
+
+	if (SV_TestEntityPosition(sv_player))
+	{
+		AngleVectors(sv_player->v.v_angle, vforward, right, up);
+
+		if (!FindPassableSpace(sv_player, vforward, 1.0)
+			&& !FindPassableSpace(sv_player, right, 1.0)
+			&& !FindPassableSpace(sv_player, right, -1.0)
+			&& !FindPassableSpace(sv_player, up, 1.0)
+			&& !FindPassableSpace(sv_player, up, -1.0)
+			&& !FindPassableSpace(sv_player, vforward, -1.0))
+		{
+			Con_DPrintf(const_cast<char*>("Can't find the world\n"));
+		}
+
+		VectorCopy(sv_player->v.oldorigin, sv_player->v.origin);
+	}
+}
+
+void Host_Fly_f()
+{
+	if (cmd_source == src_command)
+	{
+		Cmd_ForwardToServer();
+	}
+	else if (!gGlobalVariables.deathmatch)
+	{
+		if (sv_player->v.movetype == MOVETYPE_FLY)
+		{
+			sv_player->v.movetype = MOVETYPE_WALK;
+			SV_ClientPrintf("flymode OFF\n");
+		}
+		else
+		{
+			sv_player->v.movetype = MOVETYPE_FLY;
+			SV_ClientPrintf("flymode ON\n");
+		}
+	}
+}
+
+void Host_Ping_f(void)
 {
 	int i;
-	SAVELIGHTSTYLE light;
-	for (i = 0; i < pSaveData->tableCount; i++)
+	client_t* client;
+
+	if (cmd_source == src_command)
 	{
-		gEntityInterface.pfnSaveReadFields(pSaveData, "ETABLE", &(pSaveData->pTable[i]), gEntityTableDescription, ARRAYSIZE(gEntityTableDescription));
-		pSaveData->pTable[i].pent = NULL;
-	}
-
-	pSaveData->size = 0;
-	pSaveData->pBaseData = pSaveData->pCurrentData;
-	gEntityInterface.pfnSaveReadFields(pSaveData, "Save Header", pHeader, gSaveHeaderDescription, ARRAYSIZE(gSaveHeaderDescription));
-	pSaveData->connectionCount = pHeader->connectionCount;
-	pSaveData->fUseLandmark = 1;
-	pSaveData->time = pHeader->time;
-	pSaveData->vecLandmarkOffset[0] = 0;
-	pSaveData->vecLandmarkOffset[1] = 0;
-	pSaveData->vecLandmarkOffset[2] = 0;
-
-	for (i = 0; i < pSaveData->connectionCount; i++)
-	{
-		gEntityInterface.pfnSaveReadFields(pSaveData, "ADJACENCY", &(pSaveData->levelList[i]), gAdjacencyDescription, ARRAYSIZE(gAdjacencyDescription));
-	}
-	for (i = 0; i < pHeader->lightStyleCount; i++)
-	{
-		gEntityInterface.pfnSaveReadFields(pSaveData, "LIGHTSTYLE", &light, gLightstyleDescription, ARRAYSIZE(gLightstyleDescription));
-		if (updateGlobals)
-		{
-			char* val = (char*)Hunk_Alloc(Q_strlen(light.style) + 1);
-			Q_strncpy(val, light.style, ARRAYSIZE(val) - 1);
-			val[ARRAYSIZE(val) - 1] = '\0';
-			sv.lightstyles[light.index] = val;
-		}
-	}
-}
-
-void EntityPatchWrite(SAVERESTOREDATA* pSaveData, const char* level)
-{
-	char name[MAX_PATH];
-	FILE* pFile;
-	int i;
-	int size = 0;
-
-	_snprintf(name, sizeof(name), "%s%s.HL3", Host_SaveGameDirectory(), level);
-	COM_FixSlashes(name);
-	pFile = (FILE*)FS_OpenPathID(name, "wb", "GAMECONFIG");
-	if (!pFile)
+		Cmd_ForwardToServer();
 		return;
-
-	for (i = 0; i < pSaveData->tableCount; i++)
-	{
-		if (pSaveData->pTable[i].flags & FENTTABLE_REMOVED)
-			size++;
 	}
-	FS_Write(&size, sizeof(int), 1, pFile);
-	for (i = 0; i < pSaveData->tableCount; i++)
+	SV_ClientPrintf("Client ping times:\n");
+
+	client = svs.clients;
+	for (i = 0; i < svs.maxclients; i++, client++)
 	{
-		if (pSaveData->pTable[i].flags & FENTTABLE_REMOVED)
-			FS_Write(&i, sizeof(int), 1, pFile);
+		if (client->active)
+			SV_ClientPrintf("%4i %s\n", SV_CalcPing(client), client->name);
 	}
-	FS_Close(pFile);
-}
-
-void EntityPatchRead(SAVERESTOREDATA* pSaveData, const char* level)
-{
-	char name[MAX_PATH];
-	FILE* pFile;
-	int i;
-	int size;
-	int entityId;
-
-	_snprintf(name, sizeof(name), "%s%s.HL3", Host_SaveGameDirectory(), level);
-	COM_FixSlashes(name);
-	pFile = (FILE*)FS_OpenPathID(name, "rb", "GAMECONFIG");
-	if (!pFile)
-		return;
-
-	FS_Read(&size, 4, 1, pFile);
-	for (i = 0; i < size; i++)
-	{
-		FS_Read(&entityId, 4, 1, pFile);
-		pSaveData->pTable[entityId].flags = FENTTABLE_REMOVED;
-	}
-}
-
-void EntityInit(edict_t* pEdict, int className)
-{
-	ENTITYINIT pEntityInit;
-	if (!className)
-		Sys_Error("Bad class!!\n");
-
-	ReleaseEntityDLLFields(pEdict);
-	InitEntityDLLFields(pEdict);
-	pEdict->v.classname = className;
-	pEntityInit = GetEntityInit(&pr_strings[className]);
-	if (pEntityInit)
-		pEntityInit(&pEdict->v);
-}
-
-void SaveExit(SAVERESTOREDATA* save)
-{
-	if (save->pTokens)
-	{
-		Mem_Free(save->pTokens);
-		save->pTokens = NULL;
-		save->tokenCount = 0;
-	}
-	Mem_Free(save);
-	gGlobalVariables.pSaveData = NULL;
-}
-
-int LoadGamestate(char* level, int createPlayers)
-{
-	int i;
-	edict_t* pent;
-	SAVE_HEADER header;
-	SAVERESTOREDATA* pSaveData;
-	ENTITYTABLE* pEntInfo;
-
-	pSaveData = LoadSaveData(level);
-	if (!pSaveData)
-		return 0;
-
-	ParseSaveTables(pSaveData, &header, 1);
-	EntityPatchRead(pSaveData, level);
-
-	Q_strncpy(sv.name, header.mapName, sizeof(sv.name) - 1);
-	sv.name[sizeof(sv.name) - 1] = 0;
-
-	Cvar_Set(const_cast<char*>("sv_skyname"), header.skyName);
-	Cvar_SetValue(const_cast<char*>("skill"), header.skillLevel);
-	Cvar_SetValue(const_cast<char*>("sv_skycolor_r"), header.skyColor_r);
-	Cvar_SetValue(const_cast<char*>("sv_skycolor_g"), header.skyColor_g);
-	Cvar_SetValue(const_cast<char*>("sv_skycolor_b"), header.skyColor_b);
-	Cvar_SetValue(const_cast<char*>("sv_skyvec_x"), header.skyVec_x);
-	Cvar_SetValue(const_cast<char*>("sv_skyvec_y"), header.skyVec_y);
-	Cvar_SetValue(const_cast<char*>("sv_skyvec_z"), header.skyVec_z);
-
-	for (i = 0; i < pSaveData->tableCount; i++)
-	{
-		pent = NULL;
-		pEntInfo = &pSaveData->pTable[i];
-		if (pEntInfo->classname && pEntInfo->size && !(pEntInfo->flags & FENTTABLE_REMOVED))
-		{
-			if (pEntInfo->id)
-			{
-				if (pEntInfo->id > svs.maxclients)
-					pEntInfo->pent = CreateNamedEntity(pEntInfo->classname);
-				else
-				{
-					if (!(pEntInfo->flags & FENTTABLE_PLAYER))
-						Sys_Error("ENTITY IS NOT A PLAYER: %d\n", i);
-
-					pent = svs.clients[pEntInfo->id - 1].edict;
-					if (createPlayers && pent)
-						EntityInit(pent, pEntInfo->classname);
-					else
-						pent = NULL;
-				}
-			}
-			else
-			{
-				pent = sv.edicts;
-				EntityInit(pent, pEntInfo->classname);
-			}
-		}
-		pEntInfo->pent = pent;
-	}
-	for (i = 0; i < pSaveData->tableCount; i++)
-	{
-		pEntInfo = &pSaveData->pTable[i];
-		pent = pEntInfo->pent;
-
-		pSaveData->size = pEntInfo->location;
-		pSaveData->pCurrentData = &pSaveData->pBaseData[pEntInfo->location];
-
-		if (pent)
-		{
-			if (gEntityInterface.pfnRestore(pent, pSaveData, 0) < 0)
-			{
-				ED_Free(pent);
-				pEntInfo->pent = NULL;
-			}
-			else
-				SV_LinkEdict(pent, FALSE);
-		}
-	}
-	SaveExit(pSaveData);
-	sv.time = header.time;
-	return 1;
 }
 
 void Host_Map(qboolean bIsDemo, char* mapstring, char* mapName, qboolean loadGame)
 {
 	int i;
 	UserMsg* pMsg;
+
 	Host_ShutdownServer(FALSE);
 	key_dest = key_game;
 	SCR_BeginLoadingPlaque(FALSE);
+
 	if (!loadGame)
 	{
 		Host_ClearGameState();
 		SV_InactivateClients();
 		svs.serverflags = 0;
 	}
+	
 	Q_strncpy(cls.mapstring, mapstring, sizeof(cls.mapstring) - 1);
 	cls.mapstring[sizeof(cls.mapstring) - 1] = 0;
+	
 	if (SV_SpawnServer(bIsDemo, mapName, NULL))
 	{
 		ContinueLoadingProgressBar("Server", 7, 0.0);
+
 		if (loadGame)
 		{
 			if (!LoadGamestate(mapName, 1))
 				SV_LoadEntities();
+			
 			sv.paused = TRUE;
 			sv.loadgame = TRUE;
-			SV_ActivateServer(0);
+
+			SV_ActivateServer(FALSE);
 		}
 		else
 		{
 			SV_LoadEntities();
-			SV_ActivateServer(1);
+			SV_ActivateServer(TRUE);
+
 			if (!sv.active)
 				return;
 
 			if (cls.state != ca_dedicated)
 			{
 				Q_strcpy(cls.spawnparms, "");
+				
 				for (i = 0; i < Cmd_Argc(); i++)
-					strncat(cls.spawnparms, Cmd_Argv(i), sizeof(cls.spawnparms) - Q_strlen(cls.spawnparms) - 1);
+				{
+					int len = strlen(cls.spawnparms);
+					strncat(cls.spawnparms, Cmd_Argv(i), sizeof(cls.spawnparms) - len - 1);
+					strncat(cls.spawnparms, " ", sizeof(cls.spawnparms) - strlen(cls.spawnparms));
+				}
 			}
 		}
+
 		if (sv_gpNewUserMsgs)
 		{
 			pMsg = sv_gpUserMsgs;
 			if (pMsg)
 			{
-				while (pMsg->next)
-					pMsg = pMsg->next;
+				while (pMsg->next) pMsg = pMsg->next;
 				pMsg->next = sv_gpNewUserMsgs;
 			}
 			else
@@ -1055,6 +979,7 @@ void Host_Map(qboolean bIsDemo, char* mapstring, char* mapName, qboolean loadGam
 
 			sv_gpNewUserMsgs = NULL;
 		}
+
 		if (cls.state)
 			Cmd_ExecuteString(const_cast<char*>("connect local"), src_command);
 	}
@@ -1066,17 +991,20 @@ void Host_Map_f(void)
 	char mapstring[64];
 	char name[64];
 	CareerStateType careerState = g_careerState;
+
 	if (cmd_source != src_command)
 	{
 		g_careerState = CAREER_NONE;
 		return;
 	}
+	
 	if (Cmd_Argc() > 1 && Q_strlen(Cmd_Args()) > 54)
 	{
 		g_careerState = CAREER_NONE;
 		Con_Printf(const_cast<char*>("map change failed: command string is too long.\n"));
 		return;
 	}
+	
 	if (Cmd_Argc() < 2)
 	{
 		g_careerState = CAREER_NONE;
@@ -1084,9 +1012,6 @@ void Host_Map_f(void)
 		return;
 	}
 
-	extern void DbgPrint(FILE*, const char* format, ...);
-	extern FILE* m_fMessages;
-	DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 	CL_Disconnect();
 
 	// состо€ние career сохран€етс€ перед разрывом соединени€ и затем восстанавливаетс€
@@ -1098,12 +1023,15 @@ void Host_Map_f(void)
 
 	FS_LogLevelLoadStarted("Map_Common");
 	mapstring[0] = 0;
+
 	for (i = 0; i < Cmd_Argc(); i++)
 	{
 		strncat(mapstring, Cmd_Argv(i), 62 - Q_strlen(mapstring));
 		strncat(mapstring, " ", 62 - Q_strlen(mapstring));
 	}
+	
 	Q_strcat(mapstring, const_cast<char*>("\n"));
+	
 	Q_strncpy(name, Cmd_Argv(1), sizeof(name) - 1);
 	name[sizeof(name) - 1] = 0;
 
@@ -1136,13 +1064,17 @@ void Host_Map_f(void)
 	StartLoadingProgressBar("Server", 24);
 	SetLoadingProgressBarStatusText("#GameUI_StartingServer");
 	ContinueLoadingProgressBar("Server", 1, 0.0);
+
 	Cvar_Set(const_cast<char*>("HostMap"), name);
+	
 	Host_Map(FALSE, mapstring, name, FALSE);
+
 	if (COM_CheckParm(const_cast<char*>("-steam")) && PF_IsDedicatedServer())
 	{
 		g_bMajorMapChange = FALSE;
 		Sys_Printf("\n");
 	}
+	
 	ContinueLoadingProgressBar("Server", 11, 0.0);
 	NotifyDedicatedServerUI("UpdateMap");
 
@@ -1185,23 +1117,56 @@ void Host_Maps_f(void)
 	}
 }
 
-void Host_Restart_f(void)
+void Host_Changelevel_f(void)
 {
-	char name[MAX_PATH];
-	if (cls.demoplayback || !sv.active || cmd_source != src_command)
+	char _level[64];
+	char _startspot[64];
+
+	char* level = NULL;
+	char* startspot = NULL;
+
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf(const_cast<char*>("changelevel <levelname> : continue game on a new level\n"));
 		return;
-	if (cls.state)
-		cls.state = ca_disconnected;
+	}
 
-	Host_ClearGameState();
+	if (!sv.active || cls.demoplayback)
+	{
+		Con_Printf(const_cast<char*>("Only the server may changelevel\n"));
+		return;
+	}
+	
+	level = (char*)Cmd_Argv(1);
+	
+	if (!PF_IsMapValid_I(level))
+	{
+		Con_Printf(const_cast<char*>("changelevel failed: '%s' not found on server.\n"), level);
+		return;
+	}
+
+	Q_strncpy(_level, level, sizeof(level) - 1);
+	_level[sizeof(level) - 1] = 0;
+
+	if (Cmd_Argc() != 2)
+	{
+		startspot = &_startspot[0];
+		Q_strncpy(_startspot, Cmd_Argv(2), 63);
+		_startspot[63] = 0;
+	}
+	else
+		_startspot[0] = 0;
+
+	SCR_BeginLoadingPlaque(FALSE);
+
+	S_StopAllSounds(true);
+	
 	SV_InactivateClients();
-	Q_strncpy(name, sv.name, sizeof(name) - 1);
-	name[sizeof(name) - 1] = 0;
-
 	SV_ServerShutdown();
-	SV_SpawnServer(FALSE, name, NULL);
+	SV_SpawnServer(FALSE, _level, startspot);
 	SV_LoadEntities();
-	SV_ActivateServer(1);
+
+	SV_ActivateServer(TRUE);
 }
 
 const char* Host_FindRecentSave(char* pNameBuf)
@@ -1237,212 +1202,107 @@ const char* Host_FindRecentSave(char* pNameBuf)
 	return found != 0 ? pNameBuf : NULL;
 }
 
-SAVERESTOREDATA* SaveInit(int size)
+void Host_Restart_f(void)
 {
-	int i;
-	edict_t* pEdict;
-	SAVERESTOREDATA* pSaveData;
+	char name[MAX_PATH];
 
-	if (size <= 0)
-		size = 0x80000;
-
-	pSaveData = (SAVERESTOREDATA*)Mem_Calloc(sizeof(SAVERESTOREDATA) + (sizeof(ENTITYTABLE) * sv.num_edicts) + size, sizeof(char));
-	pSaveData->pTable = (ENTITYTABLE*)(pSaveData + 1);
-	pSaveData->tokenSize = 0;
-	pSaveData->tokenCount = 0xFFF;
-	pSaveData->pTokens = (char**)Mem_Calloc(0xFFF, sizeof(char*));
-
-	for (i = 0; i < sv.num_edicts; i++)
-	{
-		pEdict = &sv.edicts[i];
-
-		pSaveData->pTable[i].id = i;
-		pSaveData->pTable[i].pent = pEdict;
-		pSaveData->pTable[i].flags = 0;
-		pSaveData->pTable[i].location = 0;
-		pSaveData->pTable[i].size = 0;
-		pSaveData->pTable[i].classname = 0;
-	}
-
-	pSaveData->tableCount = sv.num_edicts;
-	pSaveData->connectionCount = 0;
-	pSaveData->size = 0;
-	pSaveData->bufferSize = size;
-	pSaveData->fUseLandmark = 0;
-
-	pSaveData->pBaseData = (char*)(pSaveData->pTable + sv.num_edicts);
-	pSaveData->pCurrentData = (char*)(pSaveData->pTable + sv.num_edicts);
-
-	gGlobalVariables.pSaveData = pSaveData;
-	pSaveData->time = gGlobalVariables.time;
-
-	VectorCopy(vec3_origin, pSaveData->vecLandmarkOffset);
-
-	return pSaveData;
-}
-
-void CL_Save(const char* name)
-{
-	FileHandle_t file;
-	DECALLIST decalList[MAX_DECALS];
-	int decalCount;
-	int temp;
-
-	decalCount = DecalListCreate(decalList);
-	file = FS_OpenPathID(name, "wb", "GAMECONFIG");
-
-	if (!file)
+	if (cls.demoplayback || !sv.active || cmd_source != src_command)
 		return;
 
-	temp = SAVEFILE_HEADER;
-	FS_Write(&temp, sizeof(temp), 1, file);
-	temp = SAVEGAME_VERSION;
-	FS_Write(&temp, sizeof(temp), 1, file);
-	FS_Write(&decalCount, sizeof(decalCount), 1, file);
+	if (cls.state != ca_dedicated)
+		cls.state = ca_disconnected;
 
-	for (int i = 0; i < decalCount; i++)
-	{
-		// указатель name в структуре ссылаетс€ на им€ кэшированной текстуры, состо€щей из 16 байт
-		FS_Write(decalList[i].name, offsetof(texture_t, width) -  offsetof(texture_t, name), 1, file);
-		FS_Write(&decalList[i].entityIndex, sizeof(decalList[i].entityIndex), 1, file);
-		FS_Write(&decalList[i].depth, sizeof(decalList[i].depth), 1, file);
-		FS_Write(&decalList[i].flags, sizeof(decalList[i].flags), 1, file);
-		FS_Write(decalList[i].position, sizeof(decalList[i].position), 1, file);
-	}
+	Host_ClearGameState();
+	SV_InactivateClients();
 
-	FS_Close(file);
+	Q_strncpy(name, sv.name, sizeof(name) - 1);
+	name[sizeof(name) - 1] = 0;
+
+	SV_ServerShutdown();
+	SV_SpawnServer(FALSE, name, NULL);
+	SV_LoadEntities();
+	SV_ActivateServer(TRUE);
 }
 
-SAVERESTOREDATA* SaveGamestate(void)
+void Host_Reload_f(void)
 {
-	char name[256];
-	char* pTableData;
-	char* pTokenData;
-	FILE* pFile;
+	const char* pSaveName;
+	char name[MAX_PATH];
+
+	if (cls.demoplayback || !sv.active || cmd_source != src_command)
+		return;
+
+	Host_ClearGameState();
+	SV_InactivateClients();
+	SV_ServerShutdown();
+
+	pSaveName = Host_FindRecentSave(name);
+	if (!pSaveName || !Host_Load(pSaveName))
+	{
+		SV_SpawnServer(FALSE, gHostMap.string, NULL);
+		SV_LoadEntities();
+		SV_ActivateServer(TRUE);
+	}
+}
+
+void Host_Reconnect_f(void)
+{
+	char cmdString[128];
+
+	if (cls.state < ca_connected)
+		return;
+
+	if (cls.passive)
+	{
+		_snprintf(cmdString, sizeof(cmdString), "listen %s\n", NET_AdrToString(cls.connect_stream));
+		Cbuf_AddText(cmdString);
+		return;
+	}
+
+	SCR_BeginLoadingPlaque(FALSE);
+	cls.signon = 0;
+	cls.state = ca_connected;
+	sys_timescale.value = 1.0f;
+
+	Netchan_Clear(&cls.netchan);
+	SZ_Clear(&cls.netchan.message);
+	MSG_WriteChar(&cls.netchan.message, clc_stringcmd);
+	MSG_WriteString(&cls.netchan.message, "new");
+}
+
+char* Host_SaveGameDirectory()
+{
+	static char szDirectory[MAX_OSPATH];
+
+	Q_memset(szDirectory, 0, sizeof(szDirectory));
+	snprintf(szDirectory, sizeof(szDirectory), "SAVE/");
+	return szDirectory;
+}
+
+void Host_SavegameComment(char* pszBuffer, int iSizeBuffer)
+{
 	int i;
-	int dataSize;
-	int tableSize;
-	edict_t* pent;
-	SAVE_HEADER header;
-	SAVERESTOREDATA* pSaveData;
-	SAVELIGHTSTYLE light;
+	const char* pszName = NULL;
+	const char* pszMapName = (const char*)&pr_strings[gGlobalVariables.mapname];
 
-	if (!gEntityInterface.pfnParmsChangeLevel)
-		return NULL;
-
-	FS_CreateDirHierarchy(Host_SaveGameDirectory(), "GAMECONFIG");
-	pSaveData = SaveInit(0);
-	_snprintf(name, sizeof(name), "%s%s.HL1", Host_SaveGameDirectory(), sv.name);
-	COM_FixSlashes(name);
-	gEntityInterface.pfnParmsChangeLevel();
-	header.version = build_number();
-	header.skillLevel = (int)skill.value;
-	header.entityCount = pSaveData->tableCount;
-	header.time = sv.time;
-	header.connectionCount = pSaveData->connectionCount;
-	Q_strncpy(header.skyName, sv_skyname.string, sizeof(header.skyName) - 1);
-	header.skyName[sizeof(header.skyName) - 1] = 0;
-	pSaveData->time = 0.0f;
-
-	header.skyColor_r = (int)sv_skycolor_r.value;
-	header.skyColor_g = (int)sv_skycolor_g.value;
-	header.skyColor_b = (int)sv_skycolor_b.value;
-	header.skyVec_x = sv_skyvec_x.value;
-	header.skyVec_y = sv_skyvec_y.value;
-	header.skyVec_z = sv_skyvec_z.value;
-
-	Q_strncpy(header.mapName, sv.name, sizeof(header.mapName) - 1);
-	header.mapName[sizeof(header.mapName) - 1] = 0;
-
-	for (i = 0; i < MAX_LIGHTSTYLES; i++)
+	for (i = 0; i < ARRAYSIZE(gTitleComments) && !pszName; i++)
 	{
-		if (sv.lightstyles[i])
-			header.lightStyleCount++;
+		if (!Q_strncasecmp(pszMapName, gTitleComments[i].pBSPName, Q_strlen(gTitleComments[i].pBSPName)))
+			pszName = gTitleComments[i].pTitleName;
 	}
-	gEntityInterface.pfnSaveWriteFields(pSaveData, "Save Header", &header, gSaveHeaderDescription, ARRAYSIZE(gSaveHeaderDescription));
-	pSaveData->time = header.time;
-
-	for (i = 0; i < pSaveData->connectionCount; i++)
-		gEntityInterface.pfnSaveWriteFields(pSaveData, "ADJACENCY", &pSaveData->levelList[i], gAdjacencyDescription, ARRAYSIZE(gAdjacencyDescription));
-
-	for (i = 0; i < MAX_LIGHTSTYLES; i++)
+	
+	if (!pszName)
 	{
-		if (sv.lightstyles[i])
+		if (!pszMapName || !pszMapName[0])
 		{
-			light.index = i;
-			Q_strncpy(light.style, sv.lightstyles[i], sizeof(light.style) - 1);
-			light.style[sizeof(light.style) - 1] = 0;
-			gEntityInterface.pfnSaveWriteFields(pSaveData, "LIGHTSTYLE", &light, gLightstyleDescription, ARRAYSIZE(gLightstyleDescription));
+			pszName = pszMapName;
+			if (!Q_strlen(cl.levelname))
+				pszName = cl.levelname;
 		}
 	}
 
-	dataSize = pSaveData->size;
-	pTableData = pSaveData->pCurrentData;
-	tableSize = 0;
-
-	for (i = 0; i < sv.num_edicts; i++)
-	{
-		pent = &sv.edicts[i];
-		pSaveData->currentIndex = i;
-		pSaveData->pTable[i].location = pSaveData->size;
-		if (!pent->free)
-		{
-			gEntityInterface.pfnSave(pent, pSaveData);
-			if (SV_IsPlayerIndex(i))
-				pSaveData->pTable[i].flags |= FENTTABLE_PLAYER;
-		}
-	}
-	for (i = 0; i < sv.num_edicts; i++)
-		gEntityInterface.pfnSaveWriteFields(pSaveData, "ETABLE", &pSaveData->pTable[i], gEntityTableDescription, ARRAYSIZE(gEntityTableDescription));
-
-	pTokenData = NULL;
-	for (i = 0; i < pSaveData->tokenCount; i++)
-	{
-		if (pSaveData->pTokens[i])
-		{
-			pTokenData = pSaveData->pCurrentData;
-			do
-			{
-				*pTokenData++ = *pSaveData->pTokens[i]++;
-			} while (*pSaveData->pTokens[i]);
-			pSaveData->pCurrentData = pTokenData;
-		}
-		else
-		{
-			pTokenData = pSaveData->pCurrentData;
-			*pTokenData = 0;
-			pSaveData->pCurrentData = pTokenData + 1;
-		}
-	}
-	pSaveData->tokenSize = (int)(pSaveData->pCurrentData - pTokenData);
-
-	COM_CreatePath(name);
-	pFile = (FILE*)FS_OpenPathID(name, "wb", "GAMECONFIG");
-	if (!pFile)
-	{
-		Con_Printf(const_cast<char*>("Unable to open save game file %s."), name);
-		return NULL;
-	}
-
-	i = SAVEFILE_HEADER;
-	FS_Write(&i, sizeof(int), 1, pFile);
-	i = SAVEGAME_VERSION;
-	FS_Write(&i, sizeof(int), 1, pFile);
-	FS_Write(&pSaveData->size, sizeof(int), 1, pFile);
-	FS_Write(&pSaveData->tableCount, sizeof(int), 1, pFile);
-	FS_Write(&pSaveData->tokenCount, sizeof(int), 1, pFile);
-	FS_Write(&pSaveData->tokenSize, sizeof(int), 1, pFile);
-	FS_Write(pSaveData->pCurrentData, pSaveData->tokenSize, 1, pFile);
-	FS_Write(pTableData, tableSize, 1, pFile);
-	FS_Write(pSaveData->pBaseData, dataSize, 1, pFile);
-	FS_Close(pFile);
-	EntityPatchWrite(pSaveData, sv.name);
-
-	_snprintf(name, sizeof(name), "%s%s.HL2", Host_SaveGameDirectory(), sv.name);
-	COM_FixSlashes(name);
-	CL_Save(name);
-
-	return pSaveData;
+	Q_strncpy(pszBuffer, pszName, iSizeBuffer - 1);
+	pszBuffer[iSizeBuffer - 1] = 0;
 }
 
 void Host_SaveAgeList(const char* pName, int count)
@@ -1469,89 +1329,101 @@ void Host_SaveAgeList(const char* pName, int count)
 	}
 }
 
-int FileSize(FileHandle_t pFile)
+int Host_ValidSave(void)
 {
-	if (!pFile)
+	if (cmd_source != src_command)
 		return 0;
-	return FS_Size(pFile);
-}
 
-void FileCopy(FileHandle_t pOutput, FileHandle_t pInput, int fileSize)
-{
-	char buf[1024];
-	int size;
-	while (fileSize > 0)
+	if (!sv.active)
 	{
-		if (fileSize > sizeof(buf))
-			size = sizeof(buf);
-		else
-			size = fileSize;
-
-		FS_Read(buf, size, 1, pInput);
-		FS_Write(buf, size, 1, pOutput);
-		fileSize -= size;
+		Con_Printf(const_cast<char*>("Not playing a local game.\n"));
+		return 0;
 	}
-}
 
-void DirectoryCopy(const char* pPath, FileHandle_t pFile)
-{
-	const char* findfn;
-	char basefindfn[MAX_PATH];
-	int fileSize;
-	FILE* pCopy;
-	char szName[MAX_PATH];
-
-	findfn = Sys_FindFirst(pPath, basefindfn);
-	while (findfn != NULL)
+	if (svs.maxclients != 1)
 	{
-		_snprintf(szName, sizeof(szName), "%s%s", Host_SaveGameDirectory(), findfn);
-		COM_FixSlashes(szName);
-		pCopy = (FILE*)FS_OpenPathID(szName, "rb", "GAMECONFIG");
-		fileSize = FS_Size(pCopy);
-		FS_Write(findfn, MAX_PATH, 1, pFile);
-		FS_Write(&fileSize, sizeof(int), 1, pFile);
-		FileCopy(pFile, pCopy, fileSize);
-		FS_Close(pCopy);
-		findfn = Sys_FindNext(basefindfn);
+		Con_Printf(const_cast<char*>("Can't save multiplayer games.\n"));
+		return 0;
 	}
-	Sys_FindClose();
+
+	if (cls.state != ca_active || cls.signon != SIGNONS)
+	{
+		Con_Printf(const_cast<char*>("Can't save during transition.\n"));
+		return 0;
+	}
+
+	if (cl.intermission)
+	{
+		Con_Printf(const_cast<char*>("Can't save in intermission.\n"));
+		return 0;
+	}
+
+	if (svs.clients->active && svs.clients->edict->v.health <= 0.0)
+	{
+		Con_Printf(const_cast<char*>("Can't savegame with a dead player\n"));
+		return 0;
+	}
+
+	return 1;
 }
 
-void DirectoryExtract(FileHandle_t pFile, int fileCount)
+SAVERESTOREDATA* SaveInit(int size)
 {
 	int i;
-	int fileSize;
-	FILE* pCopy;
-	char szName[MAX_PATH];
-	char fileName[MAX_PATH];
+	edict_t* pEdict;
+	SAVERESTOREDATA* pSaveData;
 
-	for (i = 0; i < fileCount; i++)
+	if (size <= 0)
+		size = 0x80000;
+
+	pSaveData = (SAVERESTOREDATA*)Mem_Calloc(sizeof(SAVERESTOREDATA) + (sizeof(ENTITYTABLE) * sv.num_edicts) + size, sizeof(char));
+	pSaveData->pTable = (ENTITYTABLE*)(pSaveData + 1);
+	pSaveData->tokenSize = 0;
+	pSaveData->tokenCount = 0xFFF;
+	pSaveData->pTokens = (char**)Mem_Calloc(pSaveData->tokenCount, sizeof(char*));
+
+	for (i = 0; i < sv.num_edicts; i++)
 	{
-		FS_Read(fileName, sizeof(fileName), 1, pFile);
-		FS_Read(&fileSize, sizeof(int), 1, pFile);
-		_snprintf(szName, sizeof(szName), "%s%s", Host_SaveGameDirectory(), fileName);
-		COM_FixSlashes(szName);
-		pCopy = (FILE*)FS_OpenPathID(szName, "wb", "GAMECONFIG");
-		FileCopy(pCopy, pFile, fileCount);
-		FS_Close(pCopy);
+		pEdict = &sv.edicts[i];
+
+		pSaveData->pTable[i].id = i;
+		pSaveData->pTable[i].pent = pEdict;
+		pSaveData->pTable[i].flags = 0;
+		pSaveData->pTable[i].location = 0;
+		pSaveData->pTable[i].size = 0;
+		pSaveData->pTable[i].classname = 0;
 	}
+
+	pSaveData->tableCount = sv.num_edicts;
+
+	pSaveData->connectionCount = 0;
+	pSaveData->size = 0;
+	pSaveData->time = gGlobalVariables.time;
+
+	pSaveData->bufferSize = size;
+	pSaveData->fUseLandmark = FALSE;
+
+	pSaveData->pBaseData = (char*)(pSaveData->pTable + sv.num_edicts);
+	pSaveData->pCurrentData = (char*)(pSaveData->pTable + sv.num_edicts);
+
+	VectorCopy(vec3_origin, pSaveData->vecLandmarkOffset);
+
+	gGlobalVariables.pSaveData = pSaveData;
+
+	return pSaveData;
 }
 
-int DirectoryCount(const char* pPath)
+void SaveExit(SAVERESTOREDATA* save)
 {
-	int count;
-	const char* findfn;
-
-	count = 0;
-	findfn = Sys_FindFirstPathID(pPath, const_cast<char*>("GAMECONFIG"));
-
-	while (findfn != NULL)
+	if (save->pTokens != NULL)
 	{
-		findfn = Sys_FindNext(NULL);
-		count++;
+		Mem_Free(save->pTokens);
+		save->pTokens = NULL;
+		save->tokenCount = 0;
 	}
-	Sys_FindClose();
-	return count;
+
+	Mem_Free(save);
+	gGlobalVariables.pSaveData = NULL;
 }
 
 qboolean SaveGameSlot(const char* pSaveName, const char* pSaveComment)
@@ -1566,62 +1438,76 @@ qboolean SaveGameSlot(const char* pSaveName, const char* pSaveComment)
 	GAME_HEADER gameHeader;
 
 	FS_CreateDirHierarchy(Host_SaveGameDirectory(), "GAMECONFIG");
+
 	pSaveData = SaveGamestate();
+	
 	if (!pSaveData)
 		return FALSE;
 
 	SaveExit(pSaveData);
+
 	pSaveData = SaveInit(0);
 
 	_snprintf(hlPath, sizeof(hlPath), "%s*.HL?", Host_SaveGameDirectory());
+
 	COM_FixSlashes(hlPath);
 	gameHeader.mapCount = DirectoryCount(hlPath);
-	Q_strncpy(gameHeader.mapName, sv.name, 31);
-	gameHeader.mapName[31] = 0;
-	Q_strncpy(gameHeader.comment, pSaveComment, 79);
-	gameHeader.comment[79] = 0;
+	
+	Q_strncpy(gameHeader.mapName, sv.name, sizeof(gameHeader.mapName) - 1);
+	gameHeader.mapName[sizeof(gameHeader.mapName) - 1] = 0;
+	
+	Q_strncpy(gameHeader.comment, pSaveComment, sizeof(gameHeader.comment) - 1);
+	gameHeader.comment[sizeof(gameHeader.comment) - 1] = 0;
 
 	gEntityInterface.pfnSaveWriteFields(pSaveData, "GameHeader", &gameHeader, gGameHeaderDescription, ARRAYSIZE(gGameHeaderDescription));
 	gEntityInterface.pfnSaveGlobalState(pSaveData);
 
-	pTokenData = NULL;
-	for (i = 0; i < pSaveData->tokenCount; i++)
+	pTokenData = pSaveData->pCurrentData;
+
+	if (pSaveData->pTokens != NULL)
 	{
-		if (pSaveData->pTokens[i])
+		for (i = 0; i < pSaveData->tokenCount; i++)
 		{
-			pSaveData->size += Q_strlen(pSaveData->pTokens[i]) + 1;
-			if (pSaveData->size > pSaveData->bufferSize)
+			char* pszToken = pSaveData->pTokens[i];
+
+			if (pSaveData->pTokens[i])
 			{
-				Con_Printf(const_cast<char*>("Token Table Save/Restore overflow!"));
-				pSaveData->size = pSaveData->bufferSize;
-				break;
+				pSaveData->size += Q_strlen(pSaveData->pTokens[i]) + 1;
+
+				if (pSaveData->size > pSaveData->bufferSize)
+				{
+					Con_Printf(const_cast<char*>("Token Table Save/Restore overflow!"));
+					pSaveData->size = pSaveData->bufferSize;
+					break;
+				}
+
+				do
+				{
+					*pSaveData->pCurrentData++ = *pszToken;
+				} while (*pszToken++);
 			}
-			pTokenData = pSaveData->pCurrentData;
-			do
+			else
 			{
-				*pTokenData++ = *pSaveData->pTokens[i]++;
-			} while (*pSaveData->pTokens[i]);
-			pSaveData->pCurrentData = pTokenData;
-		}
-		else
-		{
-			if (pSaveData->size + 1 > pSaveData->bufferSize)
-			{
-				Con_Printf(const_cast<char*>("Token Table Save/Restore overflow!"));
-				pSaveData->size = pSaveData->bufferSize;
-				break;
+				pSaveData->size += 1;
+
+				if (pSaveData->size > pSaveData->bufferSize)
+				{
+					Con_Printf(const_cast<char*>("Token Table Save/Restore overflow!"));
+					pSaveData->size = pSaveData->bufferSize;
+					break;
+				}
+
+				*pSaveData->pCurrentData++ = '\0';
 			}
-			pTokenData = pSaveData->pCurrentData;
-			*pTokenData = 0;
-			pSaveData->pCurrentData = pTokenData + 1;
 		}
 	}
-	pSaveData->tokenSize = (int)(pSaveData->pCurrentData - pTokenData);
+
+	pSaveData->tokenSize = pSaveData->pCurrentData - pTokenData;
 
 	if (pSaveData->size < pSaveData->bufferSize)
 		pSaveData->size -= pSaveData->tokenSize;
 
-	_snprintf(name, 252, "%s%s", Host_SaveGameDirectory(), pSaveName);
+	_snprintf(name, sizeof(name) - 4, "%s%s", Host_SaveGameDirectory(), pSaveName);
 	COM_DefaultExtension(name, const_cast<char*>(".sav"));
 	COM_FixSlashes(name);
 	Con_DPrintf(const_cast<char*>("Saving game to %s...\n"), name);
@@ -1635,16 +1521,75 @@ qboolean SaveGameSlot(const char* pSaveName, const char* pSaveComment)
 	FS_Write(&tag, sizeof(int), 1, pFile);
 	tag = SAVEGAME_VERSION;
 	FS_Write(&tag, sizeof(int), 1, pFile);
+	
 	FS_Write(&pSaveData->size, sizeof(int), 1, pFile);
 	FS_Write(&pSaveData->tokenCount, sizeof(int), 1, pFile);
 	FS_Write(&pSaveData->tokenSize, sizeof(int), 1, pFile);
-	FS_Write(pSaveData->pCurrentData, pSaveData->tokenSize, 1, pFile);
+	FS_Write(pTokenData, pSaveData->tokenSize, 1, pFile);
 	FS_Write(pSaveData->pBaseData, pSaveData->size, 1, pFile);
+
 	DirectoryCopy(hlPath, pFile);
 	FS_Close(pFile);
 	SaveExit(pSaveData);
 
 	return TRUE;
+}
+
+void Host_Savegame_f(void)
+{
+	char szComment[80];
+	char szTemp[80];
+
+	if (!Host_ValidSave())
+		return;
+
+	if (Cmd_Argc() != 2)
+	{
+		Con_DPrintf(const_cast<char*>("save <savename> : save a game\n"));
+		return;
+	}
+
+	char* name = Cmd_Argv(1);
+
+	if (name[0] == '/' || Q_strstr(name, ":") || Q_strstr(name, "..") || Q_strstr(name, "\\"))
+	{
+		Con_Printf("Couldn't open %s (contains illegal characters).\n", name);
+		return;
+	}
+	
+	COM_DefaultExtension(name, const_cast<char*>(".sav"));
+
+	char* ext = COM_LastFileExtension(name);
+
+	if (ext != NULL && !Q_stricmp(ext, "sav"))
+	{
+		g_pSaveGameCommentFunc(szTemp, 80);
+
+		_snprintf(szComment, sizeof(szComment) - 1, "%-64.64s %02d:%02d", szTemp, (int)(sv.time / 60.0), (int)fmod(sv.time, 60.0));
+		szComment[sizeof(szComment) - 1] = 0;
+
+		SaveGameSlot(name, szComment);
+
+		CL_HudMessage("GAMESAVED");
+	}
+	else
+	{
+		Con_Printf(const_cast<char*>("Couldn't open %s (wrong file extension, must be .sav)\n"), name);
+	}
+}
+
+void Host_AutoSave_f(void)
+{
+	char szComment[80];
+	char szTemp[80];
+
+	if (Host_ValidSave())
+	{
+		g_pSaveGameCommentFunc(szTemp, 80);
+		_snprintf(szComment, sizeof(szComment) - 1, "%-64.64s %02d:%02d", szTemp, (int)(sv.time / 60.0), (int)fmod(sv.time, 60.0));
+		szComment[sizeof(szComment) - 1] = 0;
+		SaveGameSlot("autosave", szComment);
+	}
 }
 
 qboolean SaveGame(const char* pszSlot, const char* pszComment)
@@ -1675,17 +1620,40 @@ int SaveReadHeader(FileHandle_t pFile, GAME_HEADER* pHeader, int readGlobalState
 		FS_Close(pFile);
 		return 0;
 	}
+
 	FS_Read(&tag, sizeof(int), 1, pFile);
 	if (tag != SAVEGAME_VERSION)
 	{
 		FS_Close(pFile);
 		return 0;
 	}
+
 	FS_Read(&size, sizeof(int), 1, pFile);
 	FS_Read(&tokenCount, sizeof(int), 1, pFile);
 	FS_Read(&tokenSize, sizeof(int), 1, pFile);
 
+	if (size < 0 || tokenCount < 0 || tokenSize < 0)
+	{
+		FS_Close(pFile);
+		return 0;
+	}
+
+	int len = tokenSize + size;
+
+	if (0x7FFFFFFF < len || (unsigned int)(0x7FFFFFFF - len) < sizeof(SAVERESTOREDATA))
+	{
+		FS_Close(pFile);
+		return 0;
+	}
+
 	pSaveData = (SAVERESTOREDATA*)Mem_Calloc(sizeof(SAVERESTOREDATA) + tokenSize + size, sizeof(char));
+
+	if (pSaveData == NULL)
+	{
+		FS_Close(pFile);
+		return 0;
+	}
+
 	pSaveData->tableCount = 0;
 	pSaveData->pTable = NULL;
 	pSaveData->connectionCount = 0;
@@ -1707,9 +1675,11 @@ int SaveReadHeader(FileHandle_t pFile, GAME_HEADER* pHeader, int readGlobalState
 				pSaveData->pTokens[i] = pszTokenList;
 			else
 				pSaveData->pTokens[i] = NULL;
-			while (*pszTokenList++);
+			
+			pszTokenList += strlen(pszTokenList) + 1;
 		}
 	}
+
 	pSaveData->size = 0;
 	pSaveData->bufferSize = size;
 	pSaveData->fUseLandmark = 0;
@@ -1719,11 +1689,51 @@ int SaveReadHeader(FileHandle_t pFile, GAME_HEADER* pHeader, int readGlobalState
 	pSaveData->pBaseData = pszTokenList;
 
 	FS_Read(pSaveData->pBaseData, size, 1, pFile);
+
 	gEntityInterface.pfnSaveReadFields(pSaveData, "GameHeader", pHeader, gGameHeaderDescription, ARRAYSIZE(gGameHeaderDescription));
+	
 	if (readGlobalState)
 		gEntityInterface.pfnRestoreGlobalState(pSaveData);
+	
 	SaveExit(pSaveData);
+
 	return 1;
+}
+
+void SaveReadComment(FileHandle_t f, char* name)
+{
+	GAME_HEADER gameHeader;
+
+	if (!SaveReadHeader(f, &gameHeader, FALSE))
+		return;
+
+	Q_strcpy(name, gameHeader.comment);
+}
+
+void Host_Loadgame_f(void)
+{
+	if (cmd_source != src_command)
+		return;
+
+	if (Cmd_Argc() != 2)
+	{
+		Con_Printf(const_cast<char*>("load <savename> : load a game\n"));
+		return;
+	}
+	if (!Host_Load(Cmd_Argv(1)))
+		Con_Printf(const_cast<char*>("Error loading saved game\n"));
+}
+
+int LoadGame(const char* pName)
+{
+	int iRet;
+	qboolean q;
+
+	q = scr_skipupdate;
+	scr_skipupdate = TRUE;
+	iRet = Host_Load(pName);
+	scr_skipupdate = q;
+	return iRet;
 }
 
 int Host_Load(const char* pName)
@@ -1732,6 +1742,7 @@ int Host_Load(const char* pName)
 	GAME_HEADER gameHeader;
 	char name[256];
 	int nSlot;
+	char szNumber[5]{};
 
 	if (!pName || !pName[0])
 		return 0;
@@ -1742,30 +1753,55 @@ int Host_Load(const char* pName)
 		return 0;
 	}
 
-	if (*pName == '_' && COM_TokenWaiting((char*)&pName[1]))
+	if (pName[0] == '_')
 	{
-		nSlot = Q_atoi(pName);
+		char* pTempNumber = (char*)(pName + 1);
+		char c = 0;
+
+		while (*pTempNumber && c < sizeof(szNumber))
+		{
+			if (!isdigit(*pTempNumber))
+				break;
+
+			szNumber[c++] = *pTempNumber++;
+		}
+		szNumber[c] = 0;
+
+		nSlot = Q_atoi(szNumber);
 		if (nSlot < 1 || nSlot > 12)
 			return 0;
 
-		_snprintf(name, 252, "%sHalf-Life-%i", Host_SaveGameDirectory(), nSlot);
+		_snprintf(name, sizeof(name) - 4, "%sHalf-Life-%i", Host_SaveGameDirectory(), nSlot);
 	}
 	else
-		_snprintf(name, 252, "%s%s", Host_SaveGameDirectory(), pName);
-	name[251] = 0;
+		_snprintf(name, sizeof(name) - 4, "%s%s", Host_SaveGameDirectory(), pName);
+
+	name[sizeof(name) - 5] = 0;
 
 	if (!svs.dll_initialized)
 		Host_InitializeGameDLL();
 
 	COM_DefaultExtension(name, const_cast<char*>(".sav"));
+
+	char* ext = COM_LastFileExtension(name);
+	if (!ext)
+		return 0;
+
+	if (Q_stricmp(ext, "sav"))
+		return 0;
+
 	COM_FixSlashes(name);
-	name[255] = 0;
+	name[sizeof(name) - 1] = 0;
 
 	Con_Printf(const_cast<char*>("Loading game from %s...\n"), name);
+	
 	pFile = (FILE*)FS_OpenPathID(name, "rb", "GAMECONFIG");
+	
 	if (!pFile)
 		return 0;
+	
 	Host_ClearGameState();
+
 	if (!SaveReadHeader(pFile, &gameHeader, 1))
 	{
 		giStateInfo = 1;
@@ -1774,8 +1810,10 @@ int Host_Load(const char* pName)
 	}
 
 	cls.demonum = -1;
+	
 	SV_InactivateClients();
 	SCR_BeginLoadingPlaque(FALSE);
+	
 	DirectoryExtract(pFile, gameHeader.mapCount);
 	FS_Close(pFile);
 
@@ -1791,90 +1829,522 @@ int Host_Load(const char* pName)
 	}
 
 	_snprintf(name, sizeof(name), "map %s\n", gameHeader.mapName);
-	extern void DbgPrint(FILE*, const char* format, ...);
-	extern FILE* m_fMessages;
-	DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
+	
 	CL_Disconnect();
 	Host_Map(FALSE, name, gameHeader.mapName, TRUE);
+
 	return 1;
 }
 
-int LoadGame(const char* pName)
+SAVERESTOREDATA* SaveGamestate(void)
 {
-	int iRet;
-	qboolean q;
+	char name[256];
+	char* pTableData;
+	char* pTokenData;
+	FILE* pFile;
+	int i;
+	int dataSize;
+	int tableSize;
+	edict_t* pent;
+	SAVE_HEADER header;
+	SAVERESTOREDATA* pSaveData;
+	SAVELIGHTSTYLE light;
 
-	q = scr_skipupdate;
-	scr_skipupdate = TRUE;
-	iRet = Host_Load(pName);
-	scr_skipupdate = q;
-	return iRet;
+	if (!gEntityInterface.pfnParmsChangeLevel)
+		return NULL;
+
+	FS_CreateDirHierarchy(Host_SaveGameDirectory(), "GAMECONFIG");
+
+	pSaveData = SaveInit(0);
+	
+	_snprintf(name, sizeof(name), "%s%s.HL1", Host_SaveGameDirectory(), sv.name);
+	COM_FixSlashes(name);
+	
+	gEntityInterface.pfnParmsChangeLevel();
+	
+	header.version = build_number();
+	header.skillLevel = (int)skill.value;
+	header.entityCount = pSaveData->tableCount;
+	header.time = sv.time;
+	header.connectionCount = pSaveData->connectionCount;
+	
+	Q_strncpy(header.skyName, sv_skyname.string, sizeof(header.skyName) - 1);
+	header.skyName[sizeof(header.skyName) - 1] = 0;
+	
+	pSaveData->time = 0.0f;
+
+	header.skyColor_r = (int)sv_skycolor_r.value;
+	header.skyColor_g = (int)sv_skycolor_g.value;
+	header.skyColor_b = (int)sv_skycolor_b.value;
+	header.skyVec_x = sv_skyvec_x.value;
+	header.skyVec_y = sv_skyvec_y.value;
+	header.skyVec_z = sv_skyvec_z.value;
+
+	Q_strncpy(header.mapName, sv.name, sizeof(header.mapName) - 1);
+	header.mapName[sizeof(header.mapName) - 1] = 0;
+
+	for (i = 0; i < MAX_LIGHTSTYLES; i++)
+	{
+		if (sv.lightstyles[i])
+			header.lightStyleCount++;
+	}
+
+	gEntityInterface.pfnSaveWriteFields(pSaveData, "Save Header", &header, gSaveHeaderDescription, ARRAYSIZE(gSaveHeaderDescription));
+	pSaveData->time = header.time;
+
+	for (i = 0; i < pSaveData->connectionCount; i++)
+		gEntityInterface.pfnSaveWriteFields(pSaveData, "ADJACENCY", &pSaveData->levelList[i], gAdjacencyDescription, ARRAYSIZE(gAdjacencyDescription));
+
+	for (i = 0; i < MAX_LIGHTSTYLES; i++)
+	{
+		if (sv.lightstyles[i])
+		{
+			light.index = i;
+			Q_strncpy(light.style, sv.lightstyles[i], sizeof(light.style) - 1);
+			light.style[sizeof(light.style) - 1] = 0;
+			gEntityInterface.pfnSaveWriteFields(pSaveData, "LIGHTSTYLE", &light, gLightstyleDescription, ARRAYSIZE(gLightstyleDescription));
+		}
+	}
+
+	for (i = 0; i < sv.num_edicts; i++)
+	{
+		pent = &sv.edicts[i];
+		
+		pSaveData->currentIndex = i;
+		pSaveData->pTable[i].location = pSaveData->size;
+		pSaveData->pTable[i].size = 0;
+
+		if (!pent->free)
+		{
+			gEntityInterface.pfnSave(pent, pSaveData);
+
+			if (SV_IsPlayerIndex(i))
+				pSaveData->pTable[i].flags |= FENTTABLE_PLAYER;
+		}
+	}
+
+	dataSize = pSaveData->size;
+	pTableData = pSaveData->pCurrentData;
+
+	for (i = 0; i < sv.num_edicts; i++)
+		gEntityInterface.pfnSaveWriteFields(pSaveData, "ETABLE", &pSaveData->pTable[i], gEntityTableDescription, ARRAYSIZE(gEntityTableDescription));
+
+	tableSize = pSaveData->size - dataSize;
+	pTokenData = pSaveData->pCurrentData;
+
+	if (pSaveData->pTokens)
+	{
+		for (i = 0; i < pSaveData->tokenCount; i++)
+		{
+			char* pszToken = pSaveData->pTokens[i];
+
+			if (pszToken)
+			{
+				do
+				{
+					*pSaveData->pCurrentData++ = *pszToken;
+				} while (*pszToken++);
+			}
+			else
+			{
+				*pSaveData->pCurrentData++ = '\0';
+			}
+		}
+	}
+	pSaveData->tokenSize = pSaveData->pCurrentData - pTokenData;
+
+	COM_CreatePath(name);
+	pFile = (FILE*)FS_OpenPathID(name, "wb", "GAMECONFIG");
+	if (!pFile)
+	{
+		Con_Printf(const_cast<char*>("Unable to open save game file %s."), name);
+		return NULL;
+	}
+
+	i = SAVEFILE_HEADER;
+	FS_Write(&i, sizeof(int), 1, pFile);
+	i = SAVEGAME_VERSION;
+	FS_Write(&i, sizeof(int), 1, pFile);
+	FS_Write(&pSaveData->size, sizeof(int), 1, pFile);
+	FS_Write(&pSaveData->tableCount, sizeof(int), 1, pFile);
+	FS_Write(&pSaveData->tokenCount, sizeof(int), 1, pFile);
+	FS_Write(&pSaveData->tokenSize, sizeof(int), 1, pFile);
+	FS_Write(pTokenData, pSaveData->tokenSize, 1, pFile);
+	FS_Write(pTableData, tableSize, 1, pFile);
+	FS_Write(pSaveData->pBaseData, dataSize, 1, pFile);
+	FS_Close(pFile);
+
+	EntityPatchWrite(pSaveData, sv.name);
+
+	_snprintf(name, sizeof(name), "%s%s.HL2", Host_SaveGameDirectory(), sv.name);
+	COM_FixSlashes(name);
+	CL_Save(name);
+
+	return pSaveData;
 }
 
-void Host_Reload_f(void)
+void CL_Save(const char* name)
 {
-	const char* pSaveName;
+	FileHandle_t file;
+	DECALLIST decalList[MAX_DECALS];
+	int decalCount;
+	int temp;
+
+	decalCount = DecalListCreate(decalList);
+	file = FS_OpenPathID(name, "wb", "GAMECONFIG");
+
+	if (!file)
+		return;
+
+	temp = SAVEFILE_HEADER;
+	FS_Write(&temp, sizeof(temp), 1, file);
+	temp = SAVEGAME_VERSION;
+	FS_Write(&temp, sizeof(temp), 1, file);
+	FS_Write(&decalCount, sizeof(decalCount), 1, file);
+
+	for (int i = 0; i < decalCount; i++)
+	{
+		// указатель name в структуре ссылаетс€ на им€ кэшированной текстуры, состо€щей из 16 байт
+		FS_Write(decalList[i].name, offsetof(decalname_t, ucFlags) - offsetof(decalname_t, name), 1, file);
+		FS_Write(&decalList[i].entityIndex, sizeof(decalList[i].entityIndex), 1, file);
+		FS_Write(&decalList[i].depth, sizeof(decalList[i].depth), 1, file);
+		FS_Write(&decalList[i].flags, sizeof(decalList[i].flags), 1, file);
+		FS_Write(decalList[i].position, sizeof(decalList[i].position), 1, file);
+	}
+
+	FS_Close(file);
+}
+
+void EntityInit(edict_t* pEdict, int className)
+{
+	ENTITYINIT pEntityInit;
+
+	if (!className)
+		Sys_Error("Bad class!!\n");
+
+	ReleaseEntityDLLFields(pEdict);
+	InitEntityDLLFields(pEdict);
+
+	pEdict->v.classname = className;
+	
+	pEntityInit = GetEntityInit(&pr_strings[className]);
+	
+	if (pEntityInit)
+		pEntityInit(&pEdict->v);
+}
+
+SAVERESTOREDATA* LoadSaveData(const char* level)
+{
 	char name[MAX_PATH];
-	if (cls.demoplayback || !sv.active || cmd_source != src_command)
-		return;
+	char* pszTokenList;
+	FILE* pFile;
+	int i;
+	int size;
+	int tokenCount;
+	int tokenSize;
+	int tableCount;
+	int chunkSize;
+	SAVERESTOREDATA* pSaveData;
 
-	Host_ClearGameState();
-	SV_InactivateClients();
-	SV_ServerShutdown();
+	_snprintf(name, sizeof(name), "%s%s.HL1", Host_SaveGameDirectory(), level);
 
-	pSaveName = Host_FindRecentSave(name);
-	if (!pSaveName || !Host_Load(pSaveName))
+	COM_FixSlashes(name);
+	
+	Con_Printf(const_cast<char*>("Loading game from %s...\n"), name);
+	
+	pFile = (FILE*)FS_OpenPathID(name, "rb", "GAMECONFIG");
+	
+	if (!pFile)
 	{
-		SV_SpawnServer(FALSE, gHostMap.string, NULL);
-		SV_LoadEntities();
-		SV_ActivateServer(1);
+		Con_Printf(const_cast<char*>("ERROR: couldn't open.\n"));
+		return NULL;
+	}
+	
+	FS_Read(&i, sizeof(int), 1, pFile);
+	if (i != SAVEFILE_HEADER)
+	{
+		FS_Close(pFile);
+		return NULL;
+	}
+	
+	FS_Read(&i, sizeof(int), 1, pFile);
+	if (i != SAVEGAME_VERSION)
+	{
+		FS_Close(pFile);
+		return NULL;
+	}
+
+	FS_Read(&size, sizeof(int), 1, pFile);
+	FS_Read(&tableCount, sizeof(int), 1, pFile);
+	FS_Read(&tokenCount, sizeof(int), 1, pFile);
+	FS_Read(&tokenSize, sizeof(int), 1, pFile);
+
+	if (size < 0 || tokenCount < 0 || tokenSize < 0)
+	{
+		FS_Close(pFile);
+		return NULL;
+	}
+
+	chunkSize = size + tokenSize + sizeof(ENTITYTABLE) * tableCount;
+
+	if (0x7FFFFFFF < tokenSize + size || 0x7FFFFFFF < chunkSize || chunkSize < sizeof(SAVERESTOREDATA))
+	{
+		FS_Close(pFile);
+		return NULL;
+	}
+
+	pSaveData = (SAVERESTOREDATA*)Mem_Calloc(chunkSize + sizeof(SAVERESTOREDATA), 1);
+
+	if (pSaveData == NULL)
+	{
+		FS_Close(pFile);
+		return NULL;
+	}
+
+	pSaveData->tableCount = tableCount;
+	pSaveData->tokenCount = tokenCount;
+	pSaveData->tokenSize = tokenSize;
+
+	Q_strncpy(pSaveData->szCurrentMapName, level, sizeof(pSaveData->szCurrentMapName) - 1);
+	pSaveData->szCurrentMapName[sizeof(pSaveData->szCurrentMapName) - 1] = 0;
+
+	pszTokenList = (char*)(pSaveData + 1);
+	if (tokenSize > 0)
+	{
+		FS_Read(pszTokenList, tokenSize, 1, pFile);
+		if (!pSaveData->pTokens)
+		{
+			pSaveData->pTokens = (char**)Mem_Calloc(tokenCount, sizeof(char*));
+		}
+		for (i = 0; i < tokenCount; i++)
+		{
+			if (*pszTokenList)
+				pSaveData->pTokens[i] = pszTokenList;
+			else
+				pSaveData->pTokens[i] = NULL;
+			
+			pszTokenList += strlen(pszTokenList) + 1;
+		}
+	}
+
+	pSaveData->pTable = (ENTITYTABLE*)pszTokenList;
+	pSaveData->connectionCount = 0;
+	pSaveData->size = 0;
+
+	pSaveData->pBaseData = pSaveData->pCurrentData = &pszTokenList[pSaveData->tableCount * sizeof(ENTITYTABLE)];
+
+	pSaveData->fUseLandmark = TRUE;
+	pSaveData->bufferSize = size;
+	pSaveData->time = 0.0f;
+	pSaveData->vecLandmarkOffset[0] = 0.0f;
+	pSaveData->vecLandmarkOffset[1] = 0.0f;
+	pSaveData->vecLandmarkOffset[2] = 0.0f;
+	gGlobalVariables.pSaveData = pSaveData;
+
+	FS_Read(pSaveData->pBaseData, size, 1, pFile);
+	FS_Close(pFile);
+
+	return pSaveData;
+}
+
+void ParseSaveTables(SAVERESTOREDATA* pSaveData, SAVE_HEADER* pHeader, int updateGlobals)
+{
+	int i;
+	SAVELIGHTSTYLE light;
+
+	for (i = 0; i < pSaveData->tableCount; i++)
+	{
+		gEntityInterface.pfnSaveReadFields(pSaveData, "ETABLE", &(pSaveData->pTable[i]), gEntityTableDescription, ARRAYSIZE(gEntityTableDescription));
+		pSaveData->pTable[i].pent = NULL;
+	}
+
+	pSaveData->size = 0;
+	pSaveData->pBaseData = pSaveData->pCurrentData;
+
+	gEntityInterface.pfnSaveReadFields(pSaveData, "Save Header", pHeader, gSaveHeaderDescription, ARRAYSIZE(gSaveHeaderDescription));
+	
+	pSaveData->connectionCount = pHeader->connectionCount;
+	pSaveData->fUseLandmark = TRUE;
+	pSaveData->time = pHeader->time;
+
+	pSaveData->vecLandmarkOffset[0] = 0;
+	pSaveData->vecLandmarkOffset[1] = 0;
+	pSaveData->vecLandmarkOffset[2] = 0;
+
+	for (i = 0; i < pSaveData->connectionCount; i++)
+	{
+		gEntityInterface.pfnSaveReadFields(pSaveData, "ADJACENCY", &(pSaveData->levelList[i]), gAdjacencyDescription, ARRAYSIZE(gAdjacencyDescription));
+	}
+
+	if (updateGlobals)
+		memset(sv.lightstyles, 0, sizeof(sv.lightstyles));
+
+	for (i = 0; i < pHeader->lightStyleCount; i++)
+	{
+		gEntityInterface.pfnSaveReadFields(pSaveData, "LIGHTSTYLE", &light, gLightstyleDescription, ARRAYSIZE(gLightstyleDescription));
+
+		if (updateGlobals)
+		{
+			// @SH_CODE: broken length determination, ARRAYSIZE of pointer is always 4...
+			// That's why WON is better
+			// MARK: possible memory leak
+			sv.lightstyles[light.index] = (char*)Hunk_Alloc(Q_strlen(light.style) + 1);
+			
+#if !defined(FEATURE_ORIGINAL_VALVE_BUGS)
+			const int maxlen = ARRAYSIZE(light.style) - 1;
+#else
+			const int maxlen = ARRAYSIZE(sv.lightstyles[light.index]) - 1;
+#endif
+
+			Q_strncpy(sv.lightstyles[light.index], light.style, maxlen);
+			sv.lightstyles[light.index][maxlen] = '\0';
+		}
 	}
 }
 
-void Host_Changelevel_f(void)
+void EntityPatchWrite(SAVERESTOREDATA* pSaveData, const char* level)
 {
-	char _level[64];
-	char _startspot[64];
+	char name[MAX_PATH];
+	FILE* pFile;
+	int i;
+	int size = 0;
 
-	char* level = NULL;
-	char* startspot = NULL;
-
-	if (Cmd_Argc() < 2)
-	{
-		Con_Printf(const_cast<char*>("changelevel <levelname> : continue game on a new level\n"));
+	_snprintf(name, sizeof(name), "%s%s.HL3", Host_SaveGameDirectory(), level);
+	COM_FixSlashes(name);
+	
+	pFile = (FILE*)FS_OpenPathID(name, "wb", "GAMECONFIG");
+	
+	if (!pFile)
 		return;
-	}
-	if (!sv.active || cls.demoplayback)
+
+	for (i = 0; i < pSaveData->tableCount; i++)
 	{
-		Con_Printf(const_cast<char*>("Only the server may changelevel\n"));
+		if (pSaveData->pTable[i].flags & FENTTABLE_REMOVED)
+			size++;
+	}
+	FS_Write(&size, sizeof(int), 1, pFile);
+	
+	for (i = 0; i < pSaveData->tableCount; i++)
+	{
+		if (pSaveData->pTable[i].flags & FENTTABLE_REMOVED)
+			FS_Write(&i, sizeof(int), 1, pFile);
+	}
+	
+	FS_Close(pFile);
+}
+
+void EntityPatchRead(SAVERESTOREDATA* pSaveData, const char* level)
+{
+	char name[MAX_PATH];
+	FILE* pFile;
+	int i;
+	int size;
+	int entityId;
+
+	_snprintf(name, sizeof(name), "%s%s.HL3", Host_SaveGameDirectory(), level);
+	COM_FixSlashes(name);
+	
+	pFile = (FILE*)FS_OpenPathID(name, "rb", "GAMECONFIG");
+	
+	if (!pFile)
 		return;
-	}
-	level = (char*)Cmd_Argv(1);
-	if (!PF_IsMapValid_I(level))
+
+	FS_Read(&size, 4, 1, pFile);
+	
+	for (i = 0; i < size; i++)
 	{
-		Con_Printf(const_cast<char*>("changelevel failed: '%s' not found on server.\n"), level);
-		return;
+		FS_Read(&entityId, 4, 1, pFile);
+		pSaveData->pTable[entityId].flags = FENTTABLE_REMOVED;
 	}
 
-	Q_strncpy(_level, level, sizeof(level) - 1);
-	_level[sizeof(level) - 1] = 0;
+	FS_Close(pFile);
+}
 
-	if (Cmd_Argc() != 2)
+int LoadGamestate(char* level, int createPlayers)
+{
+	int i;
+	edict_t* pent;
+	SAVE_HEADER header;
+	SAVERESTOREDATA* pSaveData;
+	ENTITYTABLE* table;
+
+	pSaveData = LoadSaveData(level);
+
+	if (!pSaveData)
+		return 0;
+
+	ParseSaveTables(pSaveData, &header, TRUE);
+
+	EntityPatchRead(pSaveData, level);
+
+	Q_strncpy(sv.name, header.mapName, sizeof(sv.name) - 1);
+	sv.name[sizeof(sv.name) - 1] = 0;
+
+	Cvar_Set(const_cast<char*>("sv_skyname"), header.skyName);
+	Cvar_SetValue(const_cast<char*>("skill"), header.skillLevel);
+	Cvar_SetValue(const_cast<char*>("sv_skycolor_r"), header.skyColor_r);
+	Cvar_SetValue(const_cast<char*>("sv_skycolor_g"), header.skyColor_g);
+	Cvar_SetValue(const_cast<char*>("sv_skycolor_b"), header.skyColor_b);
+	Cvar_SetValue(const_cast<char*>("sv_skyvec_x"), header.skyVec_x);
+	Cvar_SetValue(const_cast<char*>("sv_skyvec_y"), header.skyVec_y);
+	Cvar_SetValue(const_cast<char*>("sv_skyvec_z"), header.skyVec_z);
+
+	for (i = 0; i < pSaveData->tableCount; i++)
 	{
-		startspot = &_startspot[0];
-		Q_strncpy(_startspot, Cmd_Argv(2), 63);
-		_startspot[63] = 0;
-	}
-	else
-		_startspot[0] = 0;
+		pent = NULL;
+		table = &pSaveData->pTable[i];
+		if (table->classname && table->size && !(table->flags & FENTTABLE_REMOVED))
+		{
+			if (table->id)
+			{
+				if (table->id > svs.maxclients)
+					pent = CreateNamedEntity(table->classname);
+				else
+				{
+					if (!(table->flags & FENTTABLE_PLAYER))
+						Sys_Error("ENTITY IS NOT A PLAYER: %d\n", i);
 
-	SCR_BeginLoadingPlaque(FALSE);
-	S_StopAllSounds(1);
-	SV_InactivateClients();
-	SV_ServerShutdown();
-	SV_SpawnServer(FALSE, _level, startspot);
-	SV_LoadEntities();
-	SV_ActivateServer(1);
+					pent = svs.clients[table->id - 1].edict;
+					if (createPlayers && pent)
+						EntityInit(pent, table->classname);
+					else
+						pent = NULL;
+				}
+			}
+			else
+			{
+				pent = sv.edicts;
+				EntityInit(pent, table->classname);
+			}
+		}
+		table->pent = pent;
+	}
+
+	for (i = 0; i < pSaveData->tableCount; i++)
+	{
+		table = &pSaveData->pTable[i];
+		pent = table->pent;
+
+		pSaveData->size = table->location;
+		pSaveData->pCurrentData = &pSaveData->pBaseData[table->location];
+
+		if (pent)
+		{
+			if (gEntityInterface.pfnRestore(pent, pSaveData, FALSE) < 0)
+			{
+				ED_Free(pent);
+				table->pent = NULL;
+			}
+			else
+				SV_LinkEdict(pent, FALSE);
+		}
+	}
+
+	SaveExit(pSaveData);
+	
+	sv.time = header.time;
+	
+	return 1;
 }
 
 int EntryInTable(SAVERESTOREDATA* pSaveData, const char* pMapName, int index)
@@ -1895,9 +2365,7 @@ void LandmarkOrigin(SAVERESTOREDATA* pSaveData, vec_t* output, const char* pLand
 	{
 		if (!Q_strcmp(pSaveData->levelList[i].landmarkName, pLandmarkName))
 		{
-			output[0] = pSaveData->levelList[i].vecLandmarkOrigin[0];
-			output[1] = pSaveData->levelList[i].vecLandmarkOrigin[1];
-			output[2] = pSaveData->levelList[i].vecLandmarkOrigin[2];
+			VectorCopy(pSaveData->levelList[i].vecLandmarkOrigin, output);
 			return;
 		}
 	}
@@ -1907,16 +2375,20 @@ void LandmarkOrigin(SAVERESTOREDATA* pSaveData, vec_t* output, const char* pLand
 int EntityInSolid(edict_t* pent)
 {
 	vec3_t point;
+
 	if (pent->v.movetype == MOVETYPE_FOLLOW)
 	{
 		edict_t* pAimEnt = pent->v.aiment;
 		if (pAimEnt && pAimEnt->v.flags & FL_CLIENT)
 			return 0;
 	}
+
 	g_groupmask = pent->v.groupinfo;
+
 	point[0] = (pent->v.absmin[0] + pent->v.absmax[0]) * 0.5f;
 	point[1] = (pent->v.absmin[1] + pent->v.absmax[1]) * 0.5f;
 	point[2] = (pent->v.absmin[2] + pent->v.absmax[2]) * 0.5f;
+
 	return (SV_PointContents(point) == CONTENTS_SOLID);
 }
 
@@ -1926,77 +2398,80 @@ int CreateEntityList(SAVERESTOREDATA* pSaveData, int levelMask)
 	int movedCount = 0;
 	int active;
 	edict_t* pent;
-	ENTITYTABLE* pEntInfo;
-
-	if (pSaveData->tableCount < 1)
-		return 0;
+	ENTITYTABLE* table;
 
 	for (i = 0; i < pSaveData->tableCount; i++)
 	{
 		pent = NULL;
-		pEntInfo = &pSaveData->pTable[i];
-		if (pEntInfo->classname && pEntInfo->size && pEntInfo->id)
+		table = &pSaveData->pTable[i];
+
+		if (table->classname && table->size && table->id)
 		{
-			active = !!(pEntInfo->flags & levelMask);
-			if (SV_IsPlayerIndex(pEntInfo->id))
+			active = (table->flags & levelMask) != 0;
+
+			if (table->id < svs.maxclients + 1)
 			{
-				client_t* cl = &svs.clients[pEntInfo->id - 1];
-				if (active && cl)
+				client_t* cl = &svs.clients[table->id - 1];
+				if (active)
 				{
 					pent = cl->edict;
-					if (pent && !pent->free)
-					{
-						if (!(pEntInfo->flags & FENTTABLE_PLAYER))
-							Sys_Error("ENTITY IS NOT A PLAYER: %d\n", i);
 
-						if (cl->active)
-							EntityInit(pent, pEntInfo->classname);
-					}
+					if (!(table->flags & FENTTABLE_PLAYER))
+						Sys_Error("ENTITY IS NOT A PLAYER: %d\n", i);
+
+					if (cl->active && pent)
+						EntityInit(pent, table->classname);
+					else
+						pent = NULL;
 				}
 			}
 			else if (active)
-				pent = CreateNamedEntity(pEntInfo->classname);
+				pent = CreateNamedEntity(table->classname);
 		}
-		pEntInfo->pent = pent;
+
+		table->pent = pent;
 	}
+
 	for (i = 0; i < pSaveData->tableCount; i++)
 	{
-		pEntInfo = &pSaveData->pTable[i];
-		pent = pEntInfo->pent;
+		table = &pSaveData->pTable[i];
+		pent = table->pent;
 		pSaveData->currentIndex = i;
-		pSaveData->size = pEntInfo->location;
-		pSaveData->pCurrentData = &pSaveData->pBaseData[pEntInfo->location];
+		pSaveData->size = table->location;
+		pSaveData->pCurrentData = &pSaveData->pBaseData[table->location];
 
-		if (pent && (pEntInfo->flags & levelMask))
+		if (pent && (table->flags & levelMask))
 		{
-			if (pEntInfo->flags & FENTTABLE_GLOBAL)
+			if (table->flags & FENTTABLE_GLOBAL)
 			{
-				Con_DPrintf(const_cast<char*>("Merging changes for global: %s\n"), &pr_strings[pEntInfo->classname]);
-				gEntityInterface.pfnRestore(pent, pSaveData, 1);
+				Con_DPrintf(const_cast<char*>("Merging changes for global: %s\n"), &pr_strings[table->classname]);
+				gEntityInterface.pfnRestore(pent, pSaveData, TRUE);
 				ED_Free(pent);
 			}
 			else
 			{
-				Con_DPrintf(const_cast<char*>("Transferring %s (%d)\n"), &pr_strings[pEntInfo->classname], NUM_FOR_EDICT(pent));
-				if (gEntityInterface.pfnRestore(pent, pSaveData, 0) < 0)
+				Con_DPrintf(const_cast<char*>("Transferring %s (%d)\n"), &pr_strings[table->classname], NUM_FOR_EDICT(pent));
+				if (gEntityInterface.pfnRestore(pent, pSaveData, FALSE) < 0)
 					ED_Free(pent);
 				else
 				{
 					SV_LinkEdict(pent, FALSE);
-					if (!(pEntInfo->flags & FENTTABLE_PLAYER) && EntityInSolid(pent))
+
+					if (!(table->flags & FENTTABLE_PLAYER) && EntityInSolid(pent))
 					{
-						Con_DPrintf(const_cast<char*>("Suppressing %s\n"), &pr_strings[pEntInfo->classname]);
+						Con_DPrintf(const_cast<char*>("Suppressing %s\n"), &pr_strings[table->classname]);
 						ED_Free(pent);
 					}
 					else
 					{
 						movedCount++;
-						pEntInfo->flags = FENTTABLE_REMOVED;
+						table->flags = FENTTABLE_REMOVED;
 					}
 				}
 			}
 		}
 	}
+
 	return movedCount;
 }
 
@@ -2029,20 +2504,19 @@ void LoadAdjacentEntities(const char* pOldLevel, const char* pLandmarkName)
 			continue;
 
 		pSaveData = LoadSaveData(currentLevelData.levelList[i].mapName);
+
 		if (pSaveData)
 		{
-			ParseSaveTables(pSaveData, &header, 0);
+			ParseSaveTables(pSaveData, &header, FALSE);
 			EntityPatchRead(pSaveData, currentLevelData.levelList[i].mapName);
 			pSaveData->time = sv.time;
-			pSaveData->fUseLandmark = 1;
+			pSaveData->fUseLandmark = TRUE;
 			flags = 0;
 
 			LandmarkOrigin(&currentLevelData, landmarkOrigin, pLandmarkName);
 			LandmarkOrigin(pSaveData, pSaveData->vecLandmarkOffset, pLandmarkName);
 
-			pSaveData->vecLandmarkOffset[0] -= landmarkOrigin[0];
-			pSaveData->vecLandmarkOffset[1] -= landmarkOrigin[1];
-			pSaveData->vecLandmarkOffset[2] -= landmarkOrigin[2];
+			VectorSubtract(landmarkOrigin, pSaveData->vecLandmarkOffset, pSaveData->vecLandmarkOffset);
 
 			if (!Q_strcmp(currentLevelData.levelList[i].mapName, pOldLevel))
 				flags |= FENTTABLE_PLAYER;
@@ -2068,6 +2542,154 @@ void LoadAdjacentEntities(const char* pOldLevel, const char* pLandmarkName)
 	gGlobalVariables.pSaveData = NULL;
 }
 
+int FileSize(FileHandle_t pFile)
+{
+	if (!pFile)
+		return 0;
+
+	return FS_Size(pFile);
+}
+
+void FileCopy(FileHandle_t pOutput, FileHandle_t pInput, int fileSize)
+{
+	char buf[1024];
+	int size;
+
+	while (fileSize > 0)
+	{
+		if (fileSize > sizeof(buf))
+			size = sizeof(buf);
+		else
+			size = fileSize;
+
+		FS_Read(buf, size, 1, pInput);
+		FS_Write(buf, size, 1, pOutput);
+
+		fileSize -= size;
+	}
+}
+
+
+void DirectoryCopy(const char* pPath, FileHandle_t pFile)
+{
+	const char* findfn;
+	char basefindfn[MAX_PATH];
+	int fileSize;
+	FILE* pCopy;
+	char szName[MAX_PATH];
+
+	findfn = Sys_FindFirst(pPath, basefindfn);
+
+	while (findfn != NULL)
+	{
+		_snprintf(szName, sizeof(szName), "%s%s", Host_SaveGameDirectory(), findfn);
+		
+		COM_FixSlashes(szName);
+		
+		pCopy = (FILE*)FS_OpenPathID(szName, "rb", "GAMECONFIG");
+		
+		fileSize = FileSize(pCopy);
+		
+		FS_Write(findfn, MAX_PATH, 1, pFile);
+		FS_Write(&fileSize, sizeof(int), 1, pFile);
+		
+		FileCopy(pFile, pCopy, fileSize);
+		
+		FS_Close(pCopy);
+		
+		findfn = Sys_FindNext(basefindfn);
+	}
+
+	Sys_FindClose();
+}
+
+void DirectoryExtract(FileHandle_t pFile, int fileCount)
+{
+	int i;
+	int fileSize;
+	FILE* pCopy;
+	char szName[MAX_PATH];
+	char fileName[MAX_PATH];
+
+	for (i = 0; i < fileCount; i++)
+	{
+		FS_Read(fileName, sizeof(fileName), 1, pFile);
+		FS_Read(&fileSize, sizeof(int), 1, pFile);
+
+		char* ext = COM_LastFileExtension(fileName);
+		if (ext == NULL || Q_strstr(fileName, "\\") || Q_strstr(fileName, ":") || Q_strstr(fileName, "..") || Q_strstr(fileName, "~") || fileName[0] == '/' || ext[0] != 'H' || ext[1] != 'L')
+		{
+			FS_Seek(pFile, fileSize, FILESYSTEM_SEEK_CURRENT);
+			continue;
+		}
+
+		_snprintf(szName, sizeof(szName), "%s%s", Host_SaveGameDirectory(), fileName);
+		COM_FixSlashes(szName);
+
+		pCopy = (FILE*)FS_OpenPathID(szName, "wb", "GAMECONFIG");
+		
+		FileCopy(pCopy, pFile, fileSize);
+		
+		FS_Close(pCopy);
+	}
+}
+
+int DirectoryCount(const char* pPath)
+{
+	int count;
+	const char* findfn;
+
+	count = 0;
+	findfn = Sys_FindFirstPathID(pPath, const_cast<char*>("GAMECONFIG"));
+
+	while (findfn != NULL)
+	{
+		findfn = Sys_FindNext(NULL);
+		count++;
+	}
+	Sys_FindClose();
+
+	return count;
+}
+
+void Host_ClearSaveDirectory()
+{
+	char szName[MAX_PATH];
+	const char* pfn;
+
+	_snprintf(szName, sizeof(szName), "%s", Host_SaveGameDirectory());
+	strncat(szName, "*.HL?", sizeof(szName) - Q_strlen(szName) - 1);
+	COM_FixSlashes(szName);
+
+	if (Sys_FindFirstPathID(szName, const_cast<char*>("GAMECONFIG")) != NULL)
+	{
+		Sys_FindClose();
+
+		_snprintf(szName, sizeof(szName), "%s", Host_SaveGameDirectory());
+		COM_FixSlashes(szName);
+		FS_CreateDirHierarchy(szName, "GAMECONFIG");
+		
+		strncat(szName, "*.HL?", sizeof(szName) - Q_strlen(szName) - 1);
+
+		for (pfn = Sys_FindFirstPathID(szName, const_cast<char*>("GAMECONFIG")); pfn; pfn = Sys_FindNext(NULL))
+		{
+			_snprintf(szName, sizeof(szName), "%s%s", Host_SaveGameDirectory(), pfn);
+			FS_RemoveFile(szName, const_cast<char*>("GAMECONFIG"));
+		}
+	}
+
+	Sys_FindClose();
+}
+
+void Host_ClearGameState(void)
+{
+	S_StopAllSounds(TRUE);
+	Host_ClearSaveDirectory();
+
+	if (gEntityInterface.pfnResetGlobalState)
+		gEntityInterface.pfnResetGlobalState();
+}
+
 void Host_Changelevel2_f(void)
 {
 	char level[64];
@@ -2085,11 +2707,13 @@ void Host_Changelevel2_f(void)
 		Con_Printf(const_cast<char*>("changelevel2 <levelname> : continue game on a new level in the unit\n"));
 		return;
 	}
+
 	if (!sv.active || cls.demoplayback || sv.paused)
 	{
 		Con_Printf(const_cast<char*>("Only the server may changelevel\n"));
 		return;
 	}
+	
 	if (svs.maxclients > 1)
 	{
 		Con_Printf(const_cast<char*>("changelevel2 <levelname> : not for use with multiplayer games\n"));
@@ -2143,34 +2767,90 @@ void Host_Changelevel2_f(void)
 	SV_ActivateServer(0);
 }
 
-void Host_Reconnect_f(void)
-{
-	char cmdString[128];
-	if (cls.state < ca_connected)
-		return;
-
-	if (cls.passive)
-	{
-		_snprintf(cmdString, sizeof(cmdString), "listen %s\n", NET_AdrToString(cls.connect_stream));
-		Cbuf_AddText(cmdString);
-		return;
-	}
-
-	SCR_BeginLoadingPlaque(FALSE);
-	cls.signon = 0;
-	cls.state = ca_connected;
-	sys_timescale.value = 1.0f;
-
-	Netchan_Clear(&cls.netchan);
-	SZ_Clear(&cls.netchan.message);
-	MSG_WriteChar(&cls.netchan.message, clc_stringcmd);
-	MSG_WriteString(&cls.netchan.message, "new");
-}
-
 void Host_Version_f(void)
 {
 	Con_Printf(const_cast<char*>("Protocol version %i\nExe version %s (%s)\n"), PROTOCOL_VERSION, gpszVersionString, gpszProductString);
 	Con_Printf(const_cast<char*>("Exe build: " __TIME__ " " __DATE__ " (%i)\n"), build_number());
+}
+
+void Host_FullInfo_f(void)
+{
+	if (Cmd_Argc() != 2)
+	{
+		Con_Printf(const_cast<char*>("fullinfo <complete info string>\n"));
+		return;
+	}
+
+	char key[512];
+	char value[512];
+	char* o;
+	char* s;
+
+	s = (char*)Cmd_Argv(1);
+
+	if (*s == '\\')
+		s++;
+
+	while (*s)
+	{
+		o = key;
+		while (*s && *s != '\\')
+			*o++ = *s++;
+		*o = 0;
+
+		if (!*s)
+		{
+			Con_Printf(const_cast<char*>("MISSING VALUE\n"));
+			return;
+		}
+
+		o = value;
+		s++;
+		while (*s && *s != '\\')
+			*o++ = *s++;
+		*o = 0;
+		if (*s)
+			s++;
+
+		if (cmd_source == src_command)
+		{
+			Info_SetValueForKey(cls.userinfo, key, value, MAX_INFO_STRING);
+			Cmd_ForwardToServer();
+			return;
+		}
+		Info_SetValueForKey(host_client->userinfo, key, value, MAX_INFO_STRING);
+		host_client->sendinfo = TRUE;
+	}
+}
+
+void Host_KillVoice_f(void)
+{
+	Voice_Deinit();
+}
+
+void Host_SetInfo_f(void)
+{
+	if (Cmd_Argc() == 1)
+	{
+		Info_Print(cls.userinfo);
+		return;
+	}
+
+	if (Cmd_Argc() != 3)
+	{
+		Con_Printf(const_cast<char*>("usage: setinfo [ <key> <value> ]\n"));
+		return;
+	}
+
+	if (cmd_source == src_command)
+	{
+		Info_SetValueForKey(cls.userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
+		Cmd_ForwardToServer();
+		return;
+	}
+
+	Info_SetValueForKey(host_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
+	host_client->sendinfo = TRUE;
 }
 
 void Host_Say(qboolean teamonly)
@@ -2281,13 +2961,15 @@ void Host_Tell_f(void)
 	if (Q_strlen(p) > (unsigned int)j)
 		p[j] = 0;
 
-	tellmsg = strstr(p, Cmd_Argv(1));
+	tellmsg = Q_strstr(p, Cmd_Argv(1));
+
 	if (tellmsg != NULL)
 		Q_strcat(text, &tellmsg[Q_strlen(Cmd_Argv(1))]);
 	else
 		Q_strcat(text, p);
 
 	Q_strcat(text, const_cast<char*>("\n"));
+
 	save = host_client;
 
 	for (j = 0, client = svs.clients; j < svs.maxclients; j++, client++)
@@ -2305,6 +2987,7 @@ void Host_Tell_f(void)
 		PF_MessageEnd_I();
 		break;
 	}
+
 	host_client = save;
 }
 
@@ -2321,8 +3004,16 @@ void Host_Kill_f(void)
 		SV_ClientPrintf("Can't suicide -- already dead!\n");
 		return;
 	}
-	gGlobalVariables.time = sv.time;
-	gEntityInterface.pfnClientKill(sv_player);
+
+	if (host_client->active && host_client->connected && host_client->spawned)
+	{
+		gGlobalVariables.time = sv.time;
+		gEntityInterface.pfnClientKill(sv_player);
+	}
+	else
+	{
+		SV_ClientPrintf("Can't kill yourself -- you're not connected!\n");
+	}
 }
 
 void Host_TogglePause_f(void)
@@ -2332,12 +3023,15 @@ void Host_TogglePause_f(void)
 		Cmd_ForwardToServer();
 		return;
 	}
+
 	if (!pausable.value)
 	{
 		SV_ClientPrintf("Pause not allowed.\n");
 		return;
 	}
+	
 	sv.paused ^= TRUE;
+	
 	if (sv.paused)
 		SV_BroadcastPrintf("%s paused the game\n", &pr_strings[sv_player->v.netname]);
 	else
@@ -2352,11 +3046,13 @@ void Host_Pause_f(void)
 	// pause only singleplayer when console or main menu opens
 	if (!cl.levelname[0])
 		return;
+
 	if (cmd_source == src_command)
 	{
 		Cmd_ForwardToServer();
 		return;
 	}
+	
 	if (!pausable.value)
 		return;
 
@@ -2371,11 +3067,13 @@ void Host_Unpause_f(void)
 	// unpause only singleplayer when console or main menu opens
 	if (!cl.levelname[0])
 		return;
+
 	if (cmd_source == src_command)
 	{
 		Cmd_ForwardToServer();
 		return;
 	}
+	
 	if (!pausable.value)
 		return;
 
@@ -2385,200 +3083,310 @@ void Host_Unpause_f(void)
 	MSG_WriteByte(&sv.reliable_datagram, sv.paused);
 }
 
+edict_t* FindViewthing(void)
+{
+	int		i;
+	edict_t* e;
+
+	for (i = 0; i < sv.num_edicts; i++)
+	{
+		e = EDICT_NUM(i);
+		if (!strcmp(pr_strings + e->v.classname, "viewthing"))
+			return e;
+	}
+
+	Con_Printf(const_cast<char*>("No viewthing on map\n"));
+
+	return NULL;
+}
+
+/*
+==================
+Host_Viewmodel_f
+==================
+*/
+void Host_Viewmodel_f(void)
+{
+	edict_t* e;
+	model_t* m;
+	e = FindViewthing();
+
+	if (!e)
+		return;
+
+	m = Mod_ForName(Cmd_Argv(1), false, false);
+
+	if (!m)
+	{
+		Con_Printf(const_cast<char*>("Can't load %s\n"), Cmd_Argv(1));
+		return;
+	}
+
+	e->v.frame = 0;
+	cl.model_precache[e->v.modelindex] = m;
+}
+
+/*
+==================
+Host_Viewframe_f
+==================
+*/
+void Host_Viewframe_f(void)
+{
+	edict_t* e;
+	int		f;
+	model_t* m;
+
+	e = FindViewthing();
+
+	if (!e)
+		return;
+
+	m = CL_GetModelByIndex(e->v.modelindex);
+
+	f = atoi(Cmd_Argv(1));
+
+	if (f >= m->numframes)
+		f = m->numframes - 1;
+
+	e->v.frame = f;
+}
+
+void PrintFrameName(model_t* m, int frame)
+{
+	aliashdr_t* hdr;
+	maliasframedesc_t* pframedesc;
+
+	hdr = (aliashdr_t*)Mod_Extradata(m);
+
+	if (!hdr)
+		return;
+
+	pframedesc = &hdr->frames[frame];
+
+	Con_Printf(const_cast<char*>("frame %i: %s\n"), frame, pframedesc->name);
+}
+
+/*
+==================
+Host_Viewnext_f
+==================
+*/
+void Host_Viewnext_f(void)
+{
+	edict_t* e;
+	model_t* m;
+
+	e = FindViewthing();
+
+	if (!e)
+		return;
+
+	m = CL_GetModelByIndex(e->v.modelindex);
+
+	e->v.frame = e->v.frame + 1;
+
+	if (e->v.frame >= m->numframes)
+		e->v.frame = m->numframes - 1;
+
+	PrintFrameName(m, (int)e->v.frame);
+}
+
+/*
+==================
+Host_Viewprev_f
+==================
+*/
+void Host_Viewprev_f(void)
+{
+	edict_t* e;
+	model_t* m;
+
+	e = FindViewthing();
+
+	if (!e)
+		return;
+
+	m = CL_GetModelByIndex(e->v.modelindex);
+	e->v.frame = e->v.frame - 1;
+
+	if (e->v.frame < 0)
+		e->v.frame = 0;
+
+	PrintFrameName(m, (int)e->v.frame);
+}
+
 void Host_Interp_f(void)
 {
 	r_dointerp ^= 1;
+
 	if (!r_dointerp)
 		Con_Printf(const_cast<char*>("Frame Interpolation OFF\n"));
 	else
 		Con_Printf(const_cast<char*>("Frame Interpolation ON\n"));
 }
 
-void Host_Ping_f(void)
+void Host_NextDemo(void)
+{
+	char str[1024];
+	if (cls.demonum == -1)
+		return;
+
+	SCR_BeginLoadingPlaque(FALSE);
+	if (cls.demos[cls.demonum][0])
+	{
+		if (cls.demonum == MAX_DEMOS)
+			cls.demonum = 0;
+
+		_snprintf(str, sizeof(str), "playdemo %s\n", cls.demos[cls.demonum]);
+		Cbuf_InsertText(str);
+		cls.demonum++;
+	}
+	Con_Printf(const_cast<char*>("No demos listed with startdemos\n"));
+	cls.demonum = -1;
+}
+
+void Host_Startdemos_f(void)
 {
 	int i;
-	client_t* client;
+	int c;
 
-	if (cmd_source == src_command)
+	if (cls.state == ca_dedicated)
 	{
-		Cmd_ForwardToServer();
+		if (!sv.active)
+			Con_Printf(const_cast<char*>("Cannot play demos on a dedicated server.\n"));
 		return;
 	}
-	SV_ClientPrintf("Client ping times:\n");
 
-	client = svs.clients;
-	for (i = 0; i < svs.maxclients; i++, client++)
+	c = Cmd_Argc() - 1;
+
+	if (c > MAX_DEMOS)
 	{
-		if (client->active)
-			SV_ClientPrintf("%4i %s\n", SV_CalcPing(client), client->name);
+		c = MAX_DEMOS;
+		Con_Printf(const_cast<char*>("Max %i demos in demoloop\n"), MAX_DEMOS);
+	}
+
+	Con_Printf(const_cast<char*>("%i demo(s) in loop\n"), c);
+
+	for (i = 1; i < c + 1; i++)
+	{
+		Q_strncpy(cls.demos[i - 1], Cmd_Argv(i), sizeof(cls.demos[0]) - 1);
+		cls.demos[i - 1][sizeof(cls.demos[0]) - 1] = 0;
+		cls.demos[i - 1][strcspn(cls.demos[i - 1], ";\n")] = 0;
+	}
+
+	if (sv.active || cls.demonum == -1 || cls.demoplayback)
+		cls.demonum = -1;
+	else
+	{
+		cls.demonum = 0;
+		Host_NextDemo();
 	}
 }
 
-void Host_Motd_f(void)
+void Host_Demos_f(void)
 {
-	int length;
-	FileHandle_t pFile;
-	char* pFileList;
-	char* next;
+	if (cls.state != ca_dedicated)
+	{
+		if (cls.demonum == -1)
+			cls.demonum = 0;
 
-	pFileList = motdfile.string;
-	if (*pFileList == '/' || strstr(pFileList, ":") || strstr(pFileList, "..") || strstr(pFileList, "\\"))
-	{
-		Con_Printf(const_cast<char*>("Unable to open %s (contains illegal characters)\n"), pFileList);
-		return;
+		CL_Disconnect_f();
+		Host_NextDemo();
 	}
-	pFile = FS_Open(pFileList, "rb");
-	if (!pFile)
+}
+
+void Host_Stopdemo_f(void)
+{
+	if (cls.state != ca_dedicated)
 	{
-		Con_Printf(const_cast<char*>("Unable to open %s\n"), pFileList);
-		return;
-	}
-	length = FS_Size(pFile);
-	if (length > 0)
-	{
-		char* buf = (char*)Mem_Malloc(length + 1);
-		if (buf)
+		if (cls.demoplayback)
 		{
-			FS_Read(buf, length, 1, pFile);
-			buf[length] = 0;
-			char* now = buf;
-			Con_Printf(const_cast<char*>("motd:"));
-			next = strchr(now, '\n');
-			while (next != NULL)
-			{
-				*next = 0;
-				Con_Printf(const_cast<char*>("%s\n"), now);
-				now = next + 1;
-				next = strchr(now, '\n');
-			}
-
-			Con_Printf(const_cast<char*>("%s\n"), now);
-
-			Mem_Free(buf);
+			CL_StopPlayback();
+			CL_Disconnect();
 		}
 	}
-	FS_Close(pFile);
 }
 
-void Host_Motd_Write_f(void)
+void Host_EndSection(const char* pszSection)
 {
-	char newFile[2048] = "";
-	unsigned int i;
-	FileHandle_t pFile;
+	giActive = DLL_PAUSED;
+	giSubState = 1;
+	giStateInfo = 1;
 
-	if (!sv.active || cmd_source != src_command || cls.state)
-		return;
-
-	if (!IsSafeFileToDownload(motdfile.string) || !strstr(motdfile.string, ".txt"))
+	if (!pszSection || !pszSection[0])
+		Con_Printf(const_cast<char*>(" endsection with no arguments\n"));
+	else
 	{
-		Con_Printf(const_cast<char*>("Invalid motdfile name (%s)\n"), motdfile.string);
-		return;
+		if (!Q_strcasecmp(pszSection, "_oem_end_training"))
+			giStateInfo = 1;
+		else if (!Q_strcasecmp(pszSection, "_oem_end_logo"))
+			giStateInfo = 2;
+		else if (!Q_strcasecmp(pszSection, "_oem_end_demo"))
+			giStateInfo = 3;
+		else
+			Con_DPrintf(const_cast<char*>(" endsection with unknown Section keyvalue\n"));
 	}
-	pFile = FS_Open(motdfile.string, "wb+");
-	if (!pFile)
-	{
-		Con_Printf(const_cast<char*>("Unable to open %s\n"), motdfile.string);
-		return;
-	}
-
-	Q_strncpy(newFile, Cmd_Args(), ARRAYSIZE(newFile));
-
-	auto len = Q_strlen(newFile);
-	for (i = 0; i < len; i++)
-	{
-		if (newFile[i] == '\\' && newFile[i + 1] == 'n')
-		{
-			newFile[i] = '\n';
-			memmove(&newFile[i + 1], &newFile[i + 2], Q_strlen(&newFile[i + 2]) + 1);
-		}
-	}
-	FS_Write(newFile, Q_strlen(newFile), 1, pFile);
-	FS_Close(pFile);
-	Con_Printf(const_cast<char*>("Done.\n"));
+	Cbuf_AddText(const_cast<char*>("\ndisconnect\n"));
 }
 
-void Host_Loadgame_f(void)
+void Host_Soundfade_f(void)
 {
-	if (cmd_source != src_command)
-		return;
+	int percent;
+	int inTime;
+	int holdTime;
+	int outTime;
 
-	if (Cmd_Argc() != 2)
+	if (Cmd_Argc() != 3 && Cmd_Argc() != 5)
 	{
-		Con_Printf(const_cast<char*>("load <savename> : load a game\n"));
+		Con_Printf(const_cast<char*>("soundfade <percent> <hold> [<out> <int>]\n"));
 		return;
 	}
-	if (!Host_Load(Cmd_Argv(1)))
-		Con_Printf(const_cast<char*>("Error loading saved game\n"));
+
+	percent = Q_atoi(Cmd_Argv(1));
+
+	if (percent > 100)
+		percent = 100;
+	if (percent < 0)
+		percent = 0;
+
+	holdTime = Q_atoi(Cmd_Argv(2));
+	if (holdTime > 255)
+		holdTime = 255;
+
+	if (Cmd_Argc() == 5)
+	{
+		outTime = Q_atoi(Cmd_Argv(3));
+		if (outTime > 255)
+			outTime = 255;
+
+		inTime = Q_atoi(Cmd_Argv(4));
+		if (inTime > 255)
+			inTime = 255;
+	}
+	else
+	{
+		outTime = 0;
+		inTime = 0;
+	}
+
+	cls.soundfade.nStartPercent = percent;
+	cls.soundfade.soundFadeStartTime = realtime;
+	cls.soundfade.soundFadeOutTime = outTime;
+	cls.soundfade.soundFadeHoldTime = holdTime;
+	cls.soundfade.soundFadeInTime = inTime;
 }
 
-int Host_ValidSave(void)
+void Host_KillServer_f(void)
 {
-	if (cmd_source != src_command)
-		return 0;
+	if (cls.state != ca_dedicated)
+		CL_Disconnect_f();
+	else if (sv.active)
+	{
+		Host_ShutdownServer(FALSE);
 
-	if (!sv.active)
-	{
-		Con_Printf(const_cast<char*>("Not playing a local game.\n"));
-		return 0;
-	}
-	if (svs.maxclients != 1)
-	{
-		Con_Printf(const_cast<char*>("Can't save multiplayer games.\n"));
-		return 0;
-	}
-	if (cls.state != ca_active || cls.signon != 2)
-	{
-		Con_Printf(const_cast<char*>("Can't save during transition.\n"));
-		return 0;
-	}
-	if (cl.intermission)
-	{
-		Con_Printf(const_cast<char*>("Can't save in intermission.\n"));
-		return 0;
-	}
-	if (svs.clients->active && svs.clients->edict->v.health <= 0.0)
-	{
-		Con_Printf(const_cast<char*>("Can't savegame with a dead player\n"));
-		return 0;
-	}
-	return 1;
-}
-
-void Host_Savegame_f(void)
-{
-	char szComment[80];
-	char szTemp[80];
-
-	if (!Host_ValidSave())
-		return;
-
-	if (Cmd_Argc() != 2)
-	{
-		Con_DPrintf(const_cast<char*>("save <savename> : save a game\n"));
-		return;
-	}
-	if (strstr(Cmd_Argv(1), ".."))
-	{
-		Con_DPrintf(const_cast<char*>("Relative pathnames are not allowed.\n"));
-		return;
-	}
-	g_pSaveGameCommentFunc(szTemp, 80);
-	_snprintf(szComment, sizeof(szComment) - 1, "%-64.64s %02d:%02d", szTemp, (int)(sv.time / 60.0), (int)fmod(sv.time, 60.0));
-	SaveGameSlot(Cmd_Argv(1), szComment);
-	CL_HudMessage("GAMESAVED");
-}
-
-void Host_AutoSave_f(void)
-{
-	char szComment[80];
-	char szTemp[80];
-
-	if (Host_ValidSave())
-	{
-		g_pSaveGameCommentFunc(szTemp, 80);
-		_snprintf(szComment, sizeof(szComment) - 1, "%-64.64s %02d:%02d", szTemp, (int)(sv.time / 60.0), (int)fmod(sv.time, 60.0));
-		szComment[sizeof(szComment) - 1] = 0;
-		SaveGameSlot("autosave", szComment);
+		if (cls.state != ca_dedicated)
+			NET_Config(FALSE);
 	}
 }
 
@@ -2620,377 +3428,82 @@ void Host_VoiceRecordStop_f(void)
 	}
 }
 
-void Host_NextDemo(void)
+//-----------------------------------------------------------------------------
+// Purpose: Change to hardware renderer
+//-----------------------------------------------------------------------------
+void Host_SetRenderer_f(void)
 {
-	char str[1024];
-	if (cls.demonum == -1)
-		return;
-
-	SCR_BeginLoadingPlaque(FALSE);
-	if (cls.demos[cls.demonum][0])
-	{
-		if (cls.demonum == MAX_DEMOS)
-			cls.demonum = 0;
-
-		_snprintf(str, sizeof(str), "playdemo %s\n", cls.demos[cls.demonum]);
-		Cbuf_InsertText(str);
-		cls.demonum++;
-	}
-	Con_Printf(const_cast<char*>("No demos listed with startdemos\n"));
-	cls.demonum = -1;
-}
-
-void Host_Startdemos_f(void)
-{
-	int i;
-	int c;
+	qboolean fullscreen = true;
+	int mode = 0;
 
 	if (cls.state == ca_dedicated)
-	{
-		if (!sv.active)
-			Con_Printf(const_cast<char*>("Cannot play demos on a dedicated server.\n"));
 		return;
-	}
-	c = Cmd_Argc() - 1;
-	if (c > MAX_DEMOS)
-	{
-		c = MAX_DEMOS;
-		Con_Printf(const_cast<char*>("Max %i demos in demoloop\n"), MAX_DEMOS);
-		Con_Printf(const_cast<char*>("%i demo(s) in loop\n"), MAX_DEMOS);
-	}
-	Con_Printf(const_cast<char*>("%i demo(s) in loop\n"), c);
-	for (i = 1; i < c + 1; i++)
-	{
-		Q_strncpy(cls.demos[i - 1], Cmd_Argv(i), 15);
-		cls.demos[i - 1][15] = 0;
-	}
-	if (sv.active || cls.demonum == -1 || cls.demoplayback)
-		cls.demonum = -1;
-	else
-	{
-		cls.demonum = 0;
-		Host_NextDemo();
-	}
-}
 
-void Host_Demos_f(void)
-{
-	if (cls.state != ca_dedicated)
+	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
 	{
-		if (cls.demonum == -1)
-			cls.demonum = 0;
-		CL_Disconnect_f();
-		Host_NextDemo();
-	}
-}
-
-void Host_Stopdemo_f(void)
-{
-	if (cls.state != ca_dedicated)
-	{
-		if (cls.demoplayback)
-		{
-			CL_StopPlayback();
-			extern void DbgPrint(FILE*, const char* format, ...);
-			extern FILE* m_fMessages;
-			DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
-			CL_Disconnect();
-		}
-	}
-}
-
-void Host_SetInfo_f(void)
-{
-	if (Cmd_Argc() == 1)
-	{
-		Info_Print(cls.userinfo);
-		return;
-	}
-	if (Cmd_Argc() != 3)
-	{
-		Con_Printf(const_cast<char*>("usage: setinfo [ <key> <value> ]\n"));
-		return;
-	}
-	if (cmd_source == src_command)
-	{
-		Info_SetValueForKey(cls.userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
-		Cmd_ForwardToServer();
-		return;
-	}
-	Info_SetValueForKey(host_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
-	host_client->sendinfo = TRUE;
-}
-
-void Host_FullInfo_f(void)
-{
-	if (Cmd_Argc() != 2)
-	{
-		Con_Printf(const_cast<char*>("fullinfo <complete info string>\n"));
 		return;
 	}
 
-	char key[512];
-	char value[512];
-	char* o;
-	char* s;
-
-	s = (char*)Cmd_Argv(1);
-	if (*s == '\\')
-		s++;
-
-	while (*s)
+	if (stricmp(Cmd_Argv(1), "software"))
 	{
-		o = key;
-		while (*s && *s != '\\')
-			*o++ = *s++;
-		*o = 0;
-
-		if (!*s)
+		mode = 1;
+		if (stricmp(Cmd_Argv(1), "gl"))
 		{
-			Con_Printf(const_cast<char*>("MISSING VALUE\n"));
-			return;
-		}
-
-		o = value;
-		s++;
-		while (*s && *s != '\\')
-			*o++ = *s++;
-		*o = 0;
-		if (*s)
-			s++;
-
-		if (cmd_source == src_command)
-		{
-			Info_SetValueForKey(cls.userinfo, key, value, MAX_INFO_STRING);
-			Cmd_ForwardToServer();
-			return;
-		}
-		Info_SetValueForKey(host_client->userinfo, key, value, MAX_INFO_STRING);
-		host_client->sendinfo = TRUE;
-	}
-	}
-
-void Host_KillVoice_f(void)
-{
-	Voice_Deinit();
-}
-
-void Master_Heartbeat_f()
-{
-	;
-}
-
-void Host_God_f()
-{
-	if (cmd_source == src_command)
-	{
-		Cmd_ForwardToServer();
-	}
-	else if (!gGlobalVariables.deathmatch && sv_cheats.value)
-	{
-		sv_player->v.flags ^= FL_GODMODE;
-		if (sv_player->v.flags & FL_GODMODE)
-			SV_ClientPrintf("godmode ON\n");
-		else
-			SV_ClientPrintf("godmode OFF\n");
-	}
-}
-
-void Host_Notarget_f()
-{
-	if (cmd_source == src_command)
-	{
-		Cmd_ForwardToServer();
-	}
-	else if (!gGlobalVariables.deathmatch && sv_cheats.value)
-	{
-		sv_player->v.flags ^= FL_NOTARGET;
-		if (sv_player->v.flags & FL_NOTARGET)
-			SV_ClientPrintf("notarget ON\n");
-		else
-			SV_ClientPrintf("notarget OFF\n");
-	}
-}
-
-void Host_Fly_f()
-{
-	if (cmd_source == src_command)
-	{
-		Cmd_ForwardToServer();
-	}
-	else if (!gGlobalVariables.deathmatch)
-	{
-		if (sv_player->v.movetype == MOVETYPE_FLY)
-		{
-			sv_player->v.movetype = MOVETYPE_WALK;
-			SV_ClientPrintf("flymode OFF\n");
-		}
-		else
-		{
-			sv_player->v.movetype = MOVETYPE_FLY;
-			SV_ClientPrintf("flymode ON\n");
-		}
-	}
-}
-
-int FindPassableSpace(edict_t* pEdict, vec_t* direction, float step)
-{
-	for (int i = 0; i < 100; i++)
-	{
-		VectorMA(pEdict->v.origin, step, direction, pEdict->v.origin);
-		if (!SV_TestEntityPosition(pEdict))
-		{
-			VectorCopy(pEdict->v.origin, pEdict->v.oldorigin);
-			return true;;
+			mode = 2 - stricmp(Cmd_Argv(5), "d3d");
 		}
 	}
 
-	return false;
-}
-
-void Host_Noclip_f()
-{
-	vec3_t vforward, right, up;
-
-	if (cmd_source == src_command)
-		return Cmd_ForwardToServer();
-
-	if (gGlobalVariables.deathmatch || !sv_cheats.value)
-		return;
-
-	if (sv_player->v.movetype != MOVETYPE_NOCLIP)
+	if (Cmd_Argc() == 3 && !stricmp(Cmd_Argv(2), "windowed"))
 	{
-		sv_player->v.movetype = MOVETYPE_NOCLIP;
-		noclip_anglehack = true;
-		return SV_ClientPrintf("noclip ON\n");
+		fullscreen = false;
 	}
 
-	sv_player->v.movetype = MOVETYPE_WALK;
-	noclip_anglehack = false;
-	VectorCopy(sv_player->v.origin, sv_player->v.oldorigin);
-	SV_ClientPrintf("noclip OFF\n");
-
-	if (SV_TestEntityPosition(sv_player))
-	{
-		AngleVectors(sv_player->v.v_angle, vforward, right, up);
-
-		if (!FindPassableSpace(sv_player, vforward, 1.0)
-			&& !FindPassableSpace(sv_player, right, 1.0)
-			&& !FindPassableSpace(sv_player, right, -1.0)
-			&& !FindPassableSpace(sv_player, up, 1.0)
-			&& !FindPassableSpace(sv_player, up, -1.0)
-			&& !FindPassableSpace(sv_player, vforward, -1.0))
-		{
-			Con_DPrintf(const_cast<char*>("Can't find the world\n"));
-		}
-
-		VectorCopy(sv_player->v.oldorigin, sv_player->v.origin);
-	}
+	VideoMode_SwitchMode(mode, fullscreen);
 }
 
-edict_t* FindViewthing(void)
+void Host_SetVideoMode_f(void)
 {
-	int		i;
-	edict_t* e;
-	for (i = 0; i < sv.num_edicts; i++)
-	{
-		e = EDICT_NUM(i);
-		if (!strcmp(pr_strings + e->v.classname, "viewthing"))
-			return e;
-	}
-	Con_Printf(const_cast<char*>("No viewthing on map\n"));
-	return NULL;
-}
-/*
-==================
-Host_Viewmodel_f
-==================
-*/
-void Host_Viewmodel_f(void)
-{
-	edict_t* e;
-	model_t* m;
-	e = FindViewthing();
-	if (!e)
+	int w, h, bpp = 16;
+
+	if (cls.state == ca_dedicated)
 		return;
-	m = Mod_ForName(Cmd_Argv(1), false, false);
-	if (!m)
+
+	if (Cmd_Argc() != 3 && Cmd_Argc() != 4)
 	{
-		Con_Printf(const_cast<char*>("Can't load %s\n"), Cmd_Argv(1));
 		return;
 	}
-	e->v.frame = 0;
-	cl.model_precache[e->v.modelindex] = m;
+
+	w = Q_atoi(Cmd_Argv(1));
+	h = Q_atoi(Cmd_Argv(2));
+		
+	if (Cmd_Argc() == 4)
+	{
+		bpp = Q_atoi(Cmd_Argv(3));
+	}
+
+	VideoMode_SetVideoMode(w, h, bpp);
 }
 
-/*
-==================
-Host_Viewframe_f
-==================
-*/
-void Host_Viewframe_f(void)
+void Host_SetGameDir_f()
 {
-	edict_t* e;
-	int		f;
-	model_t* m;
-	e = FindViewthing();
-	if (!e)
+	char* psz;
+
+	if (Cmd_Argc() < 1 || !g_pPostRestartCmdLineArgs)
 		return;
-	m = CL_GetModelByIndex(e->v.modelindex);
-	f = atoi(Cmd_Argv(1));
-	if (f >= m->numframes)
-		f = m->numframes - 1;
-	e->v.frame = f;
+
+	psz = (char*)Cmd_Argv(1);
+
+	if (!psz[0] || psz[0] == '/' || Q_strstr(psz, ":") || Q_strstr(psz, "..") || Q_strstr(psz, "\\"))
+		return Con_Printf(const_cast<char*>("Couldn't set gamedir to %s (contains illegal characters)\n"), psz);
+
+	strcpy(&g_pPostRestartCmdLineArgs[strlen(g_pPostRestartCmdLineArgs)], " -game ");
+	strcat(g_pPostRestartCmdLineArgs, Cmd_Argv(1));
 }
 
-void PrintFrameName(model_t* m, int frame)
+void Host_Crash_f()
 {
-	aliashdr_t* hdr;
-	maliasframedesc_t* pframedesc;
-	hdr = (aliashdr_t*)Mod_Extradata(m);
-	if (!hdr)
-		return;
-	pframedesc = &hdr->frames[frame];
-	Con_Printf(const_cast<char*>("frame %i: %s\n"), frame, pframedesc->name);
+	*(int*)0 = 0xDEADBEEF;
 }
-/*
-==================
-Host_Viewnext_f
-==================
-*/
-void Host_Viewnext_f(void)
-{
-	edict_t* e;
-	model_t* m;
-	e = FindViewthing();
-	if (!e)
-		return;
-	m = CL_GetModelByIndex(e->v.modelindex);
-	e->v.frame = e->v.frame + 1;
-	if (e->v.frame >= m->numframes)
-		e->v.frame = m->numframes - 1;
-	PrintFrameName(m, (int)e->v.frame);
-}
-
-/*
-==================
-Host_Viewprev_f
-==================
-*/
-void Host_Viewprev_f(void)
-{
-	edict_t* e;
-	model_t* m;
-	e = FindViewthing();
-	if (!e)
-		return;
-	m = CL_GetModelByIndex(e->v.modelindex);
-	e->v.frame = e->v.frame - 1;
-	if (e->v.frame < 0)
-		e->v.frame = 0;
-	PrintFrameName(m, (int)e->v.frame);
-}
-
 
 void Host_InitCommands()
 {
@@ -3081,145 +3594,45 @@ void Host_InitCommands()
 	Cvar_RegisterVariable(&voice_inputfromfile);
 }
 
-void Host_UpdateStats(void)
-{
-	uint32 runticks = 0;
-	uint32 cputicks = 0;
-
-	static float last = 0.0f;
-	static float lastAvg = 0.0f;
-
-	static uint64 lastcputicks = 0;
-	static uint64 lastrunticks = 0;
-
-#ifdef _WIN32
-
-	struct _FILETIME ExitTime;
-	struct _FILETIME UserTime;
-	struct _FILETIME KernelTime;
-	struct _FILETIME CreationTime;
-	struct _FILETIME SystemTimeAsFileTime;
-
-	if (!startTime)
-		startTime = Sys_FloatTime();
-
-	if (last + 1.0 < Sys_FloatTime())
-	{
-		GetProcessTimes(GetCurrentProcess(), &CreationTime, &ExitTime, &KernelTime, &UserTime);
-		GetSystemTimeAsFileTime(&SystemTimeAsFileTime);
-
-		if (!lastcputicks)
-		{
-			cputicks = CreationTime.dwLowDateTime;
-			runticks = CreationTime.dwHighDateTime;
-
-			lastcputicks = FILETIME_TO_QWORD(CreationTime);
-		}
-		else
-		{
-			cputicks = (uint32)(lastcputicks & 0xFFFFFFFF);
-			runticks = (uint32)(lastcputicks >> 32);
-		}
-
-		cpuPercent =
-			(FILETIME_TO_QWORD(UserTime) + FILETIME_TO_QWORD(KernelTime) - lastrunticks)
-			/ (FILETIME_TO_QWORD(SystemTimeAsFileTime)
-			- (double)FILETIME_TO_PAIR(runticks, cputicks));
-
-		if (lastAvg + 5.0f < Sys_FloatTime())
-		{
-			lastcputicks = FILETIME_TO_QWORD(SystemTimeAsFileTime);
-			lastrunticks = FILETIME_TO_QWORD(UserTime) + FILETIME_TO_QWORD(KernelTime);
-			lastAvg = last;
-		}
-		last = Sys_FloatTime();
-	}
-
-#else // _WIN32
-
-	FILE *pFile;
-	int32 dummy;
-	int32 ctime;
-	int32 stime;
-	int32 start_time;
-	char statFile[4096];
-	struct sysinfo infos;
-
-	if (!startTime)
-		startTime = Sys_FloatTime();
-
-	if (Sys_FloatTime() > last + 1.0f)
-	{
-		time(NULL);
-		pid_t pid = getpid();
-		Q_snprintf(statFile, sizeof(statFile), "/proc/%i/stat", pid);
-		pFile = fopen(statFile, "rt");
-		if (!pFile)
-		{
-			last = Sys_FloatTime();
-			return;
-		}
-		sysinfo(&infos);
-		fscanf(pFile, "%d %s %c %d %d %d %d %d %lu %lu \t\t\t%lu %lu %lu %ld %ld %ld %ld %ld %ld %lu \t\t\t%lu %ld %lu %lu %lu %lu %lu %lu %lu %lu \t\t\t%lu %lu %lu %lu %lu %lu",
-			&dummy,
-			statFile,
-			&dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy,
-			&ctime,
-			&stime,
-			&dummy, &dummy, &dummy, &dummy, &dummy,
-			&start_time,
-			&dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy,
-			&dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy, &dummy
-			);
-		fclose(pFile);
-
-		runticks = 100 * infos.uptime - start_time;
-		cputicks = ctime + stime;
-
-		if (!lastcputicks)
-			lastcputicks = cputicks;
-
-		if (lastrunticks)
-			cpuPercent = (double)(cputicks - lastcputicks) / (double)(runticks - lastrunticks);
-		else
-			lastrunticks = runticks;
-
-		if (lastAvg + 5.0f < Sys_FloatTime())
-		{
-			lastcputicks = cputicks;
-			lastrunticks = runticks;
-			lastAvg = Sys_FloatTime();
-		}
-		if (cpuPercent > 0.999)
-			cpuPercent = 0.999;
-		else if (cpuPercent < 0.0)
-			cpuPercent = 0.0;
-		last = Sys_FloatTime();
-	}
-
-#endif // _WIN32
-}
-
-void Host_SavegameComment(char *pszBuffer, int iSizeBuffer)
+void SV_CheckBlendingInterface(void)
 {
 	int i;
-	const char *pszName = NULL;
-	const char *pszMapName = (const char *)&pr_strings[gGlobalVariables.mapname];
+	SV_BLENDING_INTERFACE_FUNC studio_interface;
 
-	for (i = 0; i < ARRAYSIZE(gTitleComments) && !pszName; i++)
+	R_ResetSvBlending();
+	for (i = 0; i < g_iextdllMac; i++)
 	{
-		if (!Q_strncasecmp(pszMapName, gTitleComments[i].pBSPName, Q_strlen(gTitleComments[i].pBSPName)))
-			pszName = gTitleComments[i].pTitleName;
-	}
-	if (!pszName)
-	{
-		if (!pszMapName || !pszMapName[0])
+#ifdef _WIN32
+		studio_interface = (SV_BLENDING_INTERFACE_FUNC)GetProcAddress((HMODULE)g_rgextdll[i].pDLLHandle, "Server_GetBlendingInterface");
+#else
+		studio_interface = (SV_BLENDING_INTERFACE_FUNC)dlsym(g_rgextdll[i].lDLLHandle, "Server_GetBlendingInterface");
+#endif
+		if (studio_interface)
 		{
-			pszName = pszMapName;
-			if (!Q_strlen(cl.levelname))
-				pszName = cl.levelname;
+			if (studio_interface(SV_BLENDING_INTERFACE_VERSION, &g_pSvBlendingAPI, &server_studio_api, (float*)rotationmatrix, (float*)bonetransform))
+				return;
+
+			Con_DPrintf(const_cast<char*>("Couldn't get server .dll studio model blending interface. Version mismatch?\n"));
+			R_ResetSvBlending();
 		}
 	}
-	Q_strncpy(pszBuffer, pszName, iSizeBuffer - 1);
-	pszBuffer[iSizeBuffer - 1] = 0;
+}
+
+void SV_CheckSaveGameCommentInterface(void)
+{
+	int i;
+	SV_SAVEGAMECOMMENT_FUNC pTemp = NULL;
+	for (i = 0; i < g_iextdllMac; i++)
+	{
+#ifdef _WIN32
+		pTemp = (SV_SAVEGAMECOMMENT_FUNC)GetProcAddress((HMODULE)g_rgextdll[i].pDLLHandle, "SV_SaveGameComment");
+#else
+		pTemp = (SV_SAVEGAMECOMMENT_FUNC)dlsym(g_rgextdll[i].lDLLHandle, "SV_SaveGameComment");
+#endif
+		if (pTemp)
+		{
+			g_pSaveGameCommentFunc = pTemp;
+			break;
+		}
+	}
 }

@@ -5,41 +5,9 @@
 #include "host.h"
 #include "world.h"
 
-void ReleaseEntityDLLFields(edict_t* pEdict)
-{
-	FreeEntPrivateData(pEdict);
-}
+int SuckOutClassname(char* szInputStream, edict_t* pEdict);
 
-edict_t *EDICT_NUM(int n)
-{
-	if (n < 0 || n >= sv.max_edicts)
-	{
-		Sys_Error(__FUNCTION__ ": bad number %i", n);
-	}
-	if (n == 1)
-		OutputDebugString("");
-	return &sv.edicts[n];
-}
-
-int NUM_FOR_EDICT(const edict_t *e)
-{
-	int b;
-	b = e - sv.edicts;
-
-	if (b < 0 || b >= sv.num_edicts)
-	{
-		Sys_Error(__FUNCTION__ ": bad pointer");
-	}
-
-	return b;
-}
-
-void InitEntityDLLFields(edict_t *pEdict)
-{
-	pEdict->v.pContainingEntity = pEdict;
-}
-
-void ED_ClearEdict(edict_t *e)
+void ED_ClearEdict(edict_t* e)
 {
 	Q_memset(&e->v, 0, sizeof(e->v));
 	e->free = FALSE;
@@ -47,10 +15,74 @@ void ED_ClearEdict(edict_t *e)
 	InitEntityDLLFields(e);
 }
 
+edict_t* ED_Alloc(void)
+{
+	int i;
+	edict_t* e;
+
+	// Search for free entity
+	for (i = svs.maxclients + 1; i < sv.num_edicts; i++)
+	{
+		e = &sv.edicts[i];
+		if (e->free && (e->freetime <= 2.0 || sv.time - e->freetime >= 0.5))
+		{
+			ED_ClearEdict(e);
+			return e;
+		}
+	}
+
+	// Check if we are out of free edicts
+	if (i >= sv.max_edicts)
+	{
+		if (!sv.max_edicts)
+		{
+			Sys_Error(__FUNCTION__ ": no edicts yet");
+		}
+		Sys_Error(__FUNCTION__ ": no free edicts");
+	}
+
+	// Use new one
+	sv.num_edicts++;
+	e = &sv.edicts[i];
+
+	ED_ClearEdict(e);
+	return e;
+}
+
+void ED_Free(edict_t* ed)
+{
+	if (!ed->free)
+	{
+		int iIndex = ed - sv.edicts;
+
+		SV_UnlinkEdict(ed);
+		FreeEntPrivateData(ed);
+
+		ed->serialnumber++;
+		ed->freetime = (float)sv.time;
+		ed->free = TRUE;
+		ed->v.flags = 0;
+		ed->v.model = 0;
+
+		ed->v.takedamage = 0;
+		ed->v.modelindex = 0;
+		ed->v.colormap = 0;
+		ed->v.skin = 0;
+		ed->v.frame = 0;
+		ed->v.scale = 0;
+		ed->v.gravity = 0;
+		ed->v.nextthink = -1.0;
+		ed->v.solid = SOLID_NOT;
+
+		VectorCopy(vec3_origin, ed->v.origin);
+		VectorCopy(vec3_origin, ed->v.angles);
+	}
+}
+
 void ED_Count(void)
 {
 	int i;
-	edict_t *ent;
+	edict_t* ent;
 	int active = 0, models = 0, solid = 0, step = 0;
 
 	for (i = 0; i < sv.num_edicts; i++)
@@ -58,7 +90,7 @@ void ED_Count(void)
 		ent = &sv.edicts[i];
 		if (!ent->free)
 		{
-			++active;
+			active++;
 			models += (ent->v.model) ? 1 : 0;
 			solid += (ent->v.solid) ? 1 : 0;
 			step += (ent->v.movetype == MOVETYPE_STEP) ? 1 : 0;
@@ -72,17 +104,17 @@ void ED_Count(void)
 	Con_Printf(const_cast<char*>("step      :%3i\n"), step);
 }
 
-char *ED_NewString(const char *string)
+char* ED_NewString(const char* string)
 {
-	char *new_s;
+	char* new_s;
 
 	int l = Q_strlen(string);
-	new_s = (char *)Hunk_Alloc(l + 1);
+	new_s = (char*)Hunk_Alloc(l + 1);
 	char* new_p = new_s;
 
 	for (int i = 0; i < l; i++, new_p++)
 	{
-		if (string[i] == '\\')
+		if (string[i] == '\\' && i < l - 1)
 		{
 			if (string[i + 1] == 'n')
 				*new_p = '\n';
@@ -95,64 +127,18 @@ char *ED_NewString(const char *string)
 			*new_p = string[i];
 		}
 	}
-	*new_p = 0;
+	// *new_p = 0;
 
 	return new_s;
 }
 
-// высосать имя класса!
-bool SuckOutClassname(char *szInputStream, edict_t *pEdict)
-{
-	char szKeyName[256];
-	KeyValueData kvd;
-
-	// key
-	szInputStream = COM_Parse(szInputStream);
-	while (szInputStream && com_token[0] != '}')
-	{
-		Q_strncpy(szKeyName, com_token, ARRAYSIZE(szKeyName) - 1);
-		szKeyName[ARRAYSIZE(szKeyName) - 1] = 0;
-
-		// value
-		szInputStream = COM_Parse(szInputStream);
-
-		if (!Q_strcmp(szKeyName, "classname"))
-		{
-			kvd.szClassName = NULL;
-			kvd.szKeyName = szKeyName;
-			kvd.szValue = com_token;
-			kvd.fHandled = FALSE;
-
-			gEntityInterface.pfnKeyValue(pEdict, &kvd);
-
-			if (kvd.fHandled == FALSE)
-			{
-				Host_Error(__FUNCTION__ ": parse error");
-			}
-
-			return true;
-		}
-
-		if (!szInputStream)
-		{
-			break;
-		}
-
-		// next key
-		szInputStream = COM_Parse(szInputStream);
-	}
-
-	// classname not found
-	return false;
-}
-
-char *ED_ParseEdict(char *data, edict_t *ent)
+char* ED_ParseEdict(char* data, edict_t* ent)
 {
 	qboolean init = FALSE;
 	char keyname[256];
 	int n;
 	ENTITYINIT pEntityInit;
-	char *className;
+	char* className;
 	KeyValueData kvd;
 
 	if (ent != sv.edicts)
@@ -162,7 +148,12 @@ char *ED_ParseEdict(char *data, edict_t *ent)
 
 	if (SuckOutClassname(data, ent))
 	{
-		className = (char *)(pr_strings + ent->v.classname);
+		className = (char*)(pr_strings + ent->v.classname);
+
+
+		char dbg[256];
+		snprintf(dbg, 256, __FUNCTION__ " trying to init entity %s\n", className);
+		Con_DPrintf(dbg);
 
 		pEntityInit = GetEntityInit(className);
 		if (pEntityInit)
@@ -203,8 +194,12 @@ char *ED_ParseEdict(char *data, edict_t *ent)
 			Q_strncpy(keyname, com_token, ARRAYSIZE(keyname) - 1);
 			keyname[ARRAYSIZE(keyname) - 1] = 0;
 			// Remove tail spaces
-			for (n = Q_strlen(keyname) - 1; n >= 0 && keyname[n] == ' '; n--)
-				keyname[n] = 0;
+			n = Q_strlen(keyname);
+			while (n && keyname[n - 1] == ' ')
+			{
+				keyname[n - 1] = 0;
+				n--;
+			}
 
 			data = COM_Parse(data);
 			if (!data)
@@ -254,28 +249,158 @@ char *ED_ParseEdict(char *data, edict_t *ent)
 	return data;
 }
 
-void FreeEntPrivateData(edict_t* pEdict)
+void ED_LoadFromFile(char* data)
 {
-	int iEdict = pEdict - sv.edicts;
-	Con_Printf((char*)"trying to free pv of edict %d\n", iEdict);
-	if (pEdict->pvPrivateData)
+	edict_t* ent;
+	int inhibit;
+
+	gGlobalVariables.time = (float)sv.time;
+
+	ent = NULL;
+	inhibit = 0;
+	while (true)
 	{
-		if (gNewDLLFunctions.pfnOnFreeEntPrivateData)
+		data = COM_Parse(data);
+		if (!data)
 		{
-			gNewDLLFunctions.pfnOnFreeEntPrivateData(pEdict);
+			break;
+		}
+		if (com_token[0] != '{')
+		{
+			Host_Error(__FUNCTION__ ": found %s when expecting {", com_token);
 		}
 
-		Mem_Free(pEdict->pvPrivateData);
-		pEdict->pvPrivateData = 0;
+		if (ent)
+		{
+			ent = ED_Alloc();
+		}
+		else
+		{
+			ent = sv.edicts;
+			ReleaseEntityDLLFields(sv.edicts);
+			InitEntityDLLFields(ent);
+		}
+
+		data = ED_ParseEdict(data, ent);
+
+		if (ent->free)
+		{
+			continue;
+		}
+
+		if (deathmatch.value != 0.0 && (ent->v.spawnflags & SF_NOTINDEATHMATCH))
+		{
+			ED_Free(ent);
+			inhibit++;
+		}
+		else
+		{
+			if (ent->v.classname)
+			{
+				if (gEntityInterface.pfnSpawn(ent) < 0 || (ent->v.flags & FL_KILLME))
+				{
+					ED_Free(ent);
+				}
+			}
+			else
+			{
+				Con_Printf(const_cast<char*>("No classname for:\n"));
+				ED_Free(ent);
+			}
+		}
 	}
+	Con_DPrintf(const_cast<char*>("%i entities inhibited\n"), inhibit);
 }
 
-void* PvAllocEntPrivateData(edict_t *pEdict, int32 cb)
+void PR_Init(void)
+{
+}
+
+edict_t *EDICT_NUM(int n)
+{
+	if (n < 0 || n >= sv.max_edicts)
+	{
+		Sys_Error(__FUNCTION__ ": bad number %i", n);
+	}
+	return &sv.edicts[n];
+}
+
+int NUM_FOR_EDICT(const edict_t *e)
+{
+	int b;
+	b = e - sv.edicts;
+
+	if (b < 0 || b >= sv.num_edicts)
+	{
+		Sys_Error(__FUNCTION__ ": bad pointer");
+	}
+
+	return b;
+}
+
+int SuckOutClassname(char* szInputStream, edict_t* pEdict)
+{
+	char szKeyName[256];
+	KeyValueData kvd;
+
+	// key
+	szInputStream = COM_Parse(szInputStream);
+
+	if (!szInputStream)
+		return 0;
+
+	while (com_token[0] != '}')
+	{
+		Q_strncpy(szKeyName, com_token, ARRAYSIZE(szKeyName) - 1);
+		szKeyName[ARRAYSIZE(szKeyName) - 1] = 0;
+
+		// value
+		szInputStream = COM_Parse(szInputStream);
+
+		if (!szInputStream || !Q_strcmp(szKeyName, "classname"))
+		{
+			kvd.szClassName = NULL;
+			kvd.szKeyName = szKeyName;
+			kvd.szValue = com_token;
+			kvd.fHandled = FALSE;
+
+			gEntityInterface.pfnKeyValue(pEdict, &kvd);
+
+			if (kvd.fHandled == FALSE)
+			{
+				Host_Error(__FUNCTION__ ": parse error");
+			}
+
+			return 1;
+		}
+
+		// next key
+		szInputStream = COM_Parse(szInputStream);
+
+		if (!szInputStream)
+		{
+			return 0;
+		}
+	}
+
+	// classname not found
+	return 0;
+}
+
+void ReleaseEntityDLLFields(edict_t* pEdict)
+{
+	FreeEntPrivateData(pEdict);
+}
+
+void InitEntityDLLFields(edict_t *pEdict)
+{
+	pEdict->v.pContainingEntity = pEdict;
+}
+
+void* PvAllocEntPrivateData(edict_t* pEdict, int32 cb)
 {
 	FreeEntPrivateData(pEdict);
 
-	int iEdict = pEdict - sv.edicts;
-	Con_Printf((char*)"trying to allocate pv (%d bytes) of edict %d\n", cb, iEdict);
 	if (cb <= 0)
 	{
 		return NULL;
@@ -286,7 +411,7 @@ void* PvAllocEntPrivateData(edict_t *pEdict, int32 cb)
 	return pEdict->pvPrivateData;
 }
 
-void* PvEntPrivateData(edict_t *pEdict)
+void* PvEntPrivateData(edict_t* pEdict)
 {
 	if (!pEdict)
 	{
@@ -294,6 +419,20 @@ void* PvEntPrivateData(edict_t *pEdict)
 	}
 
 	return pEdict->pvPrivateData;
+}
+
+void FreeEntPrivateData(edict_t* pEdict)
+{
+	if (pEdict->pvPrivateData)
+	{
+		if (gNewDLLFunctions.pfnOnFreeEntPrivateData)
+		{
+			gNewDLLFunctions.pfnOnFreeEntPrivateData(pEdict);
+		}
+
+		Mem_Free(pEdict->pvPrivateData);
+		pEdict->pvPrivateData = NULL;
+	}
 }
 
 void FreeAllEntPrivateData(void)
@@ -337,12 +476,10 @@ edict_t* PEntityOfEntIndex(int iEntIndex)
 
 	edict_t *pEdict = EDICT_NUM(iEntIndex);
 
-	if ((!pEdict || pEdict->free || !pEdict->pvPrivateData) && (iEntIndex >= svs.maxclients || pEdict->free))
+	if (pEdict->free || !pEdict->pvPrivateData)
 	{
 		if (iEntIndex >= svs.maxclients || pEdict->free)
-		{
-			pEdict = NULL;
-		}
+			return NULL;
 	}
 
 	return pEdict;
@@ -381,17 +518,17 @@ const char* CVarGetString(const char *szVarName)
 	return Cvar_VariableString(const_cast<char*>(szVarName));
 }
 
-cvar_t* CVarGetPointer(const char *szVarName)
+cvar_t* CVarGetPointer(const char* szVarName)
 {
 	return Cvar_FindVar(szVarName);
 }
 
-void CVarSetFloat(const char *szVarName, float flValue)
+void CVarSetFloat(const char* szVarName, float flValue)
 {
 	Cvar_SetValue(const_cast<char*>(szVarName), flValue);
 }
 
-void CVarSetString(const char *szVarName, const char *szValue)
+void CVarSetString(const char* szVarName, const char* szValue)
 {
 	Cvar_Set(const_cast<char*>(szVarName), const_cast<char*>(szValue));
 }
@@ -428,134 +565,4 @@ void* GetModelPtr(edict_t *pEdict)
 	}
 
 	return Mod_Extradata(sv.models[pEdict->v.modelindex]);
-}
-
-void ED_Free(edict_t *ed)
-{
-	if (!ed->free)
-	{
-		int iIndex = ed - sv.edicts;
-		if (iIndex <= 1)
-			OutputDebugString("");
-		SV_UnlinkEdict(ed);
-		FreeEntPrivateData(ed);
-		ed->serialnumber++;
-		ed->freetime = (float)sv.time;
-		ed->free = TRUE;
-		ed->v.flags = 0;
-		ed->v.model = 0;
-
-		ed->v.takedamage = 0;
-		ed->v.modelindex = 0;
-		ed->v.colormap = 0;
-		ed->v.skin = 0;
-		ed->v.frame = 0;
-		ed->v.scale = 0;
-		ed->v.gravity = 0;
-		ed->v.nextthink = -1.0;
-		ed->v.solid = SOLID_NOT;
-
-		VectorCopy(vec3_origin, ed->v.origin);
-		VectorCopy(vec3_origin, ed->v.angles);
-	}
-}
-
-void ED_LoadFromFile(char *data)
-{
-	edict_t *ent;
-	int inhibit;
-
-	gGlobalVariables.time = (float)sv.time;
-
-	ent = NULL;
-	inhibit = 0;
-	while (true)
-	{
-		data = COM_Parse(data);
-		if (!data)
-		{
-			break;
-		}
-		if (com_token[0] != '{')
-		{
-			Host_Error(__FUNCTION__ ": found %s when expecting {", com_token);
-		}
-
-		if (ent)
-		{
-			ent = ED_Alloc();
-		}
-		else
-		{
-			ent = sv.edicts;
-			ReleaseEntityDLLFields(sv.edicts);	
-			InitEntityDLLFields(ent);
-		}
-
-		data = ED_ParseEdict(data, ent);
-
-		int iEdict = ent - sv.edicts;
-		Con_Printf((char*)"processing edict %d\n", iEdict);
-
-		if (ent->free)
-		{
-			continue;
-		}
-
-		if (deathmatch.value != 0.0 && (ent->v.spawnflags & SF_NOTINDEATHMATCH))
-		{
-			ED_Free(ent);
-			++inhibit;
-		}
-		else
-		{
-			if (ent->v.classname)
-			{
-				if (gEntityInterface.pfnSpawn(ent) < 0 || (ent->v.flags & FL_KILLME))
-				{
-					ED_Free(ent);
-				}
-			}
-			else
-			{
-				Con_Printf(const_cast<char*>("No classname for:\n"));
-				ED_Free(ent);
-			}
-		}
-	}
-	Con_DPrintf(const_cast<char*>("%i entities inhibited\n"), inhibit);
-}
-
-edict_t* ED_Alloc(void)
-{
-	int i;
-	edict_t* e;
-
-	// Search for free entity
-	for (i = svs.maxclients + 1; i < sv.num_edicts; i++)
-	{
-		e = &sv.edicts[i];
-		if (e->free && (e->freetime <= 2.0 || sv.time - e->freetime >= 0.5))
-		{
-			ED_ClearEdict(e);
-			return e;
-		}
-	}
-
-	// Check if we are out of free edicts
-	if (i >= sv.max_edicts)
-	{
-		if (!sv.max_edicts)
-		{
-			Sys_Error(__FUNCTION__ ": no edicts yet");
-		}
-		Sys_Error(__FUNCTION__ ": no free edicts");
-	}
-
-	// Use new one
-	++sv.num_edicts;
-	e = &sv.edicts[i];
-
-	ED_ClearEdict(e);
-	return e;
 }

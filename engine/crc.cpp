@@ -2,13 +2,11 @@
 #include "bspfile.h"
 #include "crc.h"
 
-extern "C"
-{
 #define CRC32_INIT_VALUE 0xFFFFFFFFUL
 #define CRC32_XOR_VALUE  0xFFFFFFFFUL
 
 #define NUM_BYTES 256
-static const CRC32_t pulCRCTable[ NUM_BYTES ] =
+const CRC32_t pulCRCTable[NUM_BYTES] =
 {
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
 	0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
@@ -86,43 +84,51 @@ CRC32_t CRC32_Final( CRC32_t ulCRC )
 	return ulCRC ^ CRC32_XOR_VALUE;
 }
 
-void CRC32_ProcessBuffer( CRC32_t* pulCRC, void* p, int len )
+void CRC32_ProcessByte( CRC32_t *pulCRC, unsigned char ch )
 {
 	CRC32_t ulCrc = *pulCRC;
-	unsigned char *pb = ( unsigned char * ) p;
+	ulCrc ^= ch;
+	ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+	*pulCRC = ulCrc;
+}
+
+void CRC32_ProcessBuffer(CRC32_t* pulCRC, void* pBuffer, int nBuffer)
+{
+	CRC32_t ulCrc = *pulCRC;
+	unsigned char* pb = (unsigned char*)pBuffer;
 	unsigned int nFront;
 	int nMain;
 
 JustAfew:
 
-	switch( len )
+	switch (nBuffer)
 	{
 	case 7:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 
 	case 6:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 
 	case 5:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 
 	case 4:
-		ulCrc ^= *( CRC32_t * ) pb; // Warning, this only works on little-endian.
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc ^= *(CRC32_t*)pb; // Warning, this only works on little-endian.
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
 		*pulCRC = ulCrc;
 		return;
 
 	case 3:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 
 	case 2:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 
 	case 1:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 
 	case 0:
 		*pulCRC = ulCrc;
@@ -135,104 +141,116 @@ JustAfew:
 	// The low-order two bits of pb and nBuffer in total control the
 	// upfront work.
 	//
-	nFront = ( ( unsigned int ) pb ) & 3;
-	len -= nFront;
-	switch( nFront )
+	nFront = ((unsigned int)pb) & 3;
+	nBuffer -= nFront;
+	switch (nFront)
 	{
 	case 3:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 	case 2:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 	case 1:
-		ulCrc = pulCRCTable[ *pb++ ^ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc = pulCRCTable[*pb++ ^ (unsigned char)ulCrc] ^ (ulCrc >> 8);
 	}
 
-	nMain = len >> 3;
-	while( nMain-- )
+	nMain = nBuffer >> 3;
+	while (nMain--)
 	{
-		ulCrc ^= *( CRC32_t * ) pb; // Warning, this only works on little-endian.
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc ^= *( CRC32_t * ) ( pb + 4 ); // Warning, this only works on little-endian.
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
-		ulCrc = pulCRCTable[ ( unsigned char ) ulCrc ] ^ ( ulCrc >> 8 );
+		ulCrc ^= *(CRC32_t*)pb; // Warning, this only works on little-endian.
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc ^= *(CRC32_t*)(pb + 4); // Warning, this only works on little-endian.
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
+		ulCrc = pulCRCTable[(unsigned char)ulCrc] ^ (ulCrc >> 8);
 		pb += 8;
 	}
 
-	len &= 7;
+	nBuffer &= 7;
 	goto JustAfew;
 }
 
-void CRC32_ProcessByte( CRC32_t *pulCRC, unsigned char ch )
-{
-	*pulCRC = pulCRCTable[ ( unsigned char ) ( *( unsigned char* ) pulCRC ^ ch ) ] ^ ( ( *pulCRC ^ ch ) >> 8 );
+byte COM_BlockSequenceCRCByte(byte* base, int length, int sequence)
+{	
+	CRC32_t crc;
+	byte* p;
+	byte chkb[60 + 4];
+
+	if (sequence < 0)
+		Sys_Error("sequence < 0, in COM_BlockSequenceCRCByte\n");
+
+	p = (byte*)pulCRCTable + sequence % 0x3FC;
+
+	if (length > 60)
+		length = 60;
+
+	Q_memcpy(chkb, base, length);
+
+	chkb[length + 0] = p[0];
+	chkb[length + 1] = p[1];
+	chkb[length + 2] = p[2];
+	chkb[length + 3] = p[3];
+
+	length += 4;
+
+	CRC32_Init(&crc);
+	CRC32_ProcessBuffer(&crc, chkb, length);
+	return CRC32_Final(crc);
 }
 
 int CRC_File( CRC32_t* crcvalue, char* pszFileName )
-{
-	auto hFile = FS_Open( pszFileName, "rb" );
+{	
+	FileHandle_t fp;
+	byte chunk[1024];
+	int nBytesRead;
 
-	if( FILESYSTEM_INVALID_HANDLE == hFile )
+	int nSize;
+
+	fp = FS_Open(pszFileName, "rb");
+
+	if (FILESYSTEM_INVALID_HANDLE == fp)
 		return false;
 
-	auto uiBytesLeft = FS_Size( hFile );
+	nSize = FS_Size(fp);
 
-	int iRead;
-
-	byte chunk[ 1024 ];
-
-	while( uiBytesLeft > 0 )
+	// Now read in 1K chunks
+	while (nSize > 0)
 	{
-		iRead = FS_Read( chunk, min( ARRAYSIZE( chunk ), uiBytesLeft ), 1, hFile );
+		if (nSize > 1024)
+			nBytesRead = FS_Read(chunk, 1, sizeof(chunk), fp);
+		else
+			nBytesRead = FS_Read(chunk, 1, nSize, fp);
 
-		if( iRead > 0 )
+		// If any data was received, CRC it.
+		if (nBytesRead > 0)
 		{
-			uiBytesLeft -= iRead;
-			CRC32_ProcessBuffer( crcvalue, chunk, iRead );
+			nSize -= nBytesRead;
+			CRC32_ProcessBuffer(crcvalue, chunk, nBytesRead);
 		}
 
-		if( FS_EndOfFile( hFile ) )
-			break;
-
-		if( !FS_IsOk( hFile ) )
+		// We we are end of file, break loop and return
+		if (FS_EndOfFile(fp))
 		{
-			FS_Close( hFile );
+			FS_Close(fp);
+			fp = NULL;
+			break;
+		}
+		// If there was a disk error, indicate failure.
+		else if (!FS_IsOk(fp))
+		{
+			if (fp)
+				FS_Close(fp);
 			return false;
 		}
 	}
 
-	FS_Close( hFile );
+	if (fp)
+		FS_Close(fp);
 
 	return true;
-}
-}
-
-byte COM_BlockSequenceCRCByte( byte* base, int length, int sequence )
-{
-	if( sequence < 0 )
-		Sys_Error( "sequence < 0, in COM_BlockSequenceCRCByte\n" );
-
-	const auto iBaseCRCSequence = sequence + 4 * ( sequence / 1020 ) - ( sequence / 1020 << 10 );
-
-	const auto iSize = min( 60, length );
-
-	byte chkb[ 64 ];
-	Q_memcpy( chkb, base, iSize );
-
-	chkb[ iSize ] = *( ( unsigned char* ) pulCRCTable + iBaseCRCSequence );
-	chkb[ iSize + 1 ] = *( ( unsigned char* ) &pulCRCTable[ 0 ] + iBaseCRCSequence + 1 );
-	chkb[ iSize + 2 ] = *( ( unsigned char* ) &pulCRCTable[ 0 ] + iBaseCRCSequence + 2 );
-	chkb[ iSize + 3 ] = *( ( unsigned char* ) &pulCRCTable[ 0 ] + iBaseCRCSequence + 3 );
-
-	CRC32_t crc;
-	CRC32_Init( &crc );
-	CRC32_ProcessBuffer( &crc, chkb, iSize + 4 );
-
-	return CRC32_Final( crc );
 }
 
 int CRC_MapFile( CRC32_t* crcvalue, char* pszFileName )
@@ -248,9 +266,9 @@ int CRC_MapFile( CRC32_t* crcvalue, char* pszFileName )
 	int32 startOfs;
 	int nLumpID;
 
-	nLumpID = 0;
+	nLumpID = LUMP_ENTITIES;
 	if (Q_strcasecmp(com_gamedir, "bshift") == 0)
-		nLumpID = 1;
+		nLumpID = LUMP_ENTITIES + 1;
 
 	fp = FS_Open(pszFileName, "rb");
 
@@ -268,13 +286,16 @@ int CRC_MapFile( CRC32_t* crcvalue, char* pszFileName )
 		FS_Close(fp);
 		return 0;
 	}
+	
 	i = LittleLong(header.version);
-	if (i != 29 && i != BSPVERSION)
+	
+	if (i != Q1BSP_VERSION && i != BSPVERSION)
 	{
 		Con_Printf(const_cast<char*>("Map [%s] has incorrect BSP version (%i should be %i).\n"), pszFileName, i, BSPVERSION);
 		FS_Close(fp);
 		return 0;
 	}
+
 	for (l = 0; l < HEADER_LUMPS; l++)
 	{
 		if (l == nLumpID)

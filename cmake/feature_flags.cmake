@@ -31,3 +31,4 @@ endfunction()
 
 #set_feature( HL25 )
 set_feature( HL25_WEBM_PLAYER )
+#set_feature( ORIGINAL_VALVE_BUGS )

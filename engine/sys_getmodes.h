@@ -64,7 +64,7 @@ extern IVideoMode* videomode;
 bool BUsesSDLInput( void );
 
 void VideoMode_Create( void );
-bool VideoMode_IsWindowed( void );
+int VideoMode_IsWindowed( void );
 void VideoMode_GetVideoModes( vmode_t** liststart, int* count );
 void VideoMode_GetCurrentVideoMode( int* wide, int* tall, int* bpp );
 void VideoMode_GetCurrentRenderer( char* name, int namelen, int* windowed, int* hdmodels, int* addons_folder, int* vid_level );

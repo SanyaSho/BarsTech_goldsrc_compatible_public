@@ -47,12 +47,13 @@ qboolean PM_AddToTouched(pmtrace_t tr, vec_t *impactvelocity)
 		}
 	}
 
+	VectorCopy(impactvelocity, tr.deltavelocity);
+
 	if (pmove->numtouch >= MAX_PHYSENTS)
 	{
 		pmove->Con_DPrintf(const_cast<char*>("Too many entities were touched!\n"));
 	}
 
-	VectorCopy(impactvelocity, tr.deltavelocity);
 	pmove->touchindex[pmove->numtouch++] = tr;
 
 	return TRUE;
@@ -96,7 +97,7 @@ void PM_Init( playermove_t* ppm )
 	ppm->RandomLong = RandomLong;
 	ppm->RandomFloat = RandomFloat;
 	ppm->PM_GetModelType = PM_GetModelType;
-	ppm->PM_HullForBsp = /*(decltype(playermove_s::PM_HullForBsp))*/PM_HullForBsp;
+	ppm->PM_HullForBsp = PM_HullForBsp;
 	ppm->PM_GetModelBounds = PM_GetModelBounds;
 	ppm->COM_FileSize = COM_FileSize;
 	ppm->COM_LoadFile = COM_LoadFile;

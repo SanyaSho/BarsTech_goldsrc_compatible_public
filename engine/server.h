@@ -108,7 +108,7 @@ struct server_t
 	
 	char* sound_precache[MAX_SOUNDS];
 	short sound_precache_hashedlookup[MAX_SOUNDS_HASHLOOKUP_SIZE];
-	bool sound_precache_hashedlookup_built;
+	qboolean sound_precache_hashedlookup_built;
 
 	char* generic_precache[ MAX_GENERIC ];
 	char generic_precache_names[ MAX_GENERIC ][ 64 ];

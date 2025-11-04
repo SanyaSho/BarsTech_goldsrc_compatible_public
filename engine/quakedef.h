@@ -1,25 +1,6 @@
-/*
-Copyright (C) 1996-1997 Id Software, Inc.
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-
-*/
 #ifndef ENGINE_QUAKEDEF_H
 #define ENGINE_QUAKEDEF_H
-//For backwards compatibility only, SDK headers use it - Solokiller
+
 #define QUAKEDEF_H
 
 /**
@@ -51,15 +32,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // fall over
 #define	ROLL	2
 
-/*#define	MAX_LIGHTSTYLES	64
-#define	MAX_MODELS		512			// these are sent over the net as bytes
-#define	MAX_SOUNDS		512			// so they cannot be blindly increased*/
 #define	MAX_STYLESTRING	64
 
 #define VSTDLIB_BACKWARD_COMPAT
 
-//TODO: tidy these includes - Solokiller
-// no, fuck off solokiller
 #include "tier0/platform.h"
 #include "winsani_in.h"
 #define WIN32_LEAN_AND_MEAN
@@ -128,7 +104,7 @@ extern quakeparms_t host_parms;
 /**
 *	true if into command execution
 */
-extern bool host_initialized;
+extern qboolean host_initialized;
 
 /**
 *	not bounded in any way, changed at
@@ -138,7 +114,7 @@ extern double realtime;
 
 void Host_Error( const char* error, ... );
 
-bool Host_Init( quakeparms_t* parms );
+int Host_Init( quakeparms_t* parms );
 void Host_Shutdown();
 
 /**

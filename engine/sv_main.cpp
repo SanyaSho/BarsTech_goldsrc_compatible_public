@@ -1109,7 +1109,7 @@ void SV_SendServerinfo(sizebuf_t* msg, client_t* client)
 	int playernum = NUM_FOR_EDICT(client->edict) - 1;
 	int mungebuffer = sv.worldmapCRC;
 
-	COM_Munge3((byte*)&mungebuffer, sizeof(mungebuffer), ~playernum);
+	COM_Munge3((byte*)&mungebuffer, sizeof(mungebuffer), (byte)~playernum);
 	MSG_WriteLong(msg, mungebuffer);
 
 	MSG_WriteBuf(msg, sizeof(sv.clientdllmd5), sv.clientdllmd5);
@@ -1559,7 +1559,7 @@ void SV_Spawn_f(void)
 
 	host_client->crcValue = Q_atoi(Cmd_Argv(2));
 
-	COM_UnMunge2((unsigned char*)&host_client->crcValue, 4, ~svs.spawncount & 0xFF);
+	COM_UnMunge2((unsigned char*)&host_client->crcValue, sizeof(host_client->crcValue), (byte)~svs.spawncount);
 
 	if (cls.demoplayback || Q_atoi(Cmd_Argv(1)) == svs.spawncount)
 	{
@@ -3492,7 +3492,7 @@ void SV_ReadPackets(void)
 				continue;
 			}
 
-			if (NET_CompareAdr(net_from, cl->netchan.remote_address) != TRUE)
+			if (NET_CompareAdr(net_from, cl->netchan.remote_address) != true)
 			{
 				continue;
 			}
@@ -3501,7 +3501,7 @@ void SV_ReadPackets(void)
 			{
 				if (svs.maxclients == 1 || !cl->active || !cl->spawned || !cl->fully_connected)
 				{
-					cl->send_message = TRUE;
+					cl->send_message = true;
 				}
 
 				SV_ExecuteClientMessage(cl);
@@ -5912,7 +5912,7 @@ void Host_Kick_f(void)
 
 		if (Cmd_Argc() > argsStartNum)
 		{
-			unsigned int dataLen = 0;
+			int dataLen = 0;
 			for (int i = 1; i < argsStartNum; i++)
 			{
 				dataLen += Q_strlen(Cmd_Argv(i)) + 1;

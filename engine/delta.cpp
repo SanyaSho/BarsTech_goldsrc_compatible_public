@@ -677,18 +677,17 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 	char *st2;
 	char c;
 	int startbit;
+	int j;
+	qboolean finish;
 
 	startbit = MSG_CurrentBit();
 	Q_memset(bits, 0, 8);
 
 	nbytes = MSG_ReadBits(3);
-	extern void DbgPrint(FILE*, const char* format, ...);
-	extern FILE* m_fMessages;
-	DbgPrint(m_fMessages, "parsed %d bits -> %d bytecount <%s#%d>\r\n", 3, nbytes, __FILE__, __LINE__);
+
 	for (i = 0; i < nbytes; i++)
 	{
 		((byte*)bits)[i] = MSG_ReadBits(8);
-		DbgPrint(m_fMessages, "parsed %d bits -> %02X byte <%s#%d>\r\n", 8, ((byte*)bits)[i], __FILE__, __LINE__);
 	}
 
 	for (i = 0, pTest = pFields->pdd; i < fieldCount; i++, pTest++)
@@ -704,20 +703,20 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 			switch (fieldType)
 			{
 			case DT_BYTE:
-				if (pTest->fieldOffset + sizeof(byte) <= nBufSize)
+				if ((int)(pTest->fieldOffset + sizeof(byte)) <= nBufSize)
 					to[pTest->fieldOffset] = from[pTest->fieldOffset];
 				break;
 			case DT_SHORT:
-				if (pTest->fieldOffset + sizeof(uint16) <= nBufSize)
-				*(uint16 *)&to[pTest->fieldOffset] = *(uint16 *)&from[pTest->fieldOffset];
+				if ((int)(pTest->fieldOffset + sizeof(uint16)) <= nBufSize)
+					*(uint16 *)&to[pTest->fieldOffset] = *(uint16 *)&from[pTest->fieldOffset];
 				break;
 			case DT_FLOAT:
 			case DT_INTEGER:
 			case DT_ANGLE:
 			case DT_TIMEWINDOW_8:
 			case DT_TIMEWINDOW_BIG:
-				if (pTest->fieldOffset + sizeof(uint32) <= nBufSize)
-				*(uint32 *)&to[pTest->fieldOffset] = *(uint32 *)&from[pTest->fieldOffset];
+				if ((int)(pTest->fieldOffset + sizeof(uint32)) <= nBufSize)
+					*(uint32 *)&to[pTest->fieldOffset] = *(uint32 *)&from[pTest->fieldOffset];
 				break;
 			case DT_STRING:
 				Q_strncpy((char *)&to[pTest->fieldOffset], (char *)&from[pTest->fieldOffset], nBufSize);
@@ -734,12 +733,12 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 		switch (fieldType)
 		{
 		case DT_BYTE:
-			if (pTest->fieldOffset + sizeof(byte) <= nBufSize)
+			if ((int)(pTest->fieldOffset + sizeof(byte)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
 					d2 = (double)MSG_ReadSBits(pTest->significant_bits);
-					DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, (int8)d2, __FILE__, __LINE__);
+
 					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 					{
 						d2 = d2 / pTest->premultiply;
@@ -753,7 +752,7 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 				else
 				{
 					d2 = (double)MSG_ReadBits(pTest->significant_bits);
-					DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, (uint8)d2, __FILE__, __LINE__);
+
 					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 					{
 						d2 = d2 / pTest->premultiply;
@@ -767,12 +766,12 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 			}
 			break;
 		case DT_SHORT:
-			if (pTest->fieldOffset + sizeof(uint16) <= nBufSize)
+			if ((int)(pTest->fieldOffset + sizeof(uint16)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
 					d2 = (double)MSG_ReadSBits(pTest->significant_bits);
-					DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, (int16)d2, __FILE__, __LINE__);
+
 					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 					{
 						d2 = d2 / pTest->premultiply;
@@ -786,7 +785,7 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 				else
 				{
 					d2 = (double)MSG_ReadBits(pTest->significant_bits);
-					DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, (uint16)d2, __FILE__, __LINE__);
+
 					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 					{
 						d2 = d2 / pTest->premultiply;
@@ -800,7 +799,7 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 			}
 			break;
 		case DT_FLOAT:
-			if (pTest->fieldOffset + sizeof(float) <= nBufSize)
+			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
@@ -810,7 +809,7 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 				{
 					d2 = (double)MSG_ReadBits(pTest->significant_bits);
 				}
-				DbgPrint(m_fMessages, "parsed %d bits -> %lf <%s#%d>\r\n", pTest->significant_bits, d2, __FILE__, __LINE__);
+
 				if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 				{
 					d2 = d2 / pTest->premultiply;
@@ -823,12 +822,12 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 			}
 			break;
 		case DT_INTEGER:
-			if (pTest->fieldOffset + sizeof(uint32) <= nBufSize)
+			if ((int)(pTest->fieldOffset + sizeof(uint32)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
 					d2 = (double)MSG_ReadSBits(pTest->significant_bits);
-					DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, (int32)d2, __FILE__, __LINE__);
+
 					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 					{
 						d2 = d2 / pTest->premultiply;
@@ -842,7 +841,7 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 				else
 				{
 					d2 = (double)MSG_ReadBits(pTest->significant_bits);
-					DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, (uint32)d2, __FILE__, __LINE__);
+
 					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 					{
 						d2 = d2 / pTest->premultiply;
@@ -856,26 +855,25 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 			}
 			break;
 		case DT_ANGLE:
-			if (pTest->fieldOffset + sizeof(float) <= nBufSize)
+			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
 				*(float*)&to[pTest->fieldOffset] = MSG_ReadBitAngle(pTest->significant_bits);
-				DbgPrint(m_fMessages, "parsed %d bits -> %f <%s#%d>\r\n", pTest->significant_bits, *(float*)&to[pTest->fieldOffset], __FILE__, __LINE__);
 			}
 			break;
 		case DT_TIMEWINDOW_8:
-			if (pTest->fieldOffset + sizeof(float) <= nBufSize)
+			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
 				addt = MSG_ReadSBits(8);
-				DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, addt, __FILE__, __LINE__);
+
 				t = (float)((cl.mtime[0] * 100.0 - addt) / 100.0);
 				*(float *)&to[pTest->fieldOffset] = t;
 			}
 			break;
 		case DT_TIMEWINDOW_BIG:
-			if (pTest->fieldOffset + sizeof(float) <= nBufSize)
+			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
 				addt = MSG_ReadSBits(pTest->significant_bits);
-				DbgPrint(m_fMessages, "parsed %d bits -> %d <%s#%d>\r\n", pTest->significant_bits, addt, __FILE__, __LINE__);
+
 				if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
 				{
 					t = (float)((cl.mtime[0] * pTest->premultiply - addt) / pTest->premultiply);
@@ -888,18 +886,29 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 			}
 			break;
 		case DT_STRING:
-			st2 = (char *)&to[pTest->fieldOffset];
-			static char* oldpos;
-			oldpos = st2;
-			do
-			{
-				if (st2 - (char *)&to[pTest->fieldOffset] >= nBufSize)
-					break;
+			st2 = (char*)&to[pTest->fieldOffset];
+			j = 0;
+			finish = true;
 
+			while (j + pTest->fieldOffset < nBufSize)
+			{
 				c = MSG_ReadBits(8);
+
 				*st2++ = c;
-			} while (c);
-			DbgPrint(m_fMessages, "parsed %d bits -> %s <%s#%d>\r\n", 8 * (st2 - oldpos), oldpos, __FILE__, __LINE__);
+				
+				j++;
+
+				if (!c)
+				{
+					finish = false;
+					break;
+				}
+			}
+
+			// last received byte is non-zero so terminate string
+			if (finish == true && j > 0)
+				*(st2 - 1) = 0;
+
 			break;
 		default:
 			Con_Printf(const_cast<char*>("unparseable field type %i\n"), fieldType);

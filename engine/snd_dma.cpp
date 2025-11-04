@@ -315,7 +315,7 @@ void S_ClearBuffer(void)
 	}
 }
 
-void S_StopAllSounds( bool clear )
+void S_StopAllSounds( qboolean clear )
 {
 	if (!sound_started) return;
 

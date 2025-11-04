@@ -43,7 +43,7 @@ const int FRAGMENT_S2C_MAX_SIZE = 1024;
 const int CLIENT_FRAGMENT_SIZE_ONCONNECT = 128;
 const int CUSTOMIZATION_MAX_SIZE = 20480;
 
-// Size of fragmentation rgba internal buffers
+// Size of fragmentation buffer internal buffers
 const int FRAGMENT_MAX_SIZE = 1400;
 
 const int MAX_FRAGMENTS = 25000;

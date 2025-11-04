@@ -204,9 +204,8 @@ void CL_GetDemoViewInfo(ref_params_t* rp, float* view, int* viewmodel)
 
 void CL_AppendDemo_f()
 {
-	char name[MAX_PATH], szTempName[MAX_PATH], szOriginalName[MAX_PATH], szMapName[MAX_PATH];
-	demoentry_t temp;
-	int track, nSize, c, copysize, swlen;
+	char name[MAX_PATH], szTempName[MAX_PATH], szMapName[MAX_PATH];
+	int track, c, copysize, swlen;
 	FileHandle_t fp;
 	byte cmd;
 	float f;
@@ -361,7 +360,8 @@ void CL_SwapDemo_f()
 {
 	char name[MAX_PATH], szTempName[MAX_PATH], szOriginalName[MAX_PATH];
 	demoentry_t temp, * newentry, * oldentry;
-	int nSegment1, nSegment2, n, c, i;
+	unsigned int nSegment1, nSegment2, i;
+	int n, c;
 	FileHandle_t fp;
 
 
@@ -740,7 +740,7 @@ void CL_SetDemoInfo_f()
 	FS_Seek(cls.demofile, demoheader.nDirectoryOffset, FILESYSTEM_SEEK_HEAD);
 	FS_Write(&demodir.nEntries, sizeof(demodir.nEntries), 1, cls.demofile);
 
-	for (int i = 0; i < demodir.nEntries; i++)
+	for (unsigned int i = 0; i < demodir.nEntries; i++)
 		FS_Write(&demodir.p_rgEntries[i], sizeof(demoentry_t), 1, cls.demofile);
 
 	FS_Close(cls.demofile);
@@ -757,8 +757,7 @@ void CL_SetDemoInfo_f()
 void CL_RemoveDemo_f()
 {
 	char name[MAX_PATH], szTempName[MAX_PATH], szOriginalName[MAX_PATH];
-	demoentry_t temp;
-	int nSegmentToRemove, nSize;
+	unsigned int nSegmentToRemove;
 	FileHandle_t file;
 	demodirectory_t newdir;
 
@@ -861,7 +860,7 @@ void CL_RemoveDemo_f()
 	newdir.nEntries = demodir.nEntries - 1;
 	newdir.p_rgEntries = (demoentry_t*)Mem_Malloc(sizeof(demoentry_t) * newdir.nEntries);
 
-	for (int i = 0, j = 0; i < demodir.nEntries; i++)
+	for (unsigned int i = 0, j = 0; i < demodir.nEntries; i++)
 	{
 		if (i != nSegmentToRemove)
 		{
@@ -876,7 +875,7 @@ void CL_RemoveDemo_f()
 	demoheader.nDirectoryOffset = FS_Tell(cls.demofile);
 	FS_Write(&newdir.nEntries, sizeof(newdir.nEntries), 1, cls.demofile);
 
-	for (int i = 0; i < newdir.nEntries; i++)
+	for (unsigned int i = 0; i < newdir.nEntries; i++)
 		FS_Write(&newdir.p_rgEntries[i], sizeof(demoentry_t), 1, cls.demofile);
 
 	FS_Seek(cls.demofile, 0, FILESYSTEM_SEEK_HEAD);
@@ -895,7 +894,6 @@ void CL_RemoveDemo_f()
 
 void CL_ListDemo_f()
 {
-	FileHandle_t file;
 	demoheader_t header;
 	char name[MAX_PATH];
 	char type[32];
@@ -943,7 +941,7 @@ void CL_ListDemo_f()
 	FS_Read(directory.p_rgEntries, sizeof(demoentry_t) * directory.nEntries, 1, cls.demofile);
 	Con_Printf(const_cast<char*>("\n"));
 
-	for (int i = 0; i < directory.nEntries; i++)
+	for (unsigned int i = 0; i < directory.nEntries; i++)
 	{
 		if (directory.p_rgEntries[i].nEntryType)
 			snprintf(type, sizeof(type), "Normal segment");
@@ -1407,7 +1405,7 @@ void CL_Stop_f()
 	pCurrentEntry->nFrames = cls.demoframecount;
 	FS_Write(&demodir.nEntries, sizeof(demodir.nEntries), 1, cls.demofile);
 
-	for (int i = 0; i < demodir.nEntries; i++)
+	for (unsigned int i = 0; i < demodir.nEntries; i++)
 		FS_Write(&demodir.p_rgEntries[i], sizeof(demoentry_t), 1, cls.demofile);
 
 	if (demodir.p_rgEntries)
@@ -1445,10 +1443,7 @@ void CL_Stop_f()
 
 void CL_Record_f()
 {
-	int fmt, format;
-	FileHandle_t file;
-	char pOutput[1024], name[MAX_PATH], szMapName[MAX_PATH], szDll[MAX_PATH];
-	float f;
+	char name[MAX_PATH], szMapName[MAX_PATH], szDll[MAX_PATH];
 	int swlen, track;
 	byte cmd;
 
@@ -1536,8 +1531,8 @@ void CL_Record_f()
 	float fTime = LittleFloat(CL_DemoOutTime() - cls.demostarttime);
 	FS_Write(&fTime, sizeof(fTime), 1, cls.demoheader);
 
-	int iFrames = LittleLong(host_framecount - cls.demostartframe);
-	FS_Write(&iFrames, sizeof(iFrames), 1, cls.demoheader);
+	swlen = LittleLong(host_framecount - cls.demostartframe);
+	FS_Write(&swlen, sizeof(swlen), 1, cls.demoheader);
 
 	FS_Flush(cls.demoheader);
 
@@ -1563,14 +1558,14 @@ void CL_Record_f()
 	pCurrentEntry->fTrackTime = 0.0;
 	pCurrentEntry->nOffset = FS_Tell(cls.demofile);
 
-	c = dem_jumptime;
-	FS_Write(&c, sizeof(c), 1, cls.demofile);
+	cmd = dem_jumptime;
+	FS_Write(&cmd, sizeof(cmd), 1, cls.demofile);
 
 	fTime = LittleFloat(CL_DemoOutTime() - cls.demostarttime);
 	FS_Write(&fTime, sizeof(fTime), 1, cls.demoheader);
 
-	iFrames = LittleLong(host_framecount - cls.demostartframe);
-	FS_Write(&iFrames, sizeof(iFrames), 1, cls.demoheader);
+	swlen = LittleLong(host_framecount - cls.demostartframe);
+	FS_Write(&swlen, sizeof(swlen), 1, cls.demoheader);
 
 	cls.demoappending = false;
 	cls.td_startframe = host_framecount;
@@ -1579,7 +1574,6 @@ void CL_Record_f()
 
 void CL_PlayDemo_f()
 {
-	FileHandle_t file;
 	char name[256];
 
 	if (cmd_source != src_command)

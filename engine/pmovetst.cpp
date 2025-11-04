@@ -11,6 +11,66 @@ static box_planes_t box_planes;
 
 qboolean PM_RecursiveHullCheck(hull_t* hull, int num, float p1f, float p2f, const vec_t* p1, const vec_t* p2, pmtrace_t* trace);
 
+float PM_TraceModel(physent_t* pEnt, float* start, float* end, trace_t* trace)
+{
+	hull_t* pHull;
+	int saveHull;
+	vec3_t start_l;
+	vec3_t end_l;
+	vec3_t offset;
+
+	saveHull = pmove->usehull;
+	pmove->usehull = 2;
+	pHull = (hull_t*)PM_HullForBsp(pEnt, offset);
+	pmove->usehull = saveHull;
+	VectorSubtract(start, offset, start_l);
+	VectorSubtract(end, offset, end_l);
+	SV_RecursiveHullCheck(pHull, pHull->firstclipnode, 0.0, 1.0, start_l, end_l, trace);
+	trace->ent = 0;
+	return trace->fraction;
+
+}
+
+void PM_GetModelBounds(struct model_s* mod, float* mins, float* maxs)
+{
+	VectorCopy(mod->mins, mins);
+	VectorCopy(mod->maxs, maxs);
+}
+
+int PM_GetModelType(struct model_s* mod)
+{
+	return mod->type;
+}
+
+void PM_InitBoxHull(void)
+{
+	box_hull.clipnodes = &box_clipnodes[0];
+	box_hull.planes = &box_planes[0];
+	box_hull.firstclipnode = 0;
+	box_hull.lastclipnode = 5;
+
+	for (int i = 0; i < 6; i++)
+	{
+		int side = i & 1;
+		box_clipnodes[i].planenum = i;
+		box_clipnodes[i].children[side] = -1;
+		box_clipnodes[i].children[side ^ 1] = (i != 5) ? i + 1 : CONTENTS_SOLID;
+		box_planes[i].type = i >> 1;
+		box_planes[i].normal[i >> 1] = 1.0f;
+	}
+}
+
+hull_t* PM_HullForBox(vec_t* mins, vec_t* maxs)
+{
+	box_planes[0].dist = maxs[0];
+	box_planes[1].dist = mins[0];
+	box_planes[2].dist = maxs[1];
+	box_planes[3].dist = mins[1];
+	box_planes[4].dist = maxs[2];
+	box_planes[5].dist = mins[2];
+	return &box_hull;
+}
+
 int PM_HullPointContents(hull_t *hull, int num, vec_t *p)
 {
 	float d;
@@ -28,7 +88,7 @@ int PM_HullPointContents(hull_t *hull, int num, vec_t *p)
 		plane = &hull->planes[node->planenum];
 
 		if (plane->type >= 3)
-			d = _DotProduct(p, plane->normal) - plane->dist;
+			d = DotProduct(p, plane->normal) - plane->dist;
 		else
 			d = p[plane->type] - plane->dist;
 
@@ -46,16 +106,17 @@ int PM_LinkContents(vec_t *p, int *pIndex)
 	physent_t *pe;
 	vec3_t test;
 
-	for (int i = 1; i < pmove->numphysent; i++) {
+	for (int i = 1; i < pmove->numphysent; i++) 
+	{
 		pe = &pmove->physents[i];
 		model_t* model = pmove->physents[i].model;
-		if (pmove->physents[i].solid || model == NULL)
+		if (pmove->physents[i].solid != SOLID_NOT || model == NULL)
 			continue;
 
-		test[0] = p[0] - pe->origin[0];
-		test[1] = p[1] - pe->origin[1];
-		test[2] = p[2] - pe->origin[2];
-		if (PM_HullPointContents(model->hulls, model->hulls[0].firstclipnode, test) != -1) {
+		VectorSubtract(p, pe->origin, test);
+
+		if (PM_HullPointContents(model->hulls, model->hulls[0].firstclipnode, test) != -1) 
+		{
 			if (pIndex)
 				*pIndex = pe->info;
 			return pe->skin;
@@ -65,9 +126,87 @@ int PM_LinkContents(vec_t *p, int *pIndex)
 	return -1;
 }
 
-void* PM_HullForBsp(physent_t *pe, vec_t *offset)
+int PM_PointContents(vec_t* p, int* truecontents)
 {
-	hull_t *hull;
+	RecEngPM_PointContents(p, truecontents);
+
+	if (pmove->physents[0].model->hulls != NULL)
+	{
+		int entityContents = PM_HullPointContents(
+			pmove->physents[0].model->hulls,
+			pmove->physents[0].model->hulls[0].firstclipnode,
+			p);
+		
+		if (truecontents)
+			*truecontents = entityContents;
+
+		if (entityContents > CONTENTS_CURRENT_0 || entityContents < CONTENTS_CURRENT_DOWN)
+		{
+			if (entityContents == CONTENTS_SOLID)
+				return entityContents;
+		}
+		else
+		{
+			entityContents = CONTENTS_WATER;
+		}
+
+		int cont = PM_LinkContents(p, NULL);
+
+		if (cont != CONTENTS_EMPTY)
+			return cont;
+
+		return entityContents;
+	}
+
+	if (truecontents)
+		*truecontents = CONTENTS_EMPTY;
+
+	return CONTENTS_SOLID;
+
+}
+
+int PM_WaterEntity(vec_t* p)
+{
+	int cont;
+	int entityIndex;
+
+	RecEngPM_WaterEntity(p);
+
+	model_t* model = pmove->physents[0].model;
+	cont = PM_HullPointContents(model->hulls, model->hulls[0].firstclipnode, p);
+
+	if (cont < CONTENTS_SOLID)
+		entityIndex = 0;
+
+	if (cont == CONTENTS_SOLID)
+		return -1;
+
+	return PM_LinkContents(p, &entityIndex);
+}
+
+int PM_TruePointContents(float* p)
+{
+	if (pmove->physents[0].model->hulls == NULL)
+		return CONTENTS_EMPTY;
+	else
+		return PM_HullPointContents(pmove->physents[0].model->hulls, pmove->physents[0].model->hulls[0].firstclipnode, p);
+}
+
+hull_t* PM_HullForStudioModel(model_t* pModel, vec_t* offset, float frame, int sequence, const vec_t* angles, const vec_t* origin, const unsigned char* pcontroller, const unsigned char* pblending, int* pNumHulls)
+{
+	vec3_t size;
+
+	VectorSubtract(player_maxs[pmove->usehull], player_mins[pmove->usehull], size);
+	VectorScale(size, 0.5, size);
+	offset[0] = 0;
+	offset[1] = 0;
+	offset[2] = 0;
+	return R_StudioHull(pModel, frame, sequence, angles, origin, size, pcontroller, pblending, pNumHulls, 0, 0);
+}
+
+void* PM_HullForBsp(physent_t* pe, vec_t* offset)
+{
+	hull_t* hull;
 
 	switch (pmove->usehull) {
 	case 1:
@@ -92,76 +231,92 @@ void* PM_HullForBsp(physent_t *pe, vec_t *offset)
 	return hull;
 }
 
-hull_t *PM_HullForBox(vec_t *mins, vec_t *maxs)
+int _PM_TestPlayerPosition(vec_t* pos, pmtrace_t* ptrace, int(*pfnIgnore)(physent_t*))
 {
-	box_planes[0].dist = maxs[0];
-	box_planes[1].dist = mins[0];
-	box_planes[2].dist = maxs[1];
-	box_planes[3].dist = mins[1];
-	box_planes[4].dist = maxs[2];
-	box_planes[5].dist = mins[2];
-	return &box_hull;
-}
+	hull_t* hull;
+	pmtrace_t tr;
+	vec3_t mins;
+	vec3_t maxs;
+	vec3_t offset;
+	int numhulls;
+	vec3_t test;
 
-hull_t *PM_HullForStudioModel(model_t *pModel, vec_t *offset, float frame, int sequence, const vec_t *angles, const vec_t *origin, const unsigned char *pcontroller, const unsigned char *pblending, int *pNumHulls)
-{
-	vec3_t size;
+	tr = PM_PlayerTrace(pmove->origin, pmove->origin, PM_NORMAL, -1);
+	if (ptrace)
+		*ptrace = tr;
 
-	VectorSubtract(player_maxs[pmove->usehull], player_mins[pmove->usehull], size);
-	VectorScale(size, 0.5, size);
-	offset[0] = 0;
-	offset[1] = 0;
-	offset[2] = 0;
-	return R_StudioHull(pModel, frame, sequence, angles, origin, size, pcontroller, pblending, pNumHulls, 0, 0);
-}
-
-int PM_PointContents( vec_t* p, int* truecontents )
-{
-	g_engdstAddrs.PM_PointContents(&p, &truecontents);
-
-	if (pmove->physents[0].model->hulls != NULL)
+	for (int i = 0; i < pmove->numphysent; i++)
 	{
-		int entityContents = PM_HullPointContents(
-			pmove->physents[0].model->hulls,
-			pmove->physents[0].model->hulls[0].firstclipnode,
-			p);
-		if (truecontents)
-			*truecontents = entityContents;
-		if (entityContents > -9 || entityContents < -14)
+		physent_t* pe = &pmove->physents[i];
+		if (pfnIgnore && pfnIgnore(pe))
+			continue;
+
+		if (pe->model && pe->solid == SOLID_NOT && pe->skin != 0)
+			continue;
+
+		VectorCopy(pe->origin, offset);
+		numhulls = 1;
+
+		if (pe->model)
 		{
-			if (entityContents == -2)
-				return entityContents;
+			hull = (hull_t*)PM_HullForBsp(pe, offset);
 		}
 		else
 		{
-			entityContents = -3;
+			if (pe->studiomodel && pe->studiomodel->type == mod_studio && ((pe->studiomodel->flags & STUDIO_TRACE_HITBOX) || pmove->usehull == 2))
+			{
+				hull = PM_HullForStudioModel(pe->studiomodel, offset, pe->frame, pe->sequence, pe->angles, pe->origin, pe->controller, pe->blending, &numhulls);
+			}
+			else
+			{
+				VectorSubtract(pe->mins, player_maxs[pmove->usehull], mins);
+				VectorSubtract(pe->maxs, player_mins[pmove->usehull], mins);
+
+				hull = PM_HullForBox(mins, maxs);
+			}
 		}
-		int cont = PM_LinkContents(p, 0);
-		if (cont != -1)
-			return cont;
-		return entityContents;
+		
+		VectorSubtract(pos, offset, test);
+
+		if (pe->solid == SOLID_BSP && (pe->angles[0] != 0.0 || pe->angles[1] != 0.0 || pe->angles[2] != 0.0))
+		{
+			vec3_t forward, right, up;
+			AngleVectors(pe->angles, forward, right, up);
+
+			test[0] = DotProduct(forward, test);
+			test[1] = -DotProduct(right, test);
+			test[2] = DotProduct(up, test);
+		}
+
+		if (numhulls != 1)
+		{
+			for (int j = 0; j < numhulls; j++)
+			{
+				g_contentsresult = PM_HullPointContents(&hull[j], hull[j].firstclipnode, test);
+				if (g_contentsresult == CONTENTS_SOLID)
+					return i;
+			}
+		}
+		else
+		{
+			g_contentsresult = PM_HullPointContents(hull, hull->firstclipnode, test);
+			if (g_contentsresult == CONTENTS_SOLID)
+				return i;
+		}
 	}
-	if (truecontents)
-		*truecontents = -1;
-	return -2;
+
+	return -1;
 
 }
 
-int PM_WaterEntity( vec_t* p )
+int PM_TestPlayerPosition(float* pos, pmtrace_t* ptrace)
 {
-	int cont;
-	int entityIndex;
+	return _PM_TestPlayerPosition(pos, ptrace, 0);
+}
 
-	g_engdstAddrs.PM_WaterEntity(&p);
-
-	model_t* model = pmove->physents[0].model;
-	cont = PM_HullPointContents(model->hulls, model->hulls[0].firstclipnode, p);
-	if (cont == -2) {
-		return -1;
-	}
-
-	entityIndex = 0;
-	return PM_LinkContents(p, &entityIndex);
+int PM_TestPlayerPositionEx(vec_t* pos, pmtrace_t* ptrace, int(*pfnIgnore)(physent_t*))
+{
+	return _PM_TestPlayerPosition(pos, ptrace, pfnIgnore);
 }
 
 pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphysent, physent_t *physents, int ignore_pe, int(*pfnIgnore)(physent_t *))
@@ -182,9 +337,7 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 	Q_memset(&trace, 0, sizeof(trace));
 	trace.fraction = 1.0f;
 	trace.ent = -1;
-	trace.endpos[0] = end[0];
-	trace.endpos[1] = end[1];
-	trace.endpos[2] = end[2];
+	VectorCopy(end, trace.endpos);
 
 	for (int i = 0; i < numphysent; i++)
 	{
@@ -206,11 +359,9 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 		if ((pe->model && !pe->solid && pe->skin) || ((traceFlags & PM_GLASS_IGNORE) && pe->rendermode))
 			continue;
 
-
-		offset[0] = pe->origin[0];
-		offset[1] = pe->origin[1];
-		offset[2] = pe->origin[2];
+		VectorCopy(pe->origin, offset);
 		pNumHulls = 1;
+
 		if (pe->model)
 		{
 			switch (pmove->usehull)
@@ -239,7 +390,6 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 				if (traceFlags & PM_STUDIO_IGNORE)
 					continue;
 
-
 				if (pe->studiomodel->type == mod_studio && (pe->studiomodel->flags & STUDIO_TRACE_HITBOX || (pmove->usehull == 2 && !(traceFlags & PM_STUDIO_BOX))))
 				{
 					hull = PM_HullForStudioModel(pe->studiomodel, offset, pe->frame, pe->sequence, pe->angles, pe->origin, pe->controller, pe->blending, &pNumHulls);
@@ -262,15 +412,13 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 			vec3_t forward, right, up;
 			AngleVectors(pe->angles, forward, right, up);
 
-			vec3_t temp_start = { start_l[0], start_l[1], start_l[2] };
-			start_l[0] = _DotProduct(forward, temp_start);
-			start_l[1] = -_DotProduct(right, temp_start);
-			start_l[2] = _DotProduct(up, temp_start);
+			start_l[0] = DotProduct(forward, start_l);
+			start_l[1] = -DotProduct(right, start_l);
+			start_l[2] = DotProduct(up, start_l);
 
-			vec3_t temp_end = { end_l[0], end_l[1], end_l[2] };
-			end_l[0] = _DotProduct(forward, temp_end);
-			end_l[1] = -_DotProduct(right, temp_end);
-			end_l[2] = _DotProduct(up, temp_end);
+			end_l[0] = DotProduct(forward, end_l);
+			end_l[1] = -DotProduct(right, end_l);
+			end_l[2] = DotProduct(up, end_l);
 
 			rotated = true;
 		}
@@ -280,11 +428,11 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 		}
 
 		Q_memset(&total, 0, sizeof(total));
-		total.endpos[0] = end[0];
-		total.endpos[1] = end[1];
-		total.endpos[2] = end[2];
+		VectorCopy(end, total.endpos);
+
 		total.fraction = 1.0f;
-		total.allsolid = 1;
+		total.allsolid = true;
+
 		if (pNumHulls <= 0)
 		{
 			total.allsolid = 0;
@@ -293,7 +441,7 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 		{
 			if (pNumHulls == 1)
 			{
-				PM_RecursiveHullCheck(hull, hull->firstclipnode, 0.0, 1.0, start_l, end_l, &total);
+				PM_RecursiveHullCheck(hull, hull->firstclipnode, 0.0f, 1.0f, start_l, end_l, &total);
 			}
 			else
 			{
@@ -301,43 +449,48 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 				for (int j = 0; j < pNumHulls; j++)
 				{
 					Q_memset(&testtrace, 0, sizeof(testtrace));
-					testtrace.endpos[0] = end[0];
-					testtrace.endpos[1] = end[1];
-					testtrace.endpos[2] = end[2];
+
+					VectorCopy(end, testtrace.endpos);
+
 					testtrace.fraction = 1.0f;
-					testtrace.allsolid = 1;
-					PM_RecursiveHullCheck(&hull[j], hull[j].firstclipnode, 0.0, 1.0, start_l, end_l, &testtrace);
+					testtrace.allsolid = true;
+
+					PM_RecursiveHullCheck(&hull[j], hull[j].firstclipnode, 0.0, 1.0f, start_l, end_l, &testtrace);
+
 					if (j == 0 || testtrace.allsolid || testtrace.startsolid || testtrace.fraction < total.fraction)
 					{
-						bool remember = (total.startsolid == 0);
-						Q_memcpy(&total, &testtrace, sizeof(total));
+						qboolean remember = (total.startsolid == false) ? true : false;
+						
+						total = testtrace;
+
 						if (!remember)
-							total.startsolid = 1;
+							total.startsolid = true;
+						
 						closest = j;
 					}
+
 					total.hitgroup = SV_HitgroupForStudioHull(closest);
 				}
 			}
 
 			if (total.allsolid)
-				total.startsolid = 1;
+				total.startsolid = true;
 
 		}
 
 		if (total.startsolid)
 			total.fraction = 0;
 
-		if (total.fraction != 1.0)
+		if (total.fraction != 1.0f)
 		{
 			if (rotated)
 			{
 				vec3_t forward, right, up;
 				AngleVectorsTranspose(pe->angles, forward, right, up);
 
-				vec3_t temp = { total.plane.normal[0], total.plane.normal[1], total.plane.normal[2] };
-				total.plane.normal[0] = _DotProduct(forward, temp);
-				total.plane.normal[1] = _DotProduct(right, temp);
-				total.plane.normal[2] = _DotProduct(up, temp);
+				total.plane.normal[0] = DotProduct(forward, total.plane.normal);
+				total.plane.normal[1] = DotProduct(right, total.plane.normal);
+				total.plane.normal[2] = DotProduct(up, total.plane.normal);
 			}
 			total.endpos[0] = (end[0] - start[0]) * total.fraction + start[0];
 			total.endpos[1] = (end[1] - start[1]) * total.fraction + start[1];
@@ -346,7 +499,7 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 
 		if (total.fraction < trace.fraction)
 		{
-			Q_memcpy(&trace, &total, sizeof(trace));
+			trace = total;
 			trace.ent = i;
 		}
 	}
@@ -354,18 +507,31 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 	return trace;
 }
 
+pmtrace_t PM_PlayerTrace(vec_t* start, vec_t* end, int traceFlags, int ignore_pe)
+{
+	pmtrace_t tr = _PM_PlayerTrace(start, end, traceFlags, pmove->numphysent, pmove->physents, ignore_pe, NULL);
+	return tr;
+}
+
+pmtrace_t PM_PlayerTraceEx(vec_t* start, vec_t* end, int traceFlags, int(*pfnIgnore)(physent_t*))
+{
+	pmtrace_t tr = _PM_PlayerTrace(start, end, traceFlags, pmove->numphysent, pmove->physents, -1, pfnIgnore);
+	return tr;
+}
+
 pmtrace_t* PM_TraceLine(float* start, float* end, int flags, int usehull, int ignore_pe)
 {
 	int oldhull;
 	static pmtrace_t tr;
 
-	g_engdstAddrs.PM_TraceLine(&start, &end, &flags, &usehull, &ignore_pe);
+	RecEngPM_TraceLine(start, end, flags, usehull, ignore_pe);
 
 	oldhull = pmove->usehull;
 	pmove->usehull = usehull;
+
 	if (flags)
 	{
-		if (flags == 1)
+		if (flags == PM_STUDIO_IGNORE)
 			tr = _PM_PlayerTrace(start, end, PM_NORMAL, pmove->numvisent, pmove->visents, ignore_pe, NULL);
 	}
 	else
@@ -376,123 +542,27 @@ pmtrace_t* PM_TraceLine(float* start, float* end, int flags, int usehull, int ig
 	return &tr;
 }
 
-void PM_InitBoxHull(void)
+struct pmtrace_s* PM_TraceLineEx(float* start, float* end, int flags, int usehull, int(*pfnIgnore)(physent_t* pe))
 {
-	box_hull.clipnodes = &box_clipnodes[0];
-	box_hull.planes = &box_planes[0];
-	box_hull.firstclipnode = 0;
-	box_hull.lastclipnode = 5;
+	int oldhull;
+	static pmtrace_t tr;
 
-	for (int i = 0; i < 6; i++)
+	oldhull = pmove->usehull;
+	pmove->usehull = usehull;
+	if (flags)
 	{
-		int side = i & 1;
-		box_clipnodes[i].planenum = i;
-		box_clipnodes[i].children[side] = -1;
-		box_clipnodes[i].children[side ^ 1] = (i != 5) ? i + 1 : CONTENTS_SOLID;
-		box_planes[i].type = i >> 1;
-		box_planes[i].normal[i >> 1] = 1.0f;
+		tr = _PM_PlayerTrace(start, end, PM_NORMAL, pmove->numvisent, pmove->visents, -1, pfnIgnore);
 	}
-}
-
-int _PM_TestPlayerPosition(vec_t *pos, pmtrace_t *ptrace, int(*pfnIgnore)(physent_t *))
-{
-	hull_t *hull;
-	pmtrace_t tr;
-	vec3_t mins;
-	vec3_t maxs;
-	vec3_t offset;
-	int numhulls;
-	vec3_t test;
-
-	tr = PM_PlayerTrace(pmove->origin, pmove->origin, PM_NORMAL, -1);
-	if (ptrace)
-		Q_memcpy(ptrace, &tr, sizeof(tr));
-
-	for (int i = 0; i < pmove->numphysent; i++)
+	else
 	{
-		physent_t *pe = &pmove->physents[i];
-		if (pfnIgnore && pfnIgnore(pe))
-			continue;
-
-		if (pe->model && pe->solid == SOLID_NOT && pe->skin != 0)
-			continue;
-
-		offset[0] = pe->origin[0];
-		offset[1] = pe->origin[1];
-		offset[2] = pe->origin[2];
-		numhulls = 1;
-
-		if (pe->model)
-		{
-			hull = (hull_t*)PM_HullForBsp(pe, offset);
-		}
-		else
-		{
-			if (pe->studiomodel && pe->studiomodel->type == mod_studio && ((pe->studiomodel->flags & STUDIO_TRACE_HITBOX) || pmove->usehull == 2))
-			{
-				hull = PM_HullForStudioModel(pe->studiomodel, offset, pe->frame, pe->sequence, pe->angles, pe->origin, pe->controller, pe->blending, &numhulls);
-			}
-			else
-			{
-				VectorSubtract(pe->mins, player_maxs[pmove->usehull], mins);
-				VectorSubtract(pe->maxs, player_mins[pmove->usehull], mins);
-
-				hull = PM_HullForBox(mins, maxs);
-			}
-		}
-		VectorSubtract(pos, offset, test);
-		if (pe->solid == SOLID_BSP && (pe->angles[0] != 0.0 || pe->angles[1] != 0.0 || pe->angles[2] != 0.0))
-		{
-			vec3_t forward, right, up;
-			AngleVectors(pe->angles, forward, right, up);
-
-			vec3_t temp = { test[0], test[1], test[2] };
-			test[0] = _DotProduct(forward, temp);
-			test[1] = -_DotProduct(right, temp);
-			test[2] = _DotProduct(up, temp);
-		}
-		if (numhulls != 1)
-		{
-			for (int j = 0; j < numhulls; j++)
-			{
-				g_contentsresult = PM_HullPointContents(&hull[j], hull[j].firstclipnode, test);
-				if (g_contentsresult == CONTENTS_SOLID)
-					return i;
-			}
-		}
-		else
-		{
-			g_contentsresult = PM_HullPointContents(hull, hull->firstclipnode, test);
-			if (g_contentsresult == CONTENTS_SOLID)
-				return i;
-		}
+		tr = PM_PlayerTraceEx(start, end, PM_NORMAL, pfnIgnore);
 	}
-
-	return -1;
+	pmove->usehull = oldhull;
+	return &tr;
 
 }
 
-pmtrace_t PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int ignore_pe)
-{
-	pmtrace_t tr = _PM_PlayerTrace(start, end, traceFlags, pmove->numphysent, pmove->physents, ignore_pe, NULL);
-	return tr;
-}
-
-pmtrace_t PM_PlayerTraceEx(vec_t *start, vec_t *end, int traceFlags, int(*pfnIgnore)(physent_t *))
-{
-	pmtrace_t tr = _PM_PlayerTrace(start, end, traceFlags, pmove->numphysent, pmove->physents, -1, pfnIgnore);
-	return tr;
-}
-
-int PM_TestPlayerPosition(float *pos, pmtrace_t *ptrace)
-{
-	return _PM_TestPlayerPosition(pos, ptrace, 0);
-}
-
-int PM_TestPlayerPositionEx(vec_t *pos, pmtrace_t *ptrace, int(*pfnIgnore)(physent_t *))
-{
-	return _PM_TestPlayerPosition(pos, ptrace, pfnIgnore);
-}
+#define	DIST_EPSILON	(0.03125)
 
 qboolean PM_RecursiveHullCheck(hull_t *hull, int num, float p1f, float p2f, const vec_t *p1, const vec_t *p2, pmtrace_t *trace)
 {
@@ -504,8 +574,6 @@ qboolean PM_RecursiveHullCheck(hull_t *hull, int num, float p1f, float p2f, cons
 	float t1;
 	float t2;
 	float midf;
-
-	float DIST_EPSILON = 0.03125f;
 
 	if (num < 0)
 	{
@@ -539,14 +607,15 @@ qboolean PM_RecursiveHullCheck(hull_t *hull, int num, float p1f, float p2f, cons
 	plane = &hull->planes[node->planenum];
 	if (plane->type >= 3u)
 	{
-		t1 = _DotProduct((vec_t*)p1, plane->normal) - plane->dist;
-		t2 = _DotProduct((vec_t*)p2, plane->normal) - plane->dist;
+		t1 = DotProduct(p1, plane->normal) - plane->dist;
+		t2 = DotProduct(p2, plane->normal) - plane->dist;
 	}
 	else
 	{
 		t1 = p1[plane->type] - plane->dist;
 		t2 = p2[plane->type] - plane->dist;
 	}
+
 	if (t1 >= 0.0 && t2 >= 0.0)
 		return PM_RecursiveHullCheck(hull, node->children[0], p1f, p2f, p1, p2, trace);
 
@@ -561,19 +630,12 @@ qboolean PM_RecursiveHullCheck(hull_t *hull, int num, float p1f, float p2f, cons
 
 		midf = t1 + DIST_EPSILON;
 	}
-	midf = midf / (t1 - t2);
-	if (midf >= 0.0)
-	{
-		if (midf > 1.0)
-			midf = 1.0;
-	}
-	else
-	{
-		midf = 0.0;
-	}
+
+	midf = clamp(midf / (t1 - t2), 0.0f, 1.0f);
 
 	pdif = p2f - p1f;
 	frac = pdif * midf + p1f;
+
 	mid[0] = (p2[0] - p1[0]) * midf + p1[0];
 	mid[1] = (p2[1] - p1[1]) * midf + p1[1];
 	mid[2] = (p2[2] - p1[2]) * midf + p1[2];
@@ -581,13 +643,13 @@ qboolean PM_RecursiveHullCheck(hull_t *hull, int num, float p1f, float p2f, cons
 	int side = (t1 >= 0.0) ? 0 : 1;
 
 	if (!PM_RecursiveHullCheck(hull, node->children[side], p1f, frac, p1, mid, trace))
-		return 0;
+		return FALSE;
 
-	if (PM_HullPointContents(hull, node->children[side ^ 1], mid) != -2)
+	if (PM_HullPointContents(hull, node->children[side ^ 1], mid) != CONTENTS_SOLID)
 		return PM_RecursiveHullCheck(hull, node->children[side ^ 1], frac, p2f, mid, p2, trace);
 
 	if (trace->allsolid)
-		return 0;
+		return FALSE;
 
 	if (side)
 	{
@@ -596,104 +658,26 @@ qboolean PM_RecursiveHullCheck(hull_t *hull, int num, float p1f, float p2f, cons
 	}
 	else
 	{
-		trace->plane.normal[0] = plane->normal[0];
-		trace->plane.normal[1] = plane->normal[1];
-		trace->plane.normal[2] = plane->normal[2];
+		VectorCopy(plane->normal, trace->plane.normal);
 		trace->plane.dist = plane->dist;
 	}
 
-	if (PM_HullPointContents(hull, hull->firstclipnode, mid) != -2)
-	{
-		trace->fraction = frac;
-		trace->endpos[0] = mid[0];
-		trace->endpos[1] = mid[1];
-		trace->endpos[2] = mid[2];
-		return 0;
-	}
-
-	while (true)
+	while (PM_HullPointContents(hull, hull->firstclipnode, mid) == CONTENTS_SOLID)
 	{
 		midf = (float)(midf - 0.05);
 		if (midf < 0.0)
+		{
+			Con_DPrintf("Trace backed up past 0.0.\n");
 			break;
+		}
 
 		frac = pdif * midf + p1f;
 		mid[0] = (p2[0] - p1[0]) * midf + p1[0];
 		mid[1] = (p2[1] - p1[1]) * midf + p1[1];
 		mid[2] = (p2[2] - p1[2]) * midf + p1[2];
-		if (PM_HullPointContents(hull, hull->firstclipnode, mid) != -2)
-		{
-			trace->fraction = frac;
-			trace->endpos[0] = mid[0];
-			trace->endpos[1] = mid[1];
-			trace->endpos[2] = mid[2];
-			return 0;
-		}
 	}
 
 	trace->fraction = frac;
-	trace->endpos[0] = mid[0];
-	trace->endpos[1] = mid[1];
-	trace->endpos[2] = mid[2];
-	Con_DPrintf(const_cast<char*>("Trace backed up past 0.0.\n"));
-	return 0;
-}
-
-int PM_TruePointContents(float *p)
-{
-	if (pmove->physents[0].model->hulls == NULL)
-		return -1;
-	else
-		return PM_HullPointContents(pmove->physents[0].model->hulls, pmove->physents[0].model->hulls[0].firstclipnode, p);
-}
-
-float PM_TraceModel( physent_t *pEnt, float *start, float *end, trace_t *trace )
-{
-	hull_t *pHull;
-	int saveHull;
-	vec3_t start_l;
-	vec3_t end_l;
-	vec3_t offset;
-
-	saveHull = pmove->usehull;
-	pmove->usehull = 2;
-	pHull = (hull_t*)PM_HullForBsp(pEnt, offset);
-	pmove->usehull = saveHull;
-	VectorSubtract(start, offset, start_l);
-	VectorSubtract(end, offset, end_l);
-	SV_RecursiveHullCheck(pHull, pHull->firstclipnode, 0.0, 1.0, start_l, end_l, trace);
-	trace->ent = 0;
-	return trace->fraction;
-
-}
-
-int PM_GetModelType(struct model_s *mod)
-{
-	return mod->type;
-}
-
-void PM_GetModelBounds(struct model_s *mod, float *mins, float *maxs)
-{
-	VectorCopy(mod->mins, mins);
-	VectorCopy(mod->maxs, maxs);
-}
-
-struct pmtrace_s* PM_TraceLineEx(float *start, float *end, int flags, int usehull, int(*pfnIgnore)(physent_t *pe))
-{
-	int oldhull;
-	static pmtrace_t tr;
-
-	oldhull = pmove->usehull;
-	pmove->usehull = usehull;
-	if (flags)
-	{
-		tr = _PM_PlayerTrace(start, end, PM_NORMAL, pmove->numvisent, pmove->visents, -1, pfnIgnore);
-	}
-	else
-	{
-		tr = PM_PlayerTraceEx(start, end, PM_NORMAL, pfnIgnore);
-	}
-	pmove->usehull = oldhull;
-	return &tr;
-
+	VectorCopy(mid, trace->endpos);
+	return FALSE;
 }

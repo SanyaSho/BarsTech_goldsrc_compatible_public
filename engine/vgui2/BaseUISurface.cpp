@@ -88,6 +88,21 @@ BaseUISurface::~BaseUISurface()
 	m_bAllowJavaScript = false;
 }
 
+vgui2::KeyCode GetVGUI2KeyCodeForBind(const char* bind)
+{
+	const char* pszName = Key_NameForBinding(bind);
+
+	if (pszName)
+	{
+		SDL_Keycode sdlKey = GetSDLKeycodeFromEngineKey(Key_StringToKeynum(pszName));
+
+		if (sdlKey > SDL_SCANCODE_UNKNOWN)
+			return KeyCode_VirtualKeyToVGUI(sdlKey);
+	}
+
+	return vgui2::KEY_NONE;
+}
+
 void BaseUISurface::Init( vgui2::VPANEL embeddedPanel, IEngineSurface* engineSurface, IHTMLChromeController* pChromeController )
 {
 	_engineSurface = engineSurface;

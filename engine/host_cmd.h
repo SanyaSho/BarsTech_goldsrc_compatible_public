@@ -58,8 +58,8 @@ extern qboolean noclip_anglehack;
 extern int current_skill;
 extern int gHostSpawnCount;
 
-extern bool g_iQuitCommandIssued;
-extern bool g_bMajorMapChange;
+extern int g_iQuitCommandIssued;
+extern qboolean g_bMajorMapChange;
 
 void Host_InitCommands();
 

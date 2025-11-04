@@ -285,7 +285,7 @@ sndinitstat SNDDMA_InitDirect(void)
 
 	if (!hInstDS)
 	{
-		hInstDS = Sys_LoadWindowsDLL("dsound.dll");
+		hInstDS = (HMODULE)FS_LoadLibrary("dsound.dll");
 
 		if (hInstDS == NULL)
 		{

@@ -60,6 +60,13 @@ typedef struct entity_state_s entity_state_t;
 // the second character will allways be \n if the message isn't a single
 // byte long (?? not true anymore?)
 
+#define S2A_SERVERLIST			'f'
+#define S2A_PING				'j'
+// Number of rules + string key and string value pairs
+#define S2A_RULES				'E'
+// Response details about each player on the server
+#define S2A_PLAYERS				'D'
+
 
 // Requesting for full server list from Server Master
 #define	A2M_GET_SERVERS			'c'	// no params

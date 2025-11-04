@@ -412,7 +412,7 @@ function( add_engine )
 		${ARGS_TARGET} PRIVATE
 
 		$<${IS_WINDOWS}:winmm>
-		$<${IS_WINDOWS}:ws2_32>
+		$<${IS_WINDOWS}:wsock32>
 		$<${IS_WINDOWS}:dinput>
 		$<${IS_WINDOWS}:dxguid>
 		$<${IS_WINDOWS}:ddraw>

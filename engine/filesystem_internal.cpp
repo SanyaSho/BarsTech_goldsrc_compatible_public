@@ -151,11 +151,11 @@ CSysModule* FS_LoadLibrary( const char *dllName )
 {
 	if( dllName )
 	{
-		g_pFileSystem->GetLocalCopy( dllName );
+		FS_GetLocalCopy( dllName );
 		return Sys_LoadModule( dllName );
 	}
 
-	return nullptr;
+	return NULL;
 }
 
 void FS_LogLevelLoadFinished( const char *name )

@@ -896,6 +896,10 @@ edict_t* CreateNamedEntity(int className)
 	pedict = ED_Alloc();
 	pedict->v.classname = className;
 
+	char dbg[256];
+	snprintf(dbg, 256, __FUNCTION__ " trying to init entity %s\n", &pr_strings[className]);
+	Con_DPrintf(dbg);
+
 	pEntityInit = GetEntityInit(&pr_strings[className]);
 	if (pEntityInit)
 	{

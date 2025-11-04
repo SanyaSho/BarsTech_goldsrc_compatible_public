@@ -1965,7 +1965,7 @@ void VideoMode_GetCurrentRenderer( char* name, int namelen, int* windowed, int* 
 	}
 }
 
-bool VideoMode_IsWindowed( void )
+int VideoMode_IsWindowed( void )
 {
 	return videomode && videomode->IsWindowedMode();
 }

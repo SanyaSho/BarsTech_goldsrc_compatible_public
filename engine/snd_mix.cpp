@@ -50,6 +50,11 @@ void SetCareerAudioState(qboolean st)
 	s_careerAudioPaused = st;
 }
 
+void CareerAudio_Command_f()
+{
+	s_careerAudioPaused = 0;
+}
+
 void VOX_Shutdown()
 {
 	for (int i = 0; i < cszrawsentences; i++)

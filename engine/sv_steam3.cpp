@@ -676,7 +676,7 @@ uint64 Steam_GSGetSteamID()
 qboolean Steam_GSBSecure()
 {
 	//useless call
-	//Steam3Server();
+	Steam3Server();
 	return SteamGameServer()->BSecure();
 }
 

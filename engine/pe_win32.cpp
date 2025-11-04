@@ -33,12 +33,11 @@ int PE_CountSections(LPBYTE lpImage)
 	return NTHeader->FileHeader.NumberOfSections;
 }
 
-IMAGE_SECTION_HEADER* PE_SectionFromDirectory(LPBYTE lpImage, int iDirNum)
+IMAGE_SECTION_HEADER* PE_SectionFromDirectory(LPBYTE lpImage, unsigned int iDirNum)
 {
 	PIMAGE_NT_HEADERS     NTHeader;
 	PIMAGE_DOS_HEADER     DOSHeader;
 	PIMAGE_SECTION_HEADER Sections;
-	PIMAGE_EXPORT_DIRECTORY pExportDirectory;
 	int iSectionsTotal, iCurrentSection;
 	DWORD RVA;
 

@@ -1576,15 +1576,6 @@ void CL_ParseTextMessage(void)
 void CL_ParseTEnt(void)
 {
 	int type;
-	/*byte startFrame;
-	int startEnt, endEnt, radius, modelIndex, spriteIndex, decalIndex, entIndex;
-	vec3_t pos, endpos, dir, size;
-	float framerate, scale, life, width, length, zoffset, amplitude, brightness, r, g, b, speed, height;
-	dlight_t *pdl;
-	int colorStart, colorLength, spread, rendermode, owner, playerindex, decIdx, count, soundtype, color, ivel, flags, density;
-	vec_t mins[4], maxs[4], origin[4];
-	customization_t *pcustom;
-	texture_t *pdecal;*/
 
 	// первый байт сообщения типа tent - сигнал
 	type = MSG_ReadByte();
@@ -1683,8 +1674,51 @@ void CL_ParseTEnt(void)
 		scale = (float)MSG_ReadByte() / 10.f;
 		framerate = (float)MSG_ReadByte();
 		flags = MSG_ReadByte();
-		
-		R_Explosion(pos, spriteIndex, scale, framerate, flags);	
+
+		if (scale != 0)
+		{
+			efx.R_Sprite_Explode(R_DefaultSprite(pos, spriteIndex, framerate), scale, flags);
+
+			if ((flags & FTENT_SLOWGRAVITY) == 0)
+				efx.R_FlickerParticles(pos);
+
+			if ((flags & FTENT_GRAVITY) == 0)
+			{
+				dl = efx.CL_AllocDlight(0);
+				VectorCopy(pos, dl->origin);
+				dl->radius = 200.0;
+				dl->color.r = 250;
+				dl->color.g = 250;
+				dl->color.b = 150;
+				dl->die = cl.time + 0.01;
+				dl->decay = 800.0;
+
+				dl = efx.CL_AllocDlight(0);
+				VectorCopy(pos, dl->origin);
+				dl->radius = 150.0;
+				dl->color.r = 255;
+				dl->color.g = 190;
+				dl->color.b = 40;
+				dl->die = cl.time + 1.0;
+				dl->decay = 200.0;
+			}
+		}
+
+		if ((flags & FTENT_ROTATE) == 0)
+		{
+			switch (RandomLong(0, 2))
+			{
+			case 0:
+				S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp1, pos, VOL_NORM, 0.3, 0, PITCH_NORM);
+				break;
+			case 1:
+				S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp2, pos, VOL_NORM, 0.3, 0, PITCH_NORM);
+				break;
+			case 2:
+				S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp3, pos, VOL_NORM, 0.3, 0, PITCH_NORM);
+				break;
+			}
+		}
 	}
 		break;
 	case TE_TAREXPLOSION:
@@ -2006,7 +2040,7 @@ void CL_ParseTEnt(void)
 		break;
 	case TE_STREAK_SPLASH:
 	{
-		vec3_t pos, endpos, dir;
+		vec3_t pos, dir;
 		int color, count, ivel;
 		float speed;
 
@@ -2155,7 +2189,7 @@ void CL_ParseTEnt(void)
 		break;
 	case TE_SHOWLINE:
 	{
-		vec3_t pos, dir, endpos;
+		vec3_t pos, endpos;
 
 		pos[0] = MSG_ReadCoord(&net_message);
 		pos[1] = MSG_ReadCoord(&net_message);
@@ -3048,7 +3082,6 @@ mspriteframe_t* R_GetSpriteFrame(msprite_t* pSprite, int nframe)
 void R_GetSpriteAxes(cl_entity_t* ent, short type, vec_t* vpn, vec_t* vright, vec_t* vup)
 {
 	int				i;
-	msprite_t		*psprite;
 	vec3_t			tvec;
 	float			dot, angle, sr, cr;
 
@@ -3186,10 +3219,10 @@ void R_Explosion( float* pos, int model, float scale, float framerate, int flags
 	{
 		efx.R_Sprite_Explode(R_DefaultSprite(pos, model, framerate), scale, flags);
 		
-		if (flags & FTENT_SLOWGRAVITY)
+		if ((flags & FTENT_SLOWGRAVITY) == 0)
 			efx.R_FlickerParticles(pos);
 
-		if (flags & FTENT_GRAVITY)
+		if ((flags & FTENT_GRAVITY) == 0)
 		{
 			pdl = efx.CL_AllocDlight(0);
 			VectorCopy(pos, pdl->origin);
@@ -3216,13 +3249,13 @@ void R_Explosion( float* pos, int model, float scale, float framerate, int flags
 		switch (RandomLong(0, 2))
 		{
 		case 0:
-			S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp1, pos, 1.0, 0.3, 0, PITCH_NORM);
+			S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp1, pos, VOL_NORM, 0.3, 0, PITCH_NORM);
 			break;
 		case 1:
-			S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp2, pos, 1.0, 0.3, 0, PITCH_NORM);
+			S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp2, pos, VOL_NORM, 0.3, 0, PITCH_NORM);
 			break;
 		case 2:
-			S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp3, pos, 1.0, 0.3, 0, PITCH_NORM);
+			S_StartDynamicSound(-1, CHAN_AUTO, cl_sfx_r_exp3, pos, VOL_NORM, 0.3, 0, PITCH_NORM);
 			break;
 		}
 	}

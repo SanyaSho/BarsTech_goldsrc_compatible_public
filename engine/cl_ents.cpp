@@ -92,7 +92,6 @@ qboolean CL_ParametricMove(cl_entity_t *ent)
 void CL_ProcessEntityUpdate(cl_entity_t *ent)
 {
 	int movetype;
-	float msg_time;
 
 	ent->index = ent->curstate.number;
 	ent->model = CL_GetModelByIndex(ent->curstate.modelindex);
@@ -132,7 +131,6 @@ void CL_ProcessEntityUpdate(cl_entity_t *ent)
 
 int CL_ParseDeltaHeader(qboolean *remove, qboolean *custom, int *numbase, qboolean *newbl, int *newblindex, qboolean full, int *offset)
 {
-	int numend;
 	int onlyone = 0;
 
 	*custom = false;
@@ -203,7 +201,7 @@ int CL_ParseDeltaHeader(qboolean *remove, qboolean *custom, int *numbase, qboole
 void CL_FlushEntityPacket(qboolean needbitencodingframe)
 {
 	qboolean remove, custom, newbl;
-	int newindex, numbase, offset, newblindex, num;
+	int numbase, offset, newblindex, num;
 	delta_t **ppcustom, **ppplayer, **ppentity;
 	entity_state_t olde, newe;
 	con_nprint_t np;
@@ -462,8 +460,6 @@ void CL_ParseClientdata(void)
 	delta_t **ppdelta, **ppweapon;
 	clientdata_t baseline;
 	weapon_data_t wbaseline;
-	entity_state_t *ps;
-	float		latency;   // Our latency (round trip message time to server and back)
 	frame_t		*frame;    // The frame we are parsing in.
 	static int last_incoming_sequence, last_command_ack;
 	int fromframe, idx;
@@ -687,7 +683,7 @@ void CL_ParsePacketEntities(qboolean delta, int *playerbits)
 	else
 	{
 		// Have we already looped around and flushed this info?
-		if ((byte)(cls.netchan.incoming_sequence - oldpacket) >= CL_UPDATE_MASK)
+		if ( ( ( ( cls.netchan.incoming_sequence & 0xff ) - oldpacket ) & 0xff ) >= CL_UPDATE_MASK )
 		{
 			CL_FlushEntityPacket(true);
 			CL_ClearPacket(pents);
@@ -1073,8 +1069,6 @@ void CL_LinkPacketEntities()
 	cl_entity_t* ent;
 	packet_entities_t* pack;
 	entity_state_t* s1, * s2;
-	float				f;
-	vec3_t				old_origin;
 	int					i;
 	int					pnum;
 	dlight_t* dl;
@@ -1222,14 +1216,9 @@ void CL_LinkPacketEntities()
 void CL_LinkPlayers()
 {
 	int				i, j;
-	player_info_t* info;
 	entity_state_t* state;
-	entity_state_t	exact;
-	double			playertime;
 	cl_entity_t* ent;
-	int				msec;
 	frame_t* frame;
-	int				oldphysent;
 	dlight_t* dl;
 
 	frame = &cl.frames[cl.parsecountmod];
@@ -1664,7 +1653,7 @@ should be put at.
 */
 float	CL_LerpPoint(void)
 {
-	float	f, frac;
+	float	f;
 
 	f = cl.mtime[0] - cl.mtime[1];
 

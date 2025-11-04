@@ -558,9 +558,6 @@ void CL_PrecacheBSPModels(char *pfilename)
 			if (p->ucFlags & RES_FATALIFMISSING)
 			{
 				COM_ExplainDisconnection(true, const_cast<char*>("Cannot continue without model %s, disconnecting."), p->szFileName);
-				extern void DbgPrint(FILE*, const char* format, ...);
-				extern FILE* m_fMessages;
-				DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 				CL_Disconnect();
 				break;
 			}
@@ -735,7 +732,7 @@ void CL_RegisterResources(sizebuf_t *msg)
 				{
 					mungebuffer = cl.mapCRC;
 					MSG_WriteByte(msg, clc_stringcmd);
-					COM_Munge2((byte*)&mungebuffer, sizeof(mungebuffer), ~CL_GetServerCount());
+					COM_Munge2((byte*)&mungebuffer, sizeof(mungebuffer), (byte)~CL_GetServerCount());
 					MSG_WriteString(msg, va(const_cast<char*>("spawn %i %i"), CL_GetServerCount(), mungebuffer));
 				}
 
@@ -749,9 +746,6 @@ void CL_RegisterResources(sizebuf_t *msg)
 		{
 			Con_Printf(const_cast<char*>("Client world model is NULL\n"));
 			COM_ExplainDisconnection(true, const_cast<char*>("Client world model is NULL\n"));
-			extern void DbgPrint(FILE*, const char* format, ...);
-			extern FILE* m_fMessages;
-			DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 			CL_Disconnect();
 		}
 	}
@@ -939,10 +933,6 @@ void CL_BatchResourceRequest()
 			filename[i] = cl.downloadUrl[i];
 
 		CL_MarkMapAsUsingHTTPDownload();
-
-		extern void DbgPrint(FILE*, const char* format, ...);
-		extern FILE* m_fMessages;
-		DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 
 		CL_Disconnect();
 		StartLoadingProgressBar(filename, CL_GetDownloadQueueSize());
@@ -1386,7 +1376,6 @@ qboolean CL_CheckGameDirectory(char *gamedir)
 
 int CL_BuildMapCycleListHints(char** hints, char* mapCycleMsg, char* firstMap)
 {
-	char szMod[260];
 	char szMap[524];
 	char mapLine[524];
 
@@ -1477,8 +1466,7 @@ void CL_ParseServerInfo()
 	if (cls.demoplayback)
 		cl.servercount = ++gHostSpawnCount;
 
-	mungebuffer = MSG_ReadLong();
-	cl.serverCRC = mungebuffer;
+	cl.serverCRC = MSG_ReadLong();
 
 	MSG_ReadBuf(16, cl.clientdllmd5);
 
@@ -1497,7 +1485,9 @@ void CL_ParseServerInfo()
 	CL_ReallocateDynamicData(cl.maxclients);
 
 	cl.playernum = MSG_ReadByte();
-	COM_UnMunge3((byte*)&cl.serverCRC, 4, ~cl.playernum);
+
+	COM_UnMunge3((byte*)&cl.serverCRC, 4, (byte)~cl.playernum);
+
 	for (i = 0; i < 32; i++)
 		COM_ClearCustomizationList(&cl.players[i].customdata, true);
 
@@ -1895,15 +1885,15 @@ void CL_WriteErrorMessage(int starting_count, int current_count, sizebuf_t *msg)
 
 void CL_WriteMessageHistory(int starting_count, int cmd)
 {
-	int command, idx;
+	int thecmd, idx;
 
 	Con_Printf(const_cast<char*>("Last %i messages parsed.\n"), CMD_COUNT);
 
 	for (int i = ( CMD_COUNT - 1 ); i >= 1; i--)
 	{
-		idx = (currentcmd + ~i) & CMD_MASK;
-		command = oldcmd[idx].command;
-		Con_Printf(const_cast<char*>("%i %04i %s\n"), oldcmd[idx].frame_number, oldcmd[idx].starting_offset, CL_MsgInfo(command));
+		idx = ((byte)currentcmd + (byte)~i) & CMD_MASK;
+		thecmd = oldcmd[idx].command;
+		Con_Printf(const_cast<char*>("%i %04i %s\n"), oldcmd[idx].frame_number, oldcmd[idx].starting_offset, CL_MsgInfo(thecmd));
 	}
 
 	Con_Printf(const_cast<char*>("BAD:  %3i:%s\n"), msg_readcount - 1, CL_MsgInfo(cmd));
@@ -1929,8 +1919,6 @@ void CL_ParseServerMessage(qboolean normal_message /* = true */)
 	int bytes;
 
 	bufDefault = msg_readcount;
-
-	extern void DbgPrint(FILE*, const char* format, ...);
 
 	if (cl_shownet.value == 1)
 	{
@@ -1974,16 +1962,6 @@ void CL_ParseServerMessage(qboolean normal_message /* = true */)
 		if (cmd == -1)
 			break;
 
-		//DbgPrint(m_fMessages, "received %d message from server\r\n", cmd);
-
-		/*if (cmd == svc_packetentities)
-		{
-			void LogArray(FILE * out, PBYTE data, INT size);
-			extern FILE* m_fMessages;
-			DbgPrint(m_fMessages, "got svc_packetentities\n");
-			LogArray(m_fMessages, net_message.data + msg_readcount - 1, net_message.cursize - (msg_readcount - 1));
-		}*/
-
 		if (cmd != svc_nop)
 		{
 			int idx = currentcmd++ & CMD_MASK;
@@ -1995,7 +1973,7 @@ void CL_ParseServerMessage(qboolean normal_message /* = true */)
 		if (cmd > SVC_LASTMSG)
 		{
 			msg_buckets[MAX_PACKETACCUM - 1]++;
-			//DbgPrint(m_fMessages, "not an engine clientside message, dispatching...\r\n", cmd);
+
 			DispatchUserMsg(cmd);
 			bufEnd = msg_readcount;
 			last_data[MAX_PACKETACCUM - 1] += bufEnd - bufStart;
@@ -2028,15 +2006,12 @@ void CL_ParseServerMessage(qboolean normal_message /* = true */)
 			if (cl_showmessages.value)
 				Con_DPrintf(const_cast<char*>("Msg: %s\n"), cl_parsefuncs[cmd].pszname);
 
-			//DbgPrint(m_fMessages, "calling %s\r\n", cl_parsefuncs[cmd].pszname);
 			cl_parsefuncs[cmd].pfnParse();
 		}
 
 		bufEnd = msg_readcount;
 
 		last_data[cmd] += bufEnd - bufStart;
-
-		//DbgPrint(m_fMessages, "parsed %d (%d) bytes of %d received\r\n", bufEnd - bufStart, msg_readcount, net_message.cursize);
 
 		//                               net_graph
 		switch (cmd)

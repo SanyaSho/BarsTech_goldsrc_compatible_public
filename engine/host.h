@@ -42,9 +42,9 @@ extern double cpuPercent;
 
 int Host_Frame( float time, int iState, int* stateInfo );
 
-bool Host_IsServerActive();
+qboolean Host_IsServerActive();
 
-bool Host_IsSinglePlayerGame();
+BOOL Host_IsSinglePlayerGame();
 
 void Host_GetHostInfo( float* fps, int* nActive, int* unused, int* nMaxPlayers, char* pszMap );
 
@@ -64,7 +64,7 @@ int Host_MaxClients();
 
 void Host_EndGame(char *message, ...);
 
-int32 Host_GetStartTime();
+int Host_GetStartTime();
 void GetStatsString(char *buf, int bufSize);
 void Host_Stats_f();
 char *Host_SaveGameDirectory();

@@ -440,6 +440,8 @@ void CL_ParseServerList()
 
 		if (nServerNum <= 100)
 			Con_Printf(const_cast<char*>("%4i:  %s:%i\n"), nServerNum, szAddress, port);
+
+		nServerNum++;
 	}
 
 	Con_Printf(const_cast<char*>("%i total servers\n"), nServerNum);
@@ -872,7 +874,7 @@ void CL_ConnectionlessPacket(void)
 	char    *cmd;
 	char	*args;
 	unsigned char c = 0;
-	int proto, infoByte;
+	int infoByte;
 	char buffer[260];
 	server_cache_t szCommand;
 
@@ -1260,7 +1262,6 @@ void CL_ProcessFile(qboolean successfully_received, const char *filename)
 	byte data[20480];
 	sizebuf_t msg;
 	const char *pfilename;
-	int tempbuffersize, playernum;
 	byte hash[16];
 	qboolean bCondPassed;
 
@@ -1843,7 +1844,6 @@ void CL_SendConnectPacket(void)
 	unsigned char buffer[1024];
 	char protinfo[1024];
 	char rgchSteam3LoginCookie[1024];
-	byte authprotocol;
 	int steamproto;
 	int steampacket;
 	int length;
@@ -1885,7 +1885,7 @@ void CL_SendConnectPacket(void)
 	case PROTOCOL_HASHEDCDKEY:
 		len = strlen(CL_GetCDKeyHash());
 		Q_strncpy((char*)buffer, CL_GetCDKeyHash(), sizeof(buffer)-1);
-		buffer[sizeof(buffer)-1] - 0;
+		buffer[sizeof(buffer)-1] = 0;
 		Info_SetValueForKey(protinfo, "prot", va(const_cast<char*>("%i"), cls.authprotocol), sizeof(protinfo));
 		Info_SetValueForKey(protinfo, "raw", (char*)buffer, sizeof(protinfo));
 		steamproto = 0;
@@ -2265,9 +2265,6 @@ an unconnected command.
 */
 void CL_Rcon_f(void)
 {
-	char	message[1024];   // Command message
-	char    szParam[256];
-	int		i;
 	netadr_t to;    // Command destination
 	unsigned short nPort;    // Outgoing port.
 
@@ -2554,7 +2551,6 @@ int CL_DriftInterpolationAmount(int goal)
 void CL_ComputeClientInterpolationAmount(usercmd_t *cmd)
 {
 	int extime, intime, temp;
-	float fInterp;
 
 	if (cl_updaterate.value < 10.0f)
 	{
@@ -2613,7 +2609,6 @@ void CL_Move()
 	byte data[MAX_CMD_BUFFER];
 	usercmd_t cmdbaseline;
 	sizebuf_t buf;
-	con_nprint_t np;
 	usercmd_t *p_cmdbaseline;
 	int				i;
 	cmd_t			*cmd;
@@ -2779,9 +2774,9 @@ void CL_Move()
 
 			buf.data[szbefore - 1] = min(checksumposition, 255);
 
-			buf.data[szbefore] = COM_BlockSequenceCRCByte(&buf.data[szbefore + 1], buf.cursize + ~szbefore, cls.netchan.outgoing_sequence);
+			buf.data[szbefore] = COM_BlockSequenceCRCByte(&buf.data[szbefore + 1], buf.cursize - szbefore - 1, cls.netchan.outgoing_sequence);
 
-			rgmunge = min(buf.cursize + ~szbefore, 255);
+			rgmunge = min(buf.cursize - szbefore - 1, 255);
 
 			COM_Munge(&buf.data[szbefore + 1], rgmunge, cls.netchan.outgoing_sequence);
 		}

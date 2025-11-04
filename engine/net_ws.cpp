@@ -193,6 +193,8 @@ void LogArray(FILE* out, PBYTE data, INT size)
 }
 // custom code end
 
+void NET_InitColors();
+
 void NET_ThreadLock()
 {
 	if (use_thread && net_thread_initialized)
@@ -228,6 +230,7 @@ void NetadrToSockadr(netadr_t* a, struct sockaddr* s)
 		s_in->sin_addr.s_addr = *(int*)&a->ip;
 		s_in->sin_port = a->port;
 		break;
+#if defined(_WIN32)
 	case NA_IPX:
 		s->sa_family = AF_IPX;
 		Q_memcpy(s->sa_data, a->ipx, 10);
@@ -239,6 +242,7 @@ void NetadrToSockadr(netadr_t* a, struct sockaddr* s)
 		Q_memset(&s->sa_data[4], 255, 6);
 		*(unsigned short*)&s->sa_data[10] = a->port;
 		break;
+#endif
 	default:
 		break;
 	}
@@ -252,12 +256,19 @@ void SockadrToNetadr(struct sockaddr* s, netadr_t* a)
 		*(int*)&a->ip = ((struct sockaddr_in*)s)->sin_addr.s_addr;
 		a->port = ((struct sockaddr_in*)s)->sin_port;
 	}
+#if defined(_WIN32)
 	else if (s->sa_family == AF_IPX)
 	{
 		a->type = NA_IPX;
 		Q_memcpy(a->ipx, s->sa_data, sizeof(a->ipx));
 		a->port = *(unsigned short*)&s->sa_data[10];
 	}
+#endif
+}
+
+unsigned short NET_HostToNetShort(unsigned short us_in)
+{
+	return htons(us_in);
 }
 
 qboolean NET_CompareAdr(netadr_t a, netadr_t b)
@@ -280,588 +291,110 @@ qboolean NET_CompareAdr(netadr_t a, netadr_t b)
 			a.port == b.port)
 			return TRUE;
 	}
+#if defined(_WIN32)
 	else if (a.type == NA_IPX)
 	{
 		if (Q_memcmp(a.ipx, b.ipx, 10) == 0 &&
 			a.port == b.port)
 			return TRUE;
 	}
+#endif
 
 	return FALSE;
 }
 
-
-SOCKET NET_IPSocket(char* net_interface, int port, qboolean multicast)
+qboolean NET_CompareClassBAdr(netadr_t a, netadr_t b)
 {
-	SOCKET newsocket;
-	qboolean _true = TRUE;
-
-	if ((newsocket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+	if (a.type != b.type)
 	{
-		int err = WSAGetLastError();
-		if (err != WSAEAFNOSUPPORT)
-		{
-			Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d socket: %s"), port, NET_ErrorString(err));
-		}
-		return INV_SOCK;
+		return FALSE;
+	}
+	if (a.type == NA_LOOPBACK)
+	{
+		return TRUE;
 	}
 
-	if (ioctlsocket(newsocket, FIONBIO, (u_long*)&_true) == SOCKET_ERROR)
+	if (a.type == NA_IP)
 	{
-		Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  ioctl FIONBIO: %s\n"), port, NET_ErrorString(WSAGetLastError()));
-		return INV_SOCK;
+		if (a.ip[0] == b.ip[0] &&
+			a.ip[1] == b.ip[1])
+			return TRUE;
 	}
-
-	qboolean i = TRUE;
-	if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char*)&i, sizeof(i)) == SOCKET_ERROR)
+#ifdef _WIN32
+	else if (a.type == NA_IPX)
 	{
-		Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  setsockopt SO_BROADCAST: %s\n"), port, NET_ErrorString(WSAGetLastError()));
-		return INV_SOCK;
+		return TRUE;
 	}
+#endif // _WIN32
 
-	if (COM_CheckParm(const_cast<char*>("-reuse")) || multicast)
-	{
-		if (setsockopt(newsocket, SOL_SOCKET, SO_REUSEADDR, (char*)&_true, sizeof(qboolean)) == SOCKET_ERROR)
-		{
-			Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  setsockopt SO_REUSEADDR: %s\n"), port, NET_ErrorString(WSAGetLastError()));
-			return INV_SOCK;
-		}
-	}
-
-	struct sockaddr_in address;
-
-	if (net_interface && *net_interface && Q_strcasecmp(net_interface, "localhost"))
-		NET_StringToSockaddr(net_interface, (sockaddr*)&address);
-	else
-		address.sin_addr.s_addr = INADDR_ANY;
-
-	if (port == -1) // TODO: Always false?
-		address.sin_port = 0;
-	else
-		address.sin_port = htons((u_short)port);
-
-	address.sin_family = AF_INET;
-
-	if (bind(newsocket, (struct sockaddr*)&address, sizeof(address)) == SOCKET_ERROR)
-	{
-		Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  bind: %s\n"), port, NET_ErrorString(WSAGetLastError()));
-		closesocket(newsocket);
-		return INV_SOCK;
-	}
-
-	qboolean bLoopBack = COM_CheckParm(const_cast<char*>("-loopback")) != 0;
-	if (setsockopt(newsocket, IPPROTO_IP, IP_MULTICAST_LOOP, (char*)&bLoopBack, sizeof(bLoopBack)) == SOCKET_ERROR)
-	{
-		Con_DPrintf(const_cast<char*>("WARNING: UDP_OpenSocket: port %d setsockopt IP_MULTICAST_LOOP: %s\n"), port, NET_ErrorString(WSAGetLastError()));
-	}
-
-	return newsocket;
+	return FALSE;
 }
 
-void NET_OpenIP()
+qboolean NET_IsReservedAdr(netadr_t a)
 {
-	int sv_port = 0;
-	int cl_port = 0;
-
-	int dedicated = cls.state == ca_dedicated;
-
-	NET_ThreadLock();
-
-	if (ip_sockets[NS_SERVER] == INV_SOCK)
+	if (a.type == NA_LOOPBACK)
 	{
-		int port = (int)iphostport.value;
-
-		if (!NET_CheckPort(port))
+		return TRUE;
+	}
+	if (a.type == NA_IP)
+	{
+		if (a.ip[0] == 10 || a.ip[0] == 127)
 		{
-			port = (int)hostport.value;
-			if (!NET_CheckPort(port))
+			return TRUE;
+		}
+		if (a.ip[0] == 172 && a.ip[1] >= 16)
+		{
+			if (a.ip[1] >= 32)
 			{
-				port = (int)defport.value;
-				hostport.value = defport.value;
+				return FALSE;
 			}
+			return TRUE;
 		}
-		ip_sockets[NS_SERVER] = NET_IPSocket(ipname.string, port, FALSE);
-
-		if (ip_sockets[NS_SERVER] == INV_SOCK && dedicated)
+		if (a.ip[0] == 192 && a.ip[1] >= 168)
 		{
-			Sys_Error("%s: Couldn't allocate dedicated server IP port %d.", __func__, port);
+			return TRUE;
 		}
-		sv_port = port;
+		return FALSE;
 	}
-
-	NET_ThreadUnlock();
-
-	if (dedicated)
-		return;
-
-	NET_ThreadLock();
-
-	if (ip_sockets[NS_CLIENT] == INV_SOCK)
+#ifdef _WIN32
+	else if (a.type == NA_IPX)
 	{
-		int port = (int)ip_clientport.value;
-
-		if (!NET_CheckPort(port))
-		{
-			port = (int)clientport.value;
-			if (!NET_CheckPort(port))
-				port = -1;
-		}
-		ip_sockets[NS_CLIENT] = NET_IPSocket(ipname.string, port, FALSE);
-		if (ip_sockets[NS_CLIENT] == INV_SOCK)
-			ip_sockets[NS_CLIENT] = NET_IPSocket(ipname.string, -1, FALSE);
-		cl_port = port;
+		return TRUE;
 	}
+#endif // _WIN32
 
-	if (ip_sockets[NS_MULTICAST] == INV_SOCK)
-	{
-		ip_sockets[NS_MULTICAST] = NET_IPSocket(ipname.string, multicastport.value, TRUE);
-		if (ip_sockets[NS_MULTICAST] == INV_SOCK && !dedicated)
-			Con_Printf(const_cast<char*>("Warning! Couldn't allocate multicast IP port.\n"));
-	}
-
-	NET_ThreadUnlock();
-
-	static qboolean bFirst = TRUE;
-	if (bFirst)
-	{
-		bFirst = FALSE;
-		Con_Printf(const_cast<char*>("NET Ports:  server %i, client %i\n"), sv_port, cl_port);
-	}
+	return FALSE;
 }
 
-SOCKET NET_IPXSocket(int hostshort)
+qboolean NET_CompareBaseAdr(netadr_t a, netadr_t b)
 {
-	int err;
-	u_long optval = 1;
-	SOCKET newsocket;
-
-	if ((newsocket = socket(PF_IPX, SOCK_DGRAM, NSPROTO_IPX)) == INVALID_SOCKET)
+	if (a.type != b.type)
 	{
-		err = WSAGetLastError();
-		if (err != WSAEAFNOSUPPORT)
-		{
-			Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  socket: %s\n"), hostshort, NET_ErrorString(err));
-		}
-
-		return INV_SOCK;
+		return FALSE;
 	}
-	if (ioctlsocket(newsocket, FIONBIO, &optval) == SOCKET_ERROR)
+	if (a.type == NA_LOOPBACK)
 	{
-		err = WSAGetLastError();
-		Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  ioctl FIONBIO: %s\n"), hostshort, NET_ErrorString(err));
-		return INV_SOCK;
-	}
-	if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (const char*)&optval, sizeof(optval)) == SOCKET_ERROR)
-	{
-		err = WSAGetLastError();
-		Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  setsockopt SO_BROADCAST: %s\n"), hostshort, NET_ErrorString(err));
-		return INV_SOCK;
-	}
-	if (setsockopt(newsocket, SOL_SOCKET, 4, (const char*)&optval, sizeof(optval)) == SOCKET_ERROR)
-	{
-		err = WSAGetLastError();
-		return INV_SOCK;
+		return TRUE;
 	}
 
-	SOCKADDR_IPX address;
-	address.sa_family = AF_IPX;
-	Q_memset(address.sa_netnum, 0, 4);
-	Q_memset(address.sa_nodenum, 0, 6);
-
-	if (hostshort == -1)
-		address.sa_socket = 0;
-	else address.sa_socket = htons((u_short)hostshort);
-
-	if (bind(newsocket, (struct sockaddr*)&address, sizeof(SOCKADDR_IPX)) == SOCKET_ERROR)
+	if (a.type == NA_IP)
 	{
-		err = WSAGetLastError();
-		Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  bind: %s\n"), hostshort, NET_ErrorString(err));
-		closesocket(newsocket);
-		return INV_SOCK;
+		if (a.ip[0] == b.ip[0] &&
+			a.ip[1] == b.ip[1] &&
+			a.ip[2] == b.ip[2] &&
+			a.ip[3] == b.ip[3])
+			return TRUE;
 	}
-	return newsocket;
+#ifdef _WIN32
+	else if (a.type == NA_IPX)
+	{
+		if (Q_memcmp(a.ipx, b.ipx, 10) == 0)
+			return TRUE;
+	}
+#endif // _WIN32
+
+	return FALSE;
 }
-
-void NET_OpenIPX()
-{
-	int dedicated = cls.state == ca_dedicated;
-
-	NET_ThreadLock();
-
-	if (ipx_sockets[NS_SERVER] == INV_SOCK)
-	{
-		int port = ipx_hostport.value;
-		if (!NET_CheckPort(port))
-		{
-			port = hostport.value;
-			if (!NET_CheckPort(port))
-			{
-				hostport.value = defport.value;
-				port = defport.value;
-			}
-		}
-		ipx_sockets[NS_SERVER] = NET_IPXSocket(port);
-	}
-
-	NET_ThreadUnlock();
-
-	if (dedicated)
-		return;
-
-	NET_ThreadLock();
-
-	if (ipx_sockets[NS_CLIENT] == INV_SOCK)
-	{
-		int port = ipx_clientport.value;
-		if (!NET_CheckPort(port))
-		{
-			port = clientport.value;
-			if (!NET_CheckPort(port))
-				port = -1;
-		}
-		ipx_sockets[NS_CLIENT] = NET_IPXSocket(port);
-
-		if (ipx_sockets[NS_CLIENT] == INV_SOCK)
-			ipx_sockets[NS_CLIENT] = NET_IPXSocket(-1);
-	}
-
-	NET_ThreadUnlock();
-}
-
-void NET_GetLocalAddress()
-{
-	char buff[512];
-	struct sockaddr_in address;
-	int namelen;
-	int net_error;
-
-	Q_memset(&net_local_adr, 0, sizeof(netadr_t));
-
-	Q_memset(&net_local_ipx_adr, 0, sizeof(netadr_t));
-
-	if (noip)
-	{
-		Con_Printf(const_cast<char*>("TCP/IP Disabled.\n"));
-	}
-	else
-	{
-		if (Q_strcmp(ipname.string, "localhost"))
-			Q_strncpy(buff, ipname.string, ARRAYSIZE(buff) - 1);
-		else
-		{
-			gethostname(buff, ARRAYSIZE(buff));
-		}
-
-		buff[ARRAYSIZE(buff) - 1] = 0;
-
-		NET_StringToAdr(buff, &net_local_adr);
-		namelen = sizeof(address);
-		if (getsockname(ip_sockets[NS_SERVER], (struct sockaddr*)&address, (int*)&namelen) == SOCKET_ERROR)
-		{
-			noip = TRUE;
-			net_error = WSAGetLastError();
-
-			Con_Printf(const_cast<char*>("Could not get TCP/IP address, TCP/IP disabled\nReason:  %s\n"), NET_ErrorString(net_error));
-		}
-		else
-		{
-			net_local_adr.port = address.sin_port;
-			Con_Printf(const_cast<char*>("Server IP address %s\n"), NET_AdrToString(net_local_adr));
-			Cvar_Set(const_cast<char*>("net_address"), va(NET_AdrToString(net_local_adr)));
-		}
-	}
-
-	if (noipx)
-	{
-		Con_Printf(const_cast<char*>("No IPX Support.\n"));
-	}
-	else
-	{
-		namelen = 14;
-		if (getsockname(ipx_sockets[NS_SERVER], (struct sockaddr*)&address, (int*)&namelen) == SOCKET_ERROR)
-		{
-			noipx = TRUE;
-			net_error = WSAGetLastError();
-
-		}
-		else
-		{
-			SockadrToNetadr((struct sockaddr*)&address, &net_local_ipx_adr);
-			Con_Printf(const_cast<char*>("Server IPX address %s\n"), NET_AdrToString(net_local_ipx_adr));
-		}
-	}
-}
-
-int NET_IsConfigured()
-{
-	return net_configured;
-}
-
-bool NET_CheckPort(int port)
-{
-	return port != 0;
-}
-
-void NET_Config( qboolean multiplayer )
-{
-	static qboolean old_config;
-
-	if (old_config == multiplayer)
-	{
-		return;
-	}
-
-	old_config = multiplayer;
-
-	if (multiplayer)
-	{
-		if (!noip)
-			NET_OpenIP();
-		if (!noipx)
-			NET_OpenIPX();
-
-		static qboolean bFirst = TRUE;
-		if (bFirst)
-		{
-			bFirst = FALSE;
-			NET_GetLocalAddress();
-		}
-	}
-	else
-	{
-		NET_ThreadLock();
-
-		for (int sock = 0; sock < NS_MAX; sock++)
-		{
-			if (ip_sockets[sock] != INV_SOCK)
-			{
-				closesocket(ip_sockets[sock]);
-				ip_sockets[sock] = INV_SOCK;
-			}
-
-			if (ipx_sockets[sock] != INV_SOCK)
-			{
-				closesocket(ipx_sockets[sock]);
-				ipx_sockets[sock] = INV_SOCK;
-			}
-		}
-
-		NET_ThreadUnlock();
-	}
-
-	net_configured = multiplayer ? 1 : 0;
-
-}
-
-void NET_Shutdown()
-{
-	NET_ThreadLock();
-
-	NET_ClearLaggedList(g_pLagData);
-	NET_ClearLaggedList(&g_pLagData[1]);
-
-	NET_ThreadUnlock();
-
-	NET_Config(FALSE);
-	NET_FlushQueues();
-}
-
-void MaxPlayers_f()
-{
-	if (Cmd_Argc() != 2)
-	{
-		Con_Printf(const_cast<char*>("\"maxplayers\" is \"%u\"\n"), svs.maxclients);
-		return;
-
-	}
-
-	if (sv.active)
-	{
-		Con_Printf(const_cast<char*>("maxplayers cannot be changed while a server is running.\n"));
-		return;
-	}
-
-
-	int n = Q_atoi(Cmd_Argv(1));
-	if (n < 1)
-		n = 1;
-
-	if (n > svs.maxclientslimit)
-	{
-		n = svs.maxclientslimit;
-		Con_Printf(const_cast<char*>("\"maxplayers\" set to \"%u\"\n"), svs.maxclientslimit);
-	}
-	svs.maxclients = n;
-
-	if (n == 1)
-		Cvar_Set(const_cast<char*>("deathmatch"), const_cast<char*>("0"));
-	else
-		Cvar_Set(const_cast<char*>("deathmatch"), const_cast<char*>("1"));
-}
-
-void NET_InitColors()
-{
-	/*double basecolor;
-	float bluefrac[2];
-
-	for (int i = 0; i < 24; i++)
-	{
-#if !defined (WIN32)
-		if (i > 7)
-		{
-			basecolor = (float)(i - 8) / 16.0f;
-			colors[i].r = 255 - basecolor * 5.0f;
-			colors[i].g = 127 - basecolor * 127.0f;
-			bluefrac[0] = 0.0f;
-			bluefrac[1] = basecolor * bluefrac[0];
-		}
-		else
-#endif
-		{
-			basecolor = (float)(i) / 8.0f;
-			colors[i].r = 63 - basecolor * 63.0f;
-			colors[i].g = 0 + basecolor * 63.0f;
-			bluefrac[0] = 100.0f;
-			bluefrac[1] = basecolor * 155.0f;
-		}
-		colors[i].b = bluefrac[0] + bluefrac[1];
-	}*/
-
-	int i, j;
-	byte mincolor[2][3];
-	byte maxcolor[2][3];
-	float	dc[2][3];
-	int		hfrac;
-	float	f;
-
-	mincolor[0][0] = 63;
-	mincolor[0][1] = 0;
-	mincolor[0][2] = 100;
-
-	maxcolor[0][0] = 0;
-	maxcolor[0][1] = 63;
-	maxcolor[0][2] = 255;
-
-	mincolor[1][0] = 255;
-	mincolor[1][1] = 127;
-	mincolor[1][2] = 0;
-
-	maxcolor[1][0] = 250;
-	maxcolor[1][1] = 0;
-	maxcolor[1][2] = 0;
-
-	for (i = 0; i < 3; i++)
-	{
-		dc[0][i] = (float)(maxcolor[0][i] - mincolor[0][i]);
-		dc[1][i] = (float)(maxcolor[1][i] - mincolor[1][i]);
-	}
-
-	hfrac = LERP_HEIGHT / 3;
-
-	for (i = 0; i < LERP_HEIGHT; i++)
-	{
-		if (i < hfrac)
-		{
-			f = (float)i / (float)hfrac;
-			for (j = 0; j < 3; j++)
-			{
-				colors[i][j] = mincolor[0][j] + f * dc[0][j];
-			}
-		}
-		else
-		{
-			f = (float)(i - hfrac) / (float)(LERP_HEIGHT - hfrac);
-			for (j = 0; j < 3; j++)
-			{
-				colors[i][j] = mincolor[1][j] + f * dc[1][j];
-			}
-		}
-	}
-}
-
-void NET_Init()
-{
-	NET_InitColors();
-
-	Cmd_AddCommand(const_cast<char*>("maxplayers"), MaxPlayers_f);
-
-	Cvar_RegisterVariable(&net_address);
-	Cvar_RegisterVariable(&ipname);
-	Cvar_RegisterVariable(&iphostport);
-	Cvar_RegisterVariable(&hostport);
-	Cvar_RegisterVariable(&defport);
-	Cvar_RegisterVariable(&ip_clientport);
-	Cvar_RegisterVariable(&clientport);
-	Cvar_RegisterVariable(&clockwindow);
-	Cvar_RegisterVariable(&multicastport);
-	Cvar_RegisterVariable(&ipx_hostport);
-	Cvar_RegisterVariable(&ipx_clientport);
-	Cvar_RegisterVariable(&fakelag);
-	Cvar_RegisterVariable(&fakeloss);
-	Cvar_RegisterVariable(&net_graph);
-	Cvar_RegisterVariable(&net_graphwidth);
-	Cvar_RegisterVariable(&net_scale);
-	Cvar_RegisterVariable(&net_graphpos);
-
-	if (COM_CheckParm(const_cast<char*>("-netthread")))
-		use_thread = TRUE;
-
-	if (COM_CheckParm(const_cast<char*>("-netsleep")))
-		net_sleepforever = 0;
-
-	if (COM_CheckParm(const_cast<char*>("-noipx")))
-		noipx = TRUE;
-
-	if (COM_CheckParm(const_cast<char*>("-noip")))
-		noip = TRUE;
-
-	int port = COM_CheckParm(const_cast<char*>("-port"));
-	if (port)
-		Cvar_SetValue(const_cast<char*>("hostport"), Q_atof(com_argv[port + 1]));
-
-	int clockwindow_ = COM_CheckParm(const_cast<char*>("-clockwindow"));
-	if (clockwindow_)
-		Cvar_SetValue(const_cast<char*>("clockwindow"), Q_atof(com_argv[clockwindow_ + 1]));
-
-	net_message.data = (byte*)&net_message_buffer;
-	net_message.maxsize = sizeof(net_message_buffer);
-	net_message.flags = 0;
-	net_message.buffername = "net_message";
-
-	in_message.data = (byte*)&in_message_buf;
-	in_message.maxsize = sizeof(in_message_buf);
-	in_message.flags = 0;
-	in_message.buffername = "in_message";
-
-	for (int i = 0; i < NS_MAX; i++)
-	{
-		g_pLagData[i].pPrev = &g_pLagData[i];
-		g_pLagData[i].pNext = &g_pLagData[i];
-	}
-
-	NET_AllocateQueues();
-	Con_DPrintf(const_cast<char*>("Base networking initialized.\n"));
-
-}
-
-void NET_ClearLagData(qboolean bClient, qboolean bServer)
-{
-	NET_ThreadLock();
-
-	if (bClient)
-	{
-		NET_ClearLaggedList(&g_pLagData[0]);
-		NET_ClearLaggedList(&g_pLagData[2]);
-	}
-
-	if (bServer)
-	{
-		NET_ClearLaggedList(&g_pLagData[1]);
-	}
-
-	NET_ThreadUnlock();
-}
-
 
 char* NET_AdrToString(netadr_t a)
 {
@@ -873,33 +406,43 @@ char* NET_AdrToString(netadr_t a)
 		_snprintf(s, sizeof(s), "loopback");
 	else if (a.type == NA_IP)
 		_snprintf(s, sizeof(s), "%i.%i.%i.%i:%i", a.ip[0], a.ip[1], a.ip[2], a.ip[3], ntohs(a.port));
-	else 
+#ifdef _WIN32
+	else
 		_snprintf(s, sizeof(s), "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x:%i", a.ipx[0], a.ipx[1], a.ipx[2], a.ipx[3], a.ipx[4], a.ipx[5], a.ipx[6], a.ipx[7], a.ipx[8], a.ipx[9], ntohs(a.port));
+#endif
 
 	return s;
 }
 
-void NET_SendLoopPacket(netsrc_t sock, int length, void* data, netadr_t to)
+char* NET_BaseAdrToString(netadr_t a)
 {
-	NET_ThreadLock();
+	static char s[64];
 
-	loopback_t* loop = &loopbacks[sock ^ 1];
+	if (a.type == NA_LOOPBACK)
+	{
+		_snprintf(s, sizeof(s), "loopback");
+	}
+	else if (a.type == NA_IP)
+	{
+		_snprintf(s, sizeof(s), "%i.%i.%i.%i", a.ip[0], a.ip[1], a.ip[2], a.ip[3]);
+	}
+#ifdef _WIN32
+	else // NA_IPX
+	{
+		_snprintf(s, sizeof(s), "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x", a.ipx[0], a.ipx[1], a.ipx[2], a.ipx[3], a.ipx[4], a.ipx[5], a.ipx[6], a.ipx[7], a.ipx[8], a.ipx[9]);
+	}
+#endif // _WIN32
 
-	int i = loop->send & (MAX_LOOPBACK - 1);
-	loop->send++;
-
-	Q_memcpy(loop->msgs[i].data, data, length);
-	loop->msgs[i].datalen = length;
-
-	NET_ThreadUnlock();
+	return s;
 }
 
 qboolean NET_StringToSockaddr(char* s, struct sockaddr* sadr)
 {
 	Q_memset(sadr, 0, sizeof(*sadr));
 
+#ifdef _WIN32
 	// IPX support.
-	if (Q_strlen(s) >= 24 && s[8] == ':' && s[21] == ':')
+	if (Q_strlen(s) >= 23 && s[8] == ':' && s[21] == ':')
 	{
 		sadr->sa_family = AF_IPX;
 		int val = 0;
@@ -921,8 +464,9 @@ qboolean NET_StringToSockaddr(char* s, struct sockaddr* sadr)
 
 		return TRUE;
 	}
+#endif
 
-	auto* sadr_in = (sockaddr_in*)sadr;
+	sockaddr_in* sadr_in = (sockaddr_in*)sadr;
 
 	sadr_in->sin_family = AF_INET;
 
@@ -948,7 +492,7 @@ qboolean NET_StringToSockaddr(char* s, struct sockaddr* sadr)
 	{
 		struct hostent* host = gethostbyname(copy);
 
-		if (host == nullptr || host->h_addr == nullptr)
+		if (host == NULL || host->h_addr == NULL)
 		{
 			return FALSE;
 		}
@@ -957,7 +501,6 @@ qboolean NET_StringToSockaddr(char* s, struct sockaddr* sadr)
 	}
 	return TRUE;
 }
-
 
 qboolean NET_StringToAdr(char* s, netadr_t* a)
 {
@@ -979,8 +522,21 @@ qboolean NET_StringToAdr(char* s, netadr_t* a)
 	return TRUE;
 }
 
+qboolean NET_IsLocalAddress(netadr_t adr)
+{
+	return (
+		adr.type == NA_LOOPBACK || 
+		(adr.type == NA_IP && 
+			adr.ip[0] == 127 && 
+			adr.ip[1] == 0 && 
+			adr.ip[2] == 0 && 
+			adr.ip[3] == 1)
+		) ? TRUE : FALSE;
+}
+
 char* NET_ErrorString(int code)
 {
+#ifdef _WIN32
 	switch (code)
 	{
 	case WSAEINTR: return const_cast<char*>("WSAEINTR");
@@ -1035,35 +591,86 @@ char* NET_ErrorString(int code)
 
 	default: return const_cast<char*>("NO ERROR");
 	}
+#else
+	return strerror(code);
+#endif
 }
 
 void NET_TransferRawData(sizebuf_t* msg, unsigned char* pStart, int nSize)
 {
-	DbgPrint(m_fLogStream, "new packet of %d bytes received:\r\n", nSize);
-	LogArray(m_fLogStream, pStart, nSize);
-	DbgPrint(m_fLogStream, "\r\n");
-
 	Q_memcpy(msg->data, pStart, nSize);
 	msg->cursize = nSize;
 }
 
+qboolean NET_GetLoopPacket(netsrc_t sock, netadr_t* in_from, sizebuf_t* msg)
+{
+	loopback_t* loop = &loopbacks[sock];
+
+	if (loop->send - loop->get > 4)
+	{
+		loop->get = loop->send - 4;
+	}
+
+	if (loop->get < loop->send)
+	{
+		int i = loop->get & (MAX_LOOPBACK - 1);
+		loop->get++;
+
+		NET_TransferRawData(msg, loop->msgs[i].data, loop->msgs[i].datalen);
+
+		Q_memset(in_from, 0, sizeof(netadr_t));
+		in_from->type = NA_LOOPBACK;
+
+		return TRUE;
+	}
+	return FALSE;
+}
+
+void NET_SendLoopPacket(netsrc_t sock, int length, void* data, netadr_t to)
+{
+	NET_ThreadLock();
+
+	loopback_t* loop = &loopbacks[sock ^ 1];
+
+	int i = loop->send & (MAX_LOOPBACK - 1);
+	loop->send++;
+
+	Q_memcpy(loop->msgs[i].data, data, length);
+	loop->msgs[i].datalen = length;
+
+	NET_ThreadUnlock();
+}
 
 void NET_RemoveFromPacketList(packetlag_t* pPacket)
 {
 	pPacket->pPrev->pNext = pPacket->pNext;
 	pPacket->pNext->pPrev = pPacket->pPrev;
-	pPacket->pPrev = 0;
-	pPacket->pNext = 0;
+	pPacket->pPrev = NULL;
+	pPacket->pNext = NULL;
+}
+
+int NET_CountLaggedList(packetlag_t* pList)
+{
+	int c = 0;
+	for (packetlag_t* p = pList->pNext; p; c++)
+	{
+		if (p == pList)
+			break;
+		p = p->pNext;
+	}
+
+	return c;
 }
 
 void NET_ClearLaggedList(packetlag_t* pList)
 {
 	packetlag_t* p = pList->pNext;
-	while (p && p != pList)
+	while (p != NULL && p != pList)
 	{
 		packetlag_t* n = p->pNext;
 		NET_RemoveFromPacketList(p);
-		if (p->pPacketData)
+
+		if (p->pPacketData != NULL)
 		{
 			Mem_Free(p->pPacketData);
 			p->pPacketData = NULL;
@@ -1076,11 +683,11 @@ void NET_ClearLaggedList(packetlag_t* pList)
 	pList->pNext = pList;
 }
 
-void NET_AddToLagged(netsrc_t sock, packetlag_t* pList, packetlag_t* pPacket, netadr_t* net_from_, sizebuf_t messagedata, float timestamp)
+void NET_AddToLagged(netsrc_t sock, packetlag_t* pList, packetlag_t* pPacket, netadr_t* net_from, sizebuf_t messagedata, float timestamp)
 {
 	unsigned char* pStart;
 
-	if (pPacket->pPrev || pPacket->pNext)
+	if (pPacket->pPrev != NULL || pPacket->pNext != NULL)
 	{
 		Con_Printf(const_cast<char*>("Packet already linked\n"));
 		return;
@@ -1096,7 +703,37 @@ void NET_AddToLagged(netsrc_t sock, packetlag_t* pList, packetlag_t* pPacket, ne
 	pPacket->pPacketData = pStart;
 	pPacket->nSize = messagedata.cursize;
 	pPacket->receivedTime = timestamp;
-	Q_memcpy(&pPacket->net_from_, net_from_, sizeof(netadr_t));
+	
+	pPacket->net_from = *net_from;
+}
+
+void NET_AdjustLag()
+{
+	static double lasttime = realtime;
+
+	double dt = clamp(realtime - lasttime, 0.0, 0.1);
+
+	lasttime = realtime;
+
+	if (sv_cheats.value != 0.0f || fakelag.value == 0.0f)
+	{
+		if (fakelag.value != gFakeLag)
+		{
+			float diff = fakelag.value - gFakeLag;
+			float converge = dt * 200.0;
+			if (fabs(diff) < converge)
+				converge = fabs(diff);
+			if (diff < 0.0)
+				converge = -converge;
+			gFakeLag = gFakeLag + converge;
+		}
+	}
+	else
+	{
+		Con_Printf(const_cast<char*>("Server must enable cheats to activate fakelag\n"));
+		Cvar_SetValue(const_cast<char*>("fakelag"), 0.0f);
+		gFakeLag = 0.0f;
+	}
 }
 
 qboolean NET_LagPacket(qboolean newdata, netsrc_t sock, netadr_t* from, sizebuf_t* data)
@@ -1110,12 +747,13 @@ qboolean NET_LagPacket(qboolean newdata, netsrc_t sock, netadr_t* from, sizebuf_
 	float curtime = realtime;
 	if (newdata)
 	{
-		if (fakeloss.value != 0.0)
+		if (fakeloss.value != 0.0f)
 		{
-			if (sv_cheats.value)
+			if (sv_cheats.value != 0.0f)
 			{
 				static int losscount[NS_MAX] = {};
-				++losscount[sock];
+				losscount[sock]++;
+
 				if (fakeloss.value <= 0.0f)
 				{
 					int ninterval = fabs(fakeloss.value);
@@ -1144,7 +782,7 @@ qboolean NET_LagPacket(qboolean newdata, netsrc_t sock, netadr_t* from, sizebuf_
 
 	while (pPacket != &g_pLagData[sock])
 	{
-		if (pPacket->receivedTime <= curtime - gFakeLag / 1000.0)
+		if (pPacket->receivedTime <= curtime - gFakeLag / 1000.0f)
 			break;
 
 		pPacket = pPacket->pNext;
@@ -1155,8 +793,10 @@ qboolean NET_LagPacket(qboolean newdata, netsrc_t sock, netadr_t* from, sizebuf_
 
 	NET_RemoveFromPacketList(pPacket);
 	NET_TransferRawData(&in_message, pPacket->pPacketData, pPacket->nSize);
-	Q_memcpy(&in_from, &pPacket->net_from_, sizeof(in_from));
-	if (pPacket->pPacketData)
+	
+	in_from = pPacket->net_from;
+	
+	if (pPacket->pPacketData != NULL)
 		free(pPacket->pPacketData);
 
 	Mem_Free(pPacket);
@@ -1213,7 +853,7 @@ qboolean NET_GetLong(unsigned char* pData, int size, int* outSize)
 		if (packetNumber == packetCount - 1)
 			gNetSplit.totalSize = packetPayloadSize + SPLIT_SIZE * (packetCount - 1);
 
-		--gNetSplit.splitCount;
+		gNetSplit.splitCount--;
 		gNetSplitFlags[packetNumber] = sequenceNumber;
 
 		if (net_showpackets.value == 4.0f)
@@ -1251,10 +891,16 @@ qboolean NET_GetLong(unsigned char* pData, int size, int* outSize)
 	}
 
 	gNetSplit.currentSequence = -1;
+
 	if (gNetSplit.totalSize <= MAX_UDP_PACKET)
 	{
 		Q_memcpy(pData, gNetSplit.buffer, gNetSplit.totalSize);
+
+		for (int i = 0; i < gNetSplit.totalSize; i++)
+			pData[i] = gNetSplit.buffer[i];
+		
 		*outSize = gNetSplit.totalSize;
+		
 		return TRUE;
 	}
 	else
@@ -1266,18 +912,25 @@ qboolean NET_GetLong(unsigned char* pData, int size, int* outSize)
 
 qboolean NET_QueuePacket(netsrc_t sock)
 {
-
 	int ret = -1;
 	unsigned char buf[MAX_UDP_PACKET];
 
+#ifdef _WIN32
 	for (int protocol = 0; protocol < 2; protocol++)
+#else
+	for (int protocol = 0; protocol < 1; protocol++)
+#endif
 	{
 		SOCKET net_socket;
 
+#ifdef _WIN32
 		if (protocol == 0)
 			net_socket = ip_sockets[sock];
 		else
 			net_socket = ipx_sockets[sock];
+#else
+		net_socket = ip_sockets[sock];
+#endif
 
 		if (net_socket == INV_SOCK)
 			continue;
@@ -1287,14 +940,24 @@ qboolean NET_QueuePacket(netsrc_t sock)
 		ret = recvfrom(net_socket, (char*)buf, sizeof buf, 0, &from, &fromlen);
 		if (ret == -1)
 		{
+#ifdef _WIN32
 			int err = WSAGetLastError();
 
 			if (err == WSAENETRESET)
 				continue;
 
 			if (err != WSAEWOULDBLOCK && err != WSAECONNRESET && err != WSAECONNREFUSED)
+#else
+			int err = *_errno_location();
+
+			if (err != 11 && err != 104 && err != 111)
+#endif
 			{
+#ifdef _WIN32
 				if (err == WSAEMSGSIZE)
+#else
+				if (err == 99)
+#endif
 				{
 					Con_DPrintf(const_cast<char*>(__FUNCTION__ ":  Ignoring oversized network message\n"));
 				}
@@ -1329,16 +992,14 @@ qboolean NET_QueuePacket(netsrc_t sock)
 		return NET_LagPacket(TRUE, sock, &in_from, &in_message);
 	}
 
-	if (in_message.cursize < 9)
+	if (in_message.cursize < sizeof(SPLITPACKET))
 	{
 		Con_Printf(const_cast<char*>("Invalid split packet length %i\n"), in_message.cursize);
 		return FALSE;
 	}
 
 	return NET_GetLong(in_message.data, ret, &in_message.cursize);
-
 }
-
 
 int NET_Sleep()
 {
@@ -1357,6 +1018,7 @@ int NET_Sleep()
 				number = net_socket;
 		}
 
+#ifdef _WIN32
 		net_socket = ipx_sockets[sock];
 		if (net_socket != INV_SOCK)
 		{
@@ -1365,6 +1027,7 @@ int NET_Sleep()
 			if (number < net_socket)
 				number = net_socket;
 		}
+#endif
 	}
 
 	struct timeval tv;
@@ -1395,9 +1058,9 @@ DWORD WINAPI NET_ThreadMain(LPVOID lpThreadParameter)
 
 					// add to tail of the list
 					net_messages_t* p = messages[sock];
-					if (p)
+					if (p != NULL)
 					{
-						while (p->next)
+						while (p->next != NULL)
 							p = p->next;
 
 						p->next = pmsg;
@@ -1422,6 +1085,7 @@ DWORD WINAPI NET_ThreadMain(LPVOID lpThreadParameter)
 	return 0;
 }
 
+
 void NET_StartThread()
 {
 	if (use_thread)
@@ -1430,6 +1094,7 @@ void NET_StartThread()
 		{
 			net_thread_initialized = TRUE;
 
+#ifdef _WIN32
 			InitializeCriticalSection(&net_cs);
 			hNetThread = CreateThread(0, 0, NET_ThreadMain, 0, 0, &dwNetThreadId);
 			if (!hNetThread)
@@ -1439,6 +1104,7 @@ void NET_StartThread()
 				use_thread = FALSE;
 				Sys_Error("Couldn't initialize network thread, run without -netthread\n");
 			}
+#endif
 		}
 	}
 }
@@ -1464,7 +1130,7 @@ void* net_malloc(size_t size)
 net_messages_t* NET_AllocMsg(int size)
 {
 	net_messages_t* pmsg;
-	if (size <= MSG_QUEUE_SIZE && normalqueue)
+	if (size <= MSG_QUEUE_SIZE && normalqueue != NULL)
 	{
 		pmsg = normalqueue;
 		pmsg->buffersize = size;
@@ -1479,6 +1145,72 @@ net_messages_t* NET_AllocMsg(int size)
 	}
 
 	return pmsg;
+}
+
+void NET_FreeMsg(net_messages_t* pmsg)
+{
+	if (pmsg->preallocated != NULL)
+	{
+		net_messages_t* tmp = normalqueue;
+		normalqueue = pmsg;
+		pmsg->next = tmp;
+	}
+	else
+	{
+		Mem_Free(pmsg->buffer);
+		Mem_Free(pmsg);
+	}
+}
+
+qboolean NET_GetPacket(netsrc_t sock)
+{
+	qboolean bret;
+
+	NET_AdjustLag();
+	NET_ThreadLock();
+
+	if (NET_GetLoopPacket(sock, &in_from, &in_message))
+	{
+		bret = NET_LagPacket(TRUE, sock, &in_from, &in_message);
+	}
+	else
+	{
+		if (!use_thread)
+		{
+			bret = NET_QueuePacket(sock);
+			if (!bret)
+				bret = NET_LagPacket(FALSE, sock, NULL, NULL);
+		}
+		else
+		{
+			bret = NET_LagPacket(FALSE, sock, NULL, NULL);
+		}
+	}
+
+	if (bret)
+	{
+		Q_memcpy(net_message.data, in_message.data, in_message.cursize);
+		net_message.cursize = in_message.cursize;
+		
+		net_from = in_from;
+		
+		NET_ThreadUnlock();
+		return bret;
+	}
+
+	net_messages_t* pmsg = messages[sock];
+	if (pmsg != NULL)
+	{
+		net_message.cursize = pmsg->buffersize;
+		messages[sock] = pmsg->next;
+		Q_memcpy(net_message.data, pmsg->buffer, net_message.cursize);
+		net_from = pmsg->from;
+		msg_readcount = 0;
+		NET_FreeMsg(pmsg);
+		bret = TRUE;
+	}
+	NET_ThreadUnlock();
+	return bret;
 }
 
 void NET_AllocateQueues()
@@ -1502,7 +1234,7 @@ void NET_FlushQueues()
 	for (int i = 0; i < NS_MAX; i++)
 	{
 		net_messages_t* p = messages[i];
-		while (p)
+		while (p != NULL)
 		{
 			net_messages_t* n = p->next;
 			Mem_Free(p->buffer);
@@ -1514,7 +1246,7 @@ void NET_FlushQueues()
 	}
 
 	net_messages_t* p = normalqueue;
-	while (p)
+	while (p != NULL)
 	{
 		net_messages_t* n = p->next;
 		Mem_Free(p->buffer);
@@ -1552,7 +1284,8 @@ int NET_SendLong(netsrc_t sock, SOCKET s, const char* buf, int len, int flags, c
 
 			pPacket->packetID = (packetNumber << 4) + packetCount;
 
-			Q_memcpy(packet + sizeof(SPLITPACKET), buf + (packetNumber * SPLIT_SIZE), size);
+			for (int i = 0; i < size; i++)
+				packet[sizeof(SPLITPACKET) + i] = buf[(packetNumber * SPLIT_SIZE) + i];
 
 			if (net_showpackets.value == 4.0f)
 			{
@@ -1593,10 +1326,6 @@ int NET_SendLong(netsrc_t sock, SOCKET s, const char* buf, int len, int flags, c
 
 void NET_SendPacket(netsrc_t sock, int length, void* data, netadr_t to)
 {
-	DbgPrint(m_fLogStream, "sent one packet of %d bytes from %d:\r\n", length, sock);
-	LogArray(m_fLogStream, (LPBYTE)data, length);
-	DbgPrint(m_fLogStream, "\r\n");
-
 	if (to.type == NA_LOOPBACK)
 	{
 		NET_SendLoopPacket(sock, length, data, to);
@@ -1616,6 +1345,7 @@ void NET_SendPacket(netsrc_t sock, int length, void* data, netadr_t to)
 		if (net_socket == INV_SOCK)
 			return;
 	}
+#ifdef _WIN32
 	else if (to.type == NA_IPX)
 	{
 		net_socket = ipx_sockets[sock];
@@ -1628,6 +1358,7 @@ void NET_SendPacket(netsrc_t sock, int length, void* data, netadr_t to)
 		if (net_socket == INV_SOCK)
 			return;
 	}
+#endif
 	else
 	{
 		Sys_Error(__FUNCTION__ ": bad address type");
@@ -1639,6 +1370,7 @@ void NET_SendPacket(netsrc_t sock, int length, void* data, netadr_t to)
 	int ret = NET_SendLong(sock, net_socket, (const char*)data, length, 0, &addr, sizeof(addr));
 	if (ret == -1)
 	{
+#ifdef _WIN32
 		int err = WSAGetLastError();
 
 		// wouldblock is silent
@@ -1653,6 +1385,11 @@ void NET_SendPacket(netsrc_t sock, int length, void* data, netadr_t to)
 			|| to.type == NA_BROADCAST_IPX
 			))
 			return;
+#else
+		err = *_errno_location();
+		if (err == 11 || err == 111 || err == 104 || (err == 99 && to.type == NA_BROADCAST))
+			return;
+#endif
 
 		// let dedicated servers continue after errors
 		if (cls.state == ca_dedicated)
@@ -1661,7 +1398,11 @@ void NET_SendPacket(netsrc_t sock, int length, void* data, netadr_t to)
 		}
 		else
 		{
+#ifdef _WIN32
 			if (err == WSAEADDRNOTAVAIL || err == WSAENOBUFS)
+#else
+			if (err == 105 || err == 99)
+#endif
 			{
 				Con_DPrintf(const_cast<char*>(__FUNCTION__ ": Warning: %s : %s\n"), NET_ErrorString(err), NET_AdrToString(to));
 			}
@@ -1675,255 +1416,564 @@ void NET_SendPacket(netsrc_t sock, int length, void* data, netadr_t to)
 
 }
 
-qboolean NET_CompareClassBAdr(netadr_t a, netadr_t b)
+SOCKET NET_IPSocket(char* net_interface, int port, qboolean multicast)
 {
-	if (a.type != b.type)
-	{
-		return FALSE;
-	}
-	if (a.type == NA_LOOPBACK)
-	{
-		return TRUE;
-	}
+	SOCKET newsocket;
+	qboolean _true = TRUE;
 
-	if (a.type == NA_IP)
+	if ((newsocket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
 	{
-		if (a.ip[0] == b.ip[0] &&
-			a.ip[1] == b.ip[1])
-			return TRUE;
-	}
 #ifdef _WIN32
-	else if (a.type == NA_IPX)
-	{
-		return TRUE;
-	}
-#endif // _WIN32
-
-	return FALSE;
-}
-
-qboolean NET_CompareBaseAdr(netadr_t a, netadr_t b)
-{
-	if (a.type != b.type)
-	{
-		return FALSE;
-	}
-	if (a.type == NA_LOOPBACK)
-	{
-		return TRUE;
-	}
-
-	if (a.type == NA_IP)
-	{
-		if (a.ip[0] == b.ip[0] &&
-			a.ip[1] == b.ip[1] &&
-			a.ip[2] == b.ip[2] &&
-			a.ip[3] == b.ip[3])
-			return TRUE;
-	}
-#ifdef _WIN32
-	else if (a.type == NA_IPX)
-	{
-		if (Q_memcmp(a.ipx, b.ipx, 10) == 0)
-			return TRUE;
-	}
-#endif // _WIN32
-
-	return FALSE;
-}
-
-char* NET_BaseAdrToString(netadr_t a)
-{
-	static char s[64];
-
-	if (a.type == NA_LOOPBACK)
-	{
-		_snprintf(s, sizeof(s), "loopback");
-	}
-	else if (a.type == NA_IP)
-	{
-		_snprintf(s, sizeof(s), "%i.%i.%i.%i", a.ip[0], a.ip[1], a.ip[2], a.ip[3]);
-	}
-#ifdef _WIN32
-	else // NA_IPX
-	{
-		_snprintf(s, sizeof(s), "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x", a.ipx[0], a.ipx[1], a.ipx[2], a.ipx[3], a.ipx[4], a.ipx[5], a.ipx[6], a.ipx[7], a.ipx[8], a.ipx[9]);
-	}
-#endif // _WIN32
-
-	return s;
-}
-
-qboolean NET_IsLocalAddress(netadr_t adr)
-{
-	return adr.type == NA_LOOPBACK ? TRUE : FALSE;
-}
-
-qboolean NET_IsReservedAdr(netadr_t a)
-{
-	if (a.type == NA_LOOPBACK)
-	{
-		return TRUE;
-	}
-	if (a.type == NA_IP)
-	{
-		if (a.ip[0] == 10 || a.ip[0] == 127)
+		int err = WSAGetLastError();
+		if (err != WSAEAFNOSUPPORT)
+#else
+		int err = *_errno_location();
+		if (err != 97)
+#endif
 		{
-			return TRUE;
+			Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d socket: %s"), port, NET_ErrorString(err));
 		}
-		if (a.ip[0] == 172 && a.ip[1] >= 16)
-		{
-			if (a.ip[1] >= 32)
-			{
-				return FALSE;
-			}
-			return TRUE;
-		}
-		if (a.ip[0] == 192 && a.ip[1] >= 168)
-		{
-			return TRUE;
-		}
-		return FALSE;
+		return INV_SOCK;
 	}
+
 #ifdef _WIN32
-	else if (a.type == NA_IPX)
+	if (ioctlsocket(newsocket, FIONBIO, (u_long*)&_true) == SOCKET_ERROR)
+#else
+	if (ioctl(newsocket, 0x5421, (u_long*)&_true) == -1)
+#endif
 	{
-		return TRUE;
-	}
-#endif // _WIN32
-
-	return FALSE;
-}
-
-qboolean NET_GetLoopPacket(netsrc_t sock, netadr_t* in_from, sizebuf_t* msg)
-{
-	loopback_t* loop = &loopbacks[sock];
-
-	if (loop->send - loop->get > 4)
-	{
-		loop->get = loop->send - 4;
+#ifdef _WIN32
+		int err = WSAGetLastError();
+#else
+		int err = *_errno_location();
+#endif
+		Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  ioctl FIONBIO: %s\n"), port, NET_ErrorString(err));
+		return INV_SOCK;
 	}
 
-	if (loop->get < loop->send)
+	qboolean i = TRUE;
+#ifdef _WIN32
+	if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char*)&i, sizeof(i)) == SOCKET_ERROR)
+#else
+	if (setsockopt(newsocket, 1, 6, (char*)&i, sizeof(i)) == SOCKET_ERROR)
+#endif
 	{
-		int i = loop->get & (MAX_LOOPBACK - 1);
-		loop->get++;
-
-		NET_TransferRawData(msg, loop->msgs[i].data, loop->msgs[i].datalen);
-
-		Q_memset(in_from, 0, sizeof(netadr_t));
-		in_from->type = NA_LOOPBACK;
-
-		return TRUE;
+#ifdef _WIN32
+		int err = WSAGetLastError();
+#else
+		int err = *_errno_location();
+#endif
+		Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  setsockopt SO_BROADCAST: %s\n"), port, NET_ErrorString(err));
+		return INV_SOCK;
 	}
-	return FALSE;
-}
 
-void NET_FreeMsg(net_messages_t* pmsg)
-{
-	if (pmsg->preallocated)
+	if (COM_CheckParm(const_cast<char*>("-reuse")) || multicast)
 	{
-		net_messages_t* tmp = normalqueue;
-		normalqueue = pmsg;
-		pmsg->next = tmp;
+#ifdef _WIN32
+		if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char*)&_true, sizeof(qboolean)) == SOCKET_ERROR)
+#else
+		if (setsockopt(newsocket, 1, 2, (char*)&_true, sizeof(qboolean)) == SOCKET_ERROR)
+#endif
+		{
+#ifdef _WIN32
+			int err = WSAGetLastError();
+#else
+			int err = *_errno_location();
+#endif
+			Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  setsockopt SO_REUSEADDR: %s\n"), port, NET_ErrorString(err));
+			return INV_SOCK;
+		}
 	}
+
+#ifndef _WIN32
+	if (COM_CheckParm(const_cast<char*>("-tos")))
+	{
+		int tos = 16;
+		Con_Printf(const_cast<char*>("Enabling LOWDELAY TOS option\n"));
+		setsockopt(newsocket, 0, 1, (char*)&tos, sizeof(tos));
+
+		int err = *_errno_location();
+
+		if (err != 92)
+		{
+			Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  setsockopt IP_TOS: %s\n"), port, NET_ErrorString(err));
+			return INV_SOCK;
+		}
+	}
+#endif
+
+	struct sockaddr_in address;
+
+	if (net_interface && *net_interface && Q_strcasecmp(net_interface, "localhost"))
+		NET_StringToSockaddr(net_interface, (sockaddr*)&address);
 	else
+		address.sin_addr.s_addr = INADDR_ANY;
+
+	if (port == -1) // TODO: Always false?
+		address.sin_port = 0;
+	else
+		address.sin_port = htons((u_short)port);
+
+	address.sin_family = AF_INET;
+
+	if (bind(newsocket, (struct sockaddr*)&address, sizeof(address)) == SOCKET_ERROR)
 	{
-		Mem_Free(pmsg->buffer);
-		Mem_Free(pmsg);
+#ifdef _WIN32
+		int err = WSAGetLastError();
+#else
+		int err = *_errno_location();
+#endif
+		Con_Printf(const_cast<char*>("WARNING: UDP_OpenSocket: port: %d  bind: %s\n"), port, NET_ErrorString(err));
+		closesocket(newsocket);
+		return INV_SOCK;
 	}
+
+	qboolean bLoopBack = COM_CheckParm(const_cast<char*>("-loopback")) != 0;
+	if (setsockopt(newsocket, IPPROTO_IP, IP_MULTICAST_LOOP, (char*)&bLoopBack, sizeof(bLoopBack)) == SOCKET_ERROR)
+	{
+#ifdef _WIN32
+		int err = WSAGetLastError();
+#else
+		int err = *_errno_location();
+#endif
+		Con_DPrintf(const_cast<char*>("WARNING: UDP_OpenSocket: port %d setsockopt IP_MULTICAST_LOOP: %s\n"), port, NET_ErrorString(err));
+	}
+
+	return newsocket;
 }
 
-void NET_AdjustLag()
+void NET_OpenIP()
 {
-	static double lasttime = realtime;
+	int sv_port = 0;
+	int cl_port = 0;
 
-	double dt = realtime - lasttime;
-	if (dt <= 0.0)
-	{
-		dt = 0.0;
-	}
-	else
-	{
-		if (dt > 0.1)
-		{
-			dt = 0.1;
-		}
-	}
-	lasttime = realtime;
+	int dedicated = cls.state == ca_dedicated;
 
-	if (sv_cheats.value || fakelag.value == 0.0)
-	{
-		if (fakelag.value != gFakeLag)
-		{
-			float diff = fakelag.value - gFakeLag;
-			float converge = dt * 200.0;
-			if (fabs(diff) < converge)
-				converge = fabs(diff);
-			if (diff < 0.0)
-				converge = -converge;
-			gFakeLag = gFakeLag + converge;
-		}
-	}
-	else
-	{
-		Con_Printf(const_cast<char*>("Server must enable cheats to activate fakelag\n"));
-		Cvar_SetValue(const_cast<char*>("fakelag"), 0.0);
-		gFakeLag = 0;
-	}
-}
-
-qboolean NET_GetPacket(netsrc_t sock)
-{
-	qboolean bret;
-
-	NET_AdjustLag();
 	NET_ThreadLock();
-	if (NET_GetLoopPacket(sock, &in_from, &in_message))
+
+	if (ip_sockets[NS_SERVER] == INV_SOCK)
 	{
+		int port = (int)iphostport.value;
 
-		DbgPrint(m_fLogStream, "got one packet of %d bytes from %d:\r\n", in_message.cursize, in_from);
-		LogArray(m_fLogStream, (LPBYTE)in_message.data, in_message.cursize);
-		DbgPrint(m_fLogStream, "\r\n");
+		if (port == 0)
+		{
+			port = (int)hostport.value;
+			if (port == 0)
+			{
+				port = (int)defport.value;
+				hostport.value = defport.value;
+			}
+		}
+		ip_sockets[NS_SERVER] = NET_IPSocket(ipname.string, port, FALSE);
 
-		bret = NET_LagPacket(TRUE, sock, &in_from, &in_message);
+		if (ip_sockets[NS_SERVER] == INV_SOCK && dedicated)
+		{
+			Sys_Error("%s: Couldn't allocate dedicated server IP port %d.", __func__, port);
+		}
+		sv_port = port;
+	}
+
+	NET_ThreadUnlock();
+
+	if (dedicated)
+		return;
+
+	NET_ThreadLock();
+
+	if (ip_sockets[NS_CLIENT] == INV_SOCK)
+	{
+		int port = (int)ip_clientport.value;
+
+		if (port == 0)
+		{
+			port = (int)clientport.value;
+			if (port == 0)
+				port = -1;
+		}
+		ip_sockets[NS_CLIENT] = NET_IPSocket(ipname.string, port, FALSE);
+		if (ip_sockets[NS_CLIENT] == INV_SOCK)
+			ip_sockets[NS_CLIENT] = NET_IPSocket(ipname.string, -1, FALSE);
+		cl_port = port;
+	}
+
+	if (ip_sockets[NS_MULTICAST] == INV_SOCK)
+	{
+		ip_sockets[NS_MULTICAST] = NET_IPSocket(ipname.string, multicastport.value, TRUE);
+		if (ip_sockets[NS_MULTICAST] == INV_SOCK && !dedicated)
+			Con_Printf(const_cast<char*>("Warning! Couldn't allocate multicast IP port.\n"));
+	}
+
+	NET_ThreadUnlock();
+
+	static qboolean bFirst = TRUE;
+	if (bFirst)
+	{
+		bFirst = FALSE;
+		Con_Printf(const_cast<char*>("NET Ports:  server %i, client %i\n"), sv_port, cl_port);
+	}
+}
+
+#ifdef _WIN32
+SOCKET NET_IPXSocket(int hostshort)
+{
+	int err;
+	u_long optval = 1;
+	SOCKET newsocket;
+
+	if ((newsocket = socket(PF_IPX, SOCK_DGRAM, NSPROTO_IPX)) == INVALID_SOCKET)
+	{
+		err = WSAGetLastError();
+		if (err != WSAEAFNOSUPPORT)
+		{
+			Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  socket: %s\n"), hostshort, NET_ErrorString(err));
+		}
+
+		return INV_SOCK;
+	}
+	if (ioctlsocket(newsocket, FIONBIO, &optval) == SOCKET_ERROR)
+	{
+		err = WSAGetLastError();
+		Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  ioctl FIONBIO: %s\n"), hostshort, NET_ErrorString(err));
+		return INV_SOCK;
+	}
+	if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (const char*)&optval, sizeof(optval)) == SOCKET_ERROR)
+	{
+		err = WSAGetLastError();
+		Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  setsockopt SO_BROADCAST: %s\n"), hostshort, NET_ErrorString(err));
+		return INV_SOCK;
+	}
+	if (setsockopt(newsocket, SOL_SOCKET, 4, (const char*)&optval, sizeof(optval)) == SOCKET_ERROR)
+	{
+		err = WSAGetLastError();
+		return INV_SOCK;
+	}
+
+	SOCKADDR_IPX address;
+	address.sa_family = AF_IPX;
+	Q_memset(address.sa_netnum, 0, sizeof(address.sa_netnum));
+	Q_memset(address.sa_nodenum, 0, sizeof(address.sa_nodenum));
+
+	if (hostshort == -1)
+		address.sa_socket = 0;
+	else address.sa_socket = htons((u_short)hostshort);
+
+	if (bind(newsocket, (struct sockaddr*)&address, sizeof(SOCKADDR_IPX)) == SOCKET_ERROR)
+	{
+		err = WSAGetLastError();
+		Con_Printf(const_cast<char*>("WARNING: IPX_Socket: port: %d  bind: %s\n"), hostshort, NET_ErrorString(err));
+		closesocket(newsocket);
+		return INV_SOCK;
+	}
+	return newsocket;
+}
+
+void NET_OpenIPX()
+{
+	int dedicated = cls.state == ca_dedicated;
+
+	NET_ThreadLock();
+
+	if (ipx_sockets[NS_SERVER] == INV_SOCK)
+	{
+		int port = ipx_hostport.value;
+		if (port == 0)
+		{
+			port = hostport.value;
+			if (port == 0)
+			{
+				hostport.value = defport.value;
+				port = defport.value;
+			}
+		}
+		ipx_sockets[NS_SERVER] = NET_IPXSocket(port);
+	}
+
+	NET_ThreadUnlock();
+
+	if (dedicated)
+		return;
+
+	NET_ThreadLock();
+
+	if (ipx_sockets[NS_CLIENT] == INV_SOCK)
+	{
+		int port = ipx_clientport.value;
+		if (port == 0)
+		{
+			port = clientport.value;
+			if (port == 0)
+				port = -1;
+		}
+		ipx_sockets[NS_CLIENT] = NET_IPXSocket(port);
+
+		if (ipx_sockets[NS_CLIENT] == INV_SOCK)
+			ipx_sockets[NS_CLIENT] = NET_IPXSocket(-1);
+	}
+
+	NET_ThreadUnlock();
+}
+#endif
+
+void NET_GetLocalAddress()
+{
+	char buff[512];
+	struct sockaddr_in address;
+	int namelen;
+	int net_error;
+
+	Q_memset(&net_local_adr, 0, sizeof(netadr_t));
+
+	Q_memset(&net_local_ipx_adr, 0, sizeof(netadr_t));
+
+	if (noip)
+	{
+		Con_Printf(const_cast<char*>("TCP/IP Disabled.\n"));
 	}
 	else
 	{
-		if (!use_thread)
+		if (Q_strcmp(ipname.string, "localhost"))
+			Q_strncpy(buff, ipname.string, ARRAYSIZE(buff) - 1);
+		else
 		{
-			bret = NET_QueuePacket(sock);
-			if (!bret)
-				bret = NET_LagPacket(FALSE, sock, NULL, NULL);
+			gethostname(buff, ARRAYSIZE(buff));
+		}
+
+		buff[ARRAYSIZE(buff) - 1] = 0;
+
+		NET_StringToAdr(buff, &net_local_adr);
+		namelen = sizeof(address);
+		if (getsockname(ip_sockets[NS_SERVER], (struct sockaddr*)&address, (int*)&namelen) != 0)
+		{
+			noip = TRUE;
+#ifdef _WIN32
+			net_error = WSAGetLastError();
+#else
+			net_error = *_errno_location();
+#endif
+
+			Con_Printf(const_cast<char*>("Could not get TCP/IP address, TCP/IP disabled\nReason:  %s\n"), NET_ErrorString(net_error));
 		}
 		else
 		{
-			bret = NET_LagPacket(FALSE, sock, NULL, NULL);
+			net_local_adr.port = address.sin_port;
+			Con_Printf(const_cast<char*>("Server IP address %s\n"), NET_AdrToString(net_local_adr));
+			Cvar_Set(const_cast<char*>("net_address"), va(NET_AdrToString(net_local_adr)));
 		}
 	}
 
-	if (bret)
+#ifdef _WIN32
+	if (noipx)
 	{
-		Q_memcpy(net_message.data, in_message.data, in_message.cursize);
-		net_message.cursize = in_message.cursize;
-		Q_memcpy(&net_from, &in_from, sizeof(netadr_t));
-		NET_ThreadUnlock();
-		return bret;
+		Con_Printf(const_cast<char*>("No IPX Support.\n"));
+	}
+	else
+	{
+		namelen = 14;
+		if (getsockname(ipx_sockets[NS_SERVER], (struct sockaddr*)&address, (int*)&namelen) != 0)
+		{
+			noipx = TRUE;
+			net_error = WSAGetLastError();
+		}
+		else
+		{
+			SockadrToNetadr((struct sockaddr*)&address, &net_local_ipx_adr);
+			Con_Printf(const_cast<char*>("Server IPX address %s\n"), NET_AdrToString(net_local_ipx_adr));
+		}
+	}
+#endif
+}
+
+int NET_IsConfigured()
+{
+	return net_configured;
+}
+
+void NET_Config( qboolean multiplayer )
+{
+	static qboolean old_config;
+
+	if (old_config == multiplayer)
+	{
+		return;
 	}
 
-	net_messages_t* pmsg = messages[sock];
-	if (pmsg)
+	old_config = multiplayer;
+
+	if (multiplayer)
 	{
-		net_message.cursize = pmsg->buffersize;
-		messages[sock] = pmsg->next;
-		Q_memcpy(net_message.data, pmsg->buffer, net_message.cursize);
-		net_from = pmsg->from;
-		msg_readcount = 0;
-		NET_FreeMsg(pmsg);
-		bret = TRUE;
+		if (!noip)
+			NET_OpenIP();
+#ifdef _WIN32
+		if (!noipx)
+			NET_OpenIPX();
+#endif
+
+		static qboolean bFirst = TRUE;
+		if (bFirst)
+		{
+			bFirst = FALSE;
+			NET_GetLocalAddress();
+		}
 	}
+	else
+	{
+		NET_ThreadLock();
+
+		for (int sock = 0; sock < NS_MAX; sock++)
+		{
+			if (ip_sockets[sock] != INV_SOCK)
+			{
+				closesocket(ip_sockets[sock]);
+				ip_sockets[sock] = INV_SOCK;
+			}
+
+#ifdef _WIN32
+			if (ipx_sockets[sock] != INV_SOCK)
+			{
+				closesocket(ipx_sockets[sock]);
+				ipx_sockets[sock] = INV_SOCK;
+			}
+#endif
+		}
+
+		NET_ThreadUnlock();
+	}
+
+	net_configured = multiplayer ? true : false;
+
+}
+
+void NET_Init()
+{
+	NET_InitColors();
+
+	Cmd_AddCommand(const_cast<char*>("maxplayers"), MaxPlayers_f);
+
+	Cvar_RegisterVariable(&net_address);
+	Cvar_RegisterVariable(&ipname);
+	Cvar_RegisterVariable(&iphostport);
+	Cvar_RegisterVariable(&hostport);
+	Cvar_RegisterVariable(&defport);
+	Cvar_RegisterVariable(&ip_clientport);
+	Cvar_RegisterVariable(&clientport);
+	Cvar_RegisterVariable(&clockwindow);
+	Cvar_RegisterVariable(&multicastport);
+#ifdef _WIN32
+	Cvar_RegisterVariable(&ipx_hostport);
+	Cvar_RegisterVariable(&ipx_clientport);
+#endif
+	Cvar_RegisterVariable(&fakelag);
+	Cvar_RegisterVariable(&fakeloss);
+	Cvar_RegisterVariable(&net_graph);
+	Cvar_RegisterVariable(&net_graphwidth);
+	Cvar_RegisterVariable(&net_scale);
+	Cvar_RegisterVariable(&net_graphpos);
+
+	if (COM_CheckParm(const_cast<char*>("-netthread")))
+		use_thread = TRUE;
+
+	if (COM_CheckParm(const_cast<char*>("-netsleep")))
+		net_sleepforever = 0;
+
+#ifdef _WIN32
+	if (COM_CheckParm(const_cast<char*>("-noipx")))
+		noipx = TRUE;
+#endif
+
+	if (COM_CheckParm(const_cast<char*>("-noip")))
+		noip = TRUE;
+
+	int port = COM_CheckParm(const_cast<char*>("-port"));
+	if (port)
+		Cvar_SetValue(const_cast<char*>("hostport"), Q_atof(com_argv[port + 1]));
+
+	int clockwindow_ = COM_CheckParm(const_cast<char*>("-clockwindow"));
+	if (clockwindow_)
+		Cvar_SetValue(const_cast<char*>("clockwindow"), Q_atof(com_argv[clockwindow_ + 1]));
+
+	net_message.data = (byte*)&net_message_buffer;
+	net_message.maxsize = sizeof(net_message_buffer);
+	net_message.flags = 0;
+	net_message.buffername = "net_message";
+
+	in_message.data = (byte*)&in_message_buf;
+	in_message.maxsize = sizeof(in_message_buf);
+	in_message.flags = 0;
+	in_message.buffername = "in_message";
+
+	for (int i = 0; i < NS_MAX; i++)
+	{
+		g_pLagData[i].pPrev = &g_pLagData[i];
+		g_pLagData[i].pNext = &g_pLagData[i];
+	}
+
+	NET_AllocateQueues();
+	Con_DPrintf(const_cast<char*>("Base networking initialized.\n"));
+
+}
+
+void MaxPlayers_f()
+{
+	if (Cmd_Argc() != 2)
+	{
+		Con_Printf(const_cast<char*>("\"maxplayers\" is \"%u\"\n"), svs.maxclients);
+		return;
+
+	}
+
+	if (sv.active)
+	{
+		Con_Printf(const_cast<char*>("maxplayers cannot be changed while a server is running.\n"));
+		return;
+	}
+
+
+	int n = Q_atoi(Cmd_Argv(1));
+	if (n < 1)
+		n = 1;
+
+	if (n > svs.maxclientslimit)
+	{
+		n = svs.maxclientslimit;
+		Con_Printf(const_cast<char*>("\"maxplayers\" set to \"%u\"\n"), svs.maxclientslimit);
+	}
+	svs.maxclients = n;
+
+	if (n == 1)
+		Cvar_Set(const_cast<char*>("deathmatch"), const_cast<char*>("0"));
+	else
+		Cvar_Set(const_cast<char*>("deathmatch"), const_cast<char*>("1"));
+}
+
+void NET_ClearLagData(qboolean bClient, qboolean bServer)
+{
+	NET_ThreadLock();
+
+	if (bClient)
+	{
+		NET_ClearLaggedList(&g_pLagData[0]);
+		NET_ClearLaggedList(&g_pLagData[2]);
+	}
+
+	if (bServer)
+	{
+		NET_ClearLaggedList(&g_pLagData[1]);
+	}
+
 	NET_ThreadUnlock();
-	return bret;
+}
+
+void NET_Shutdown()
+{
+	NET_ThreadLock();
+
+	NET_ClearLaggedList(g_pLagData);
+	NET_ClearLaggedList(&g_pLagData[1]);
+
+	NET_ThreadUnlock();
+
+	NET_Config(FALSE);
+	NET_FlushQueues();
 }
 
 qboolean NET_JoinGroup(netsrc_t sock, netadr_t addr)
@@ -1932,6 +1982,7 @@ qboolean NET_JoinGroup(netsrc_t sock, netadr_t addr)
 	mreq.imr_multiaddr.S_un.S_addr = *(unsigned int*)&addr.ip[0];
 	mreq.imr_interface.S_un.S_addr = 0;
 
+#ifdef _WIN32
 	SOCKET net_socket = ip_sockets[sock];
 	if (setsockopt(net_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mreq, sizeof(mreq)) == SOCKET_ERROR)
 	{
@@ -1942,6 +1993,18 @@ qboolean NET_JoinGroup(netsrc_t sock, netadr_t addr)
 		}
 		return FALSE;
 	}
+#else
+	int net_socket = ip_sockets[sock];
+	if (setsockopt(net_socket, IPPROTO_IP, 35, (char*)&mreq, sizeof(mreq)) == -1)
+	{
+		int err = *_errno_location();
+		if (err != 97)
+		{
+			Con_Printf(const_cast<char*>("WARNING: NET_JoinGroup: IP_ADD_MEMBERSHIP: %s"), NET_ErrorString(err));
+		}
+		return FALSE;
+	}
+#endif
 
 	return TRUE;
 }
@@ -1952,6 +2015,7 @@ qboolean NET_LeaveGroup(netsrc_t sock, netadr_t addr)
 	mreq.imr_multiaddr.S_un.S_addr = *(unsigned int*)&addr.ip[0];
 	mreq.imr_interface.S_un.S_addr = 0;
 
+#ifdef _WIN32
 	SOCKET net_socket = ip_sockets[sock];
 	if (setsockopt(net_socket, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char*)&mreq, sizeof(mreq)) != SOCKET_ERROR)
 	{
@@ -1960,18 +2024,126 @@ qboolean NET_LeaveGroup(netsrc_t sock, netadr_t addr)
 			return FALSE;
 		}
 	}
+#else
+	int net_socket = ip_sockets[sock];
+	if (setsockopt(net_socket, IPPROTO_IP, 36, (char*)&mreq, sizeof(mreq)) != -1)
+	{
+		if (*_errno_location() != 97)
+		{
+			return FALSE;
+		}
+	}
+#endif
 
 	return TRUE;
-}
-
-qboolean NET_AtEdge(int x, int width)
-{
-	return x <= 3 || x >= width - 4;
 }
 
 void NET_FillRect(vrect_t* rect, byte* color, byte alpha)
 {
 	Draw_FillRGBA(rect->x, rect->y, rect->width, rect->height, color[0], color[1], color[2], alpha);
+}
+
+void NET_DrawString(int x, int y, int font, float r, float g, float b, char* fmt, ...)
+{
+	va_list fmtargs;
+	static char string[1024];
+
+	va_start(fmtargs, fmt);
+	vsnprintf(string, sizeof(string), fmt, fmtargs);
+	Draw_SetTextColor(r, g, b);
+	Draw_String(x, y, string);
+}
+
+void NET_GetColorValues(int color, byte* cv, byte* alpha)
+{
+	int i;
+	netcolor_t* pc = &netcolors[color];
+	for (i = 0; i < 3; i++)
+	{
+		cv[i] = pc->color[i];
+	}
+	*alpha = pc->alpha;
+}
+
+void NET_ColorForHeight(packet_latency_t* packet, byte* color, int* ping, byte* alpha)
+{
+	int h = packet->latency;
+	*ping = 0;
+	switch (h)
+	{
+	case 9999:
+		NET_GetColorValues(COLOR_DROPPED, color, alpha);
+		break;
+	case 9998:
+		NET_GetColorValues(COLOR_INVALID, color, alpha);
+		break;
+	case 9997:
+		NET_GetColorValues(COLOR_SKIPPED, color, alpha);
+		break;
+	default:
+		*ping = 1;
+		NET_GetColorValues(packet->choked ? COLOR_CHOKED : COLOR_NORMAL, color, alpha);
+		break;
+	}
+}
+
+void NET_InitColors()
+{
+	int i, j;
+	byte mincolor[2][3];
+	byte maxcolor[2][3];
+	float	dc[2][3];
+	int		hfrac;
+	float	f;
+
+	mincolor[0][0] = 63;
+	mincolor[0][1] = 0;
+	mincolor[0][2] = 100;
+
+	maxcolor[0][0] = 0;
+	maxcolor[0][1] = 63;
+	maxcolor[0][2] = 255;
+
+	mincolor[1][0] = 255;
+	mincolor[1][1] = 127;
+	mincolor[1][2] = 0;
+
+	maxcolor[1][0] = 250;
+	maxcolor[1][1] = 0;
+	maxcolor[1][2] = 0;
+
+	for (i = 0; i < 3; i++)
+	{
+		dc[0][i] = (float)(maxcolor[0][i] - mincolor[0][i]);
+		dc[1][i] = (float)(maxcolor[1][i] - mincolor[1][i]);
+	}
+
+	hfrac = LERP_HEIGHT / 3;
+
+	for (i = 0; i < LERP_HEIGHT; i++)
+	{
+		if (i < hfrac)
+		{
+			f = (float)i / (float)hfrac;
+			for (j = 0; j < 3; j++)
+			{
+				colors[i][j] = mincolor[0][j] + f * dc[0][j];
+			}
+		}
+		else
+		{
+			f = (float)(i - hfrac) / (float)(LERP_HEIGHT - hfrac);
+			for (j = 0; j < 3; j++)
+			{
+				colors[i][j] = mincolor[1][j] + f * dc[1][j];
+			}
+		}
+	}
+}
+
+qboolean NET_AtEdge(int x, int width)
+{
+	return x <= 3 || x >= width - 4;
 }
 
 void NET_DrawTimes(vrect_t vrect, cmdinfo_t* cmdinfo, int x, int w)
@@ -2019,7 +2191,7 @@ void NET_DrawTimes(vrect_t vrect, cmdinfo_t* cmdinfo, int x, int w)
 		else
 		{
 			rcFill.y -= h;
-			
+
 			NET_FillRect(&rcFill, colors[h], 255);
 		}
 
@@ -2033,34 +2205,6 @@ void NET_DrawTimes(vrect_t vrect, cmdinfo_t* cmdinfo, int x, int w)
 		if (!cmdinfo[i].sent)
 			NET_FillRect(&rcFill, holdcolor, 200);
 	}
-}
-
-void NET_DrawString(int x, int y, int font, float r, float g, float b, char* fmt, ...)
-{
-	va_list fmtargs;
-	static char string[1024];
-
-	va_start(fmtargs, fmt);
-	vsnprintf(string, sizeof(string), fmt, fmtargs);
-	Draw_SetTextColor(r, g, b);
-	Draw_String(x, y, string);
-}
-
-int NET_GraphValue(void)
-{
-	kbutton_t* in_graph;
-	int graph_type;
-
-	graph_type = net_graph.value;
-	in_graph = ClientDLL_FindKey("in_graph");
-	if (!graph_type)
-	{
-		if (in_graph && (in_graph->state & 1))
-			return 2;
-		
-		return 0;
-	}
-	return graph_type;
 }
 
 /*
@@ -2154,7 +2298,7 @@ void NET_GetFrameData(packet_latency_t* packet_latency, netbandwidthgraph_t* gra
 	}
 }
 
-void NET_GetCommandInfo(cmdinfo_t *cmdinfo)
+void NET_GetCommandInfo(cmdinfo_t* cmdinfo)
 {
 	int		i;
 
@@ -2169,126 +2313,8 @@ void NET_GetCommandInfo(cmdinfo_t *cmdinfo)
 	}
 }
 
-void NET_GraphGetXY(vrect_t *rect, int width, int *x, int *y)
-{
-	*x = rect->x + 5;
-
-	switch ((int)net_graphpos.value)
-	{
-	case 1:
-		*x = rect->x + rect->width - 5 - width;
-		break;
-	case 2:
-		*x = rect->x + (rect->width - 10 - width) / 2;
-		break;
-	case 0:
-	default:
-		break;
-	}
-
-	*y = rect->y + rect->height - LERP_HEIGHT - 5;
-}
-
-void NET_GetColorValues( int color, byte *cv, byte *alpha )
-{
-	int i;
-	netcolor_t *pc = &netcolors[ color ];
-	for ( i = 0; i < 3; i++ )
-	{
-		cv[ i ] = pc->color[ i ];
-	}
-	*alpha = pc->alpha;
-}
-
-void NET_ColorForHeight( packet_latency_t *packet, byte *color, int *ping, byte *alpha )
-{
-	int h = packet->latency;
-	*ping = 0;
-	switch ( h )
-	{
-	case 9999:
-		NET_GetColorValues( COLOR_DROPPED, color, alpha );
-		break;
-	case 9998:
-		NET_GetColorValues( COLOR_INVALID, color, alpha );
-		break;
-	case 9997:
-		NET_GetColorValues( COLOR_SKIPPED, color, alpha );
-		break;
-	default:
-		*ping = 1;
-		NET_GetColorValues( packet->choked ? COLOR_CHOKED : COLOR_NORMAL, color, alpha );
-		break;
-	}
-}
-
-int NET_DrawDataSegment(vrect_t *rcFill, int bytes, byte r, byte g, byte b, byte alpha)
-{
-	int h;
-	byte color[3];
-
-	h = bytes / net_scale.value;
-
-	color[0] = r;
-	color[1] = g;
-	color[2] = b;
-
-	rcFill->height = h;
-	rcFill->y -= h;
-
-	if (rcFill->y < 2)
-		return 0;
-
-	NET_FillRect(rcFill, color, alpha);
-
-	return 1;
-}
-
-void NET_DrawHatches(int x, int y, int maxmsgbytes)
-{
-	int starty;
-	int ystep;
-	vrect_t rcHatch;
-
-	byte colorminor[3];
-	byte color[3];
-
-	ystep = (int)( 10.0 / net_scale.value );
-	ystep = max( ystep, 1 );
-
-	rcHatch.y		= y;
-	rcHatch.height	= 1;
-	rcHatch.x		= x;
-	rcHatch.width	= 4;
-
-	color[0] = 0;
-	color[1] = 200;
-	color[2] = 0;
-
-	colorminor[0] = 63;
-	colorminor[1] = 63;
-	colorminor[2] = 0;
-
-	for ( starty = rcHatch.y; rcHatch.y > 0 && ((starty - rcHatch.y)*net_scale.value < ( maxmsgbytes + 50 ) ); rcHatch.y -= ystep )
-	{
-		if ( !((int)((starty - rcHatch.y)*net_scale.value ) % 50 ) )
-		{
-			NET_FillRect( &rcHatch, color, 255 );
-		}
-		else if ( ystep > 5 )
-		{
-			NET_FillRect(&rcHatch, colorminor, 200);
-		}
-	}
-}
-
-void NET_DrawUpdateRate(int x, int y)
-{
-	NET_DrawString(x, y, 1, GRAPH_RED, GRAPH_GREEN, GRAPH_BLUE, const_cast<char*>("%i/s"), (int)cl_updaterate.value);
-}
-
-void NET_DrawTextFields(int graphvalue, int x, int y, netbandwidthgraph_t *graph, cmdinfo_t *cmdinfo,
-	int count, float avg, float *framerate,
+void NET_DrawTextFields(int graphvalue, int x, int y, netbandwidthgraph_t* graph, cmdinfo_t* cmdinfo,
+	int count, float avg, float* framerate,
 	int packet_loss, int packet_choke)
 {
 	static int lastout;
@@ -2363,6 +2389,109 @@ void NET_DrawTextFields(int graphvalue, int x, int y, netbandwidthgraph_t *graph
 	}
 }
 
+int NET_GraphValue(void)
+{
+	kbutton_t* in_graph;
+	int graph_type;
+
+	graph_type = net_graph.value;
+	in_graph = ClientDLL_FindKey("in_graph");
+	if (!graph_type)
+	{
+		// With +graph key, use max area
+		if (in_graph && (in_graph->state & 1))
+			return 2;
+
+		return 0;
+	}
+	return graph_type;
+}
+
+void NET_GraphGetXY(vrect_t* rect, int width, int* x, int* y)
+{
+	*x = rect->x + 5;
+
+	switch ((int)net_graphpos.value)
+	{
+	case 1:
+		*x = rect->x + rect->width - 5 - width;
+		break;
+	case 2:
+		*x = rect->x + (rect->width - 10 - width) / 2;
+		break;
+	case 0:
+	default:
+		break;
+	}
+
+	*y = rect->y + rect->height - LERP_HEIGHT - 5;
+}
+
+void NET_DrawHatches(int x, int y, int maxmsgbytes)
+{
+	int starty;
+	int ystep;
+	vrect_t rcHatch;
+
+	byte colorminor[3];
+	byte color[3];
+
+	ystep = (int)(10.0 / net_scale.value);
+	ystep = max(ystep, 1);
+
+	rcHatch.y = y;
+	rcHatch.height = 1;
+	rcHatch.x = x;
+	rcHatch.width = 4;
+
+	color[0] = 0;
+	color[1] = 200;
+	color[2] = 0;
+
+	colorminor[0] = 63;
+	colorminor[1] = 63;
+	colorminor[2] = 0;
+
+	for (starty = rcHatch.y; rcHatch.y > 0 && ((starty - rcHatch.y) * net_scale.value < (maxmsgbytes + 50)); rcHatch.y -= ystep)
+	{
+		if (!((int)((starty - rcHatch.y) * net_scale.value) % 50))
+		{
+			NET_FillRect(&rcHatch, color, 255);
+		}
+		else if (ystep > 5)
+		{
+			NET_FillRect(&rcHatch, colorminor, 200);
+		}
+	}
+}
+
+void NET_DrawUpdateRate(int x, int y)
+{
+	NET_DrawString(x, y, 1, GRAPH_RED, GRAPH_GREEN, GRAPH_BLUE, const_cast<char*>("%i/s"), (int)cl_updaterate.value);
+}
+
+int NET_DrawDataSegment(vrect_t* rcFill, int bytes, byte r, byte g, byte b, byte alpha)
+{
+	int h;
+	byte color[3];
+
+	h = bytes / net_scale.value;
+
+	color[0] = r;
+	color[1] = g;
+	color[2] = b;
+
+	rcFill->height = h;
+	rcFill->y -= h;
+
+	if (rcFill->y < 2)
+		return 0;
+
+	NET_FillRect(rcFill, color, alpha);
+
+	return 1;
+}
+
 void SCR_NetGraph(void)
 {
 	int x, y;
@@ -2379,18 +2508,11 @@ void SCR_NetGraph(void)
 	int			ping_count = 0;
 
 	int graphtype;
-	kbutton_s *in_graph = ClientDLL_FindKey("in_graph");
 
-	graphtype = net_graph.value;
+	graphtype = NET_GraphValue();
 
-	if (!graphtype && !(in_graph->state & 1))
-		return;
-
-	// With +graph key, use max area
 	if (!graphtype)
-	{
-		graphtype = 2;
-	}
+		return;
 
 	// Since we divide by scale, make sure it's sensible
 	if (net_scale.value <= 0)
@@ -2564,10 +2686,22 @@ void SCR_NetGraph(void)
 
 		// Draw update rate
 		NET_DrawUpdateRate(max(1, x + w - 25), max(1, y - (int)scr_graphheight.value - 1));
-		
+
 		// Draw client frame timing info
 		NET_DrawTimes(vrect, cmdinfo, x, w);
 	}
 
 	NET_DrawTextFields(graphtype, x, y, graph, cmdinfo, ping_count, avg_ping, &framerate, packet_loss, packet_choke);
 }
+
+void SCR_DrawFPS(void)
+{
+	static float rolling_fps;
+
+	if (cl_showfps.value != 0.0 && host_frametime > 0.0)
+	{
+		rolling_fps = 0.6 * rolling_fps + host_frametime * 0.4;
+		NET_DrawString(2, 2, 0, 1.0f, 1.0f, 1.0f, const_cast<char*>("%d fps"), (int)floor(1.0f / rolling_fps));
+	}
+}
+
