@@ -280,12 +280,14 @@ int _PM_TestPlayerPosition(vec_t* pos, pmtrace_t* ptrace, int(*pfnIgnore)(physen
 
 		if (pe->solid == SOLID_BSP && (pe->angles[0] != 0.0 || pe->angles[1] != 0.0 || pe->angles[2] != 0.0))
 		{
-			vec3_t forward, right, up;
+			vec3_t forward, right, up, temp;
 			AngleVectors(pe->angles, forward, right, up);
 
-			test[0] = DotProduct(forward, test);
-			test[1] = -DotProduct(right, test);
-			test[2] = DotProduct(up, test);
+			VectorCopy(test, temp);
+
+			test[0] = DotProduct(forward, temp);
+			test[1] = -DotProduct(right, temp);
+			test[2] = DotProduct(up, temp);
 		}
 
 		if (numhulls != 1)
@@ -409,16 +411,20 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 
 		if (pe->solid == SOLID_BSP && (pe->angles[0] != 0.0 || pe->angles[1] != 0.0 || pe->angles[2] != 0.0))
 		{
-			vec3_t forward, right, up;
+			vec3_t forward, right, up, temp_start, temp_end;
 			AngleVectors(pe->angles, forward, right, up);
 
-			start_l[0] = DotProduct(forward, start_l);
-			start_l[1] = -DotProduct(right, start_l);
-			start_l[2] = DotProduct(up, start_l);
+			VectorCopy(start_l, temp_start);
 
-			end_l[0] = DotProduct(forward, end_l);
-			end_l[1] = -DotProduct(right, end_l);
-			end_l[2] = DotProduct(up, end_l);
+			start_l[0] = DotProduct(forward, temp_start);
+			start_l[1] = -DotProduct(right, temp_start);
+			start_l[2] = DotProduct(up, temp_start);
+
+			VectorCopy(end_l, temp_end);
+
+			end_l[0] = DotProduct(forward, temp_end);
+			end_l[1] = -DotProduct(right, temp_end);
+			end_l[2] = DotProduct(up, temp_end);
 
 			rotated = true;
 		}
@@ -485,12 +491,14 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 		{
 			if (rotated)
 			{
-				vec3_t forward, right, up;
+				vec3_t forward, right, up, temp;
 				AngleVectorsTranspose(pe->angles, forward, right, up);
 
-				total.plane.normal[0] = DotProduct(forward, total.plane.normal);
-				total.plane.normal[1] = DotProduct(right, total.plane.normal);
-				total.plane.normal[2] = DotProduct(up, total.plane.normal);
+				VectorCopy(total.plane.normal, temp);
+				
+				total.plane.normal[0] = DotProduct(forward, temp);
+				total.plane.normal[1] = DotProduct(right, temp);
+				total.plane.normal[2] = DotProduct(up, temp);
 			}
 			total.endpos[0] = (end[0] - start[0]) * total.fraction + start[0];
 			total.endpos[1] = (end[1] - start[1]) * total.fraction + start[1];
@@ -605,7 +613,8 @@ qboolean PM_RecursiveHullCheck(hull_t *hull, int num, float p1f, float p2f, cons
 
 	node = &hull->clipnodes[num];
 	plane = &hull->planes[node->planenum];
-	if (plane->type >= 3u)
+
+	if (plane->type >= 3)
 	{
 		t1 = DotProduct(p1, plane->normal) - plane->dist;
 		t2 = DotProduct(p2, plane->normal) - plane->dist;
