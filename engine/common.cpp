@@ -1206,8 +1206,13 @@ void COM_FixSlashes( char *pname )
 {
 	for( char* pszNext = pname; *pszNext; ++pszNext )
 	{
+#ifdef _WIN32
+		if( *pszNext == '/' )
+			*pszNext = '\\';
+#else
 		if( *pszNext == '\\' )
 			*pszNext = '/';
+#endif
 	}
 }
 

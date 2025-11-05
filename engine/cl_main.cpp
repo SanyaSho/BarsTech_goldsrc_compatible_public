@@ -1762,7 +1762,7 @@ void CL_Retry_f()
 	if (!cls.servername[0])
 		return Con_Printf(const_cast<char*>("Can't retry, no previous connection\n"));
 
-	if (strchr(cls.servername, '\n') || strchr(cls.servername, ':'))
+	if (strchr(cls.servername, '\n') || strchr(cls.servername, ';'))
 		return Con_Printf(const_cast<char*>("Invalid command separator in server name, refusing retry\n"));
 	
 	if (cls.passive)
