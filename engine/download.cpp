@@ -207,12 +207,12 @@ void DownloadManager::CheckActiveDownload()
 			if (m_activeRequest[i]->hOpenResource)
 			{
 				SetSecondaryProgressBarText(m_activeRequest[i]->gamePath);
-				vecDeleteList.InsertBefore(i);
+				vecDeleteList.AddToTail(i);
 			}
 			bCompletedRequest = true;
 			break;
 		case HTTP_ERROR:
-			vecDeleteList.InsertBefore(i);
+			vecDeleteList.AddToTail(i);
 			bCompletedRequest = true;
 			break;
 		case HTTP_FETCH:
@@ -239,7 +239,8 @@ void DownloadManager::CheckActiveDownload()
 	}
 
 	for (int i = 0; i < vecDeleteList.Size(); i++)
-		m_activeRequest.Free(vecDeleteList[i]);
+		m_activeRequest.Unlink(vecDeleteList[i]);
+		//m_activeRequest.Free(vecDeleteList[i]);
 
 	if (bCompletedRequest && !m_activeRequest.Count() && !m_queuedRequests.Size())
 	{

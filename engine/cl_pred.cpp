@@ -310,21 +310,24 @@ void CL_PredictMove(qboolean repredicting)
 
 	dTime = pframe->time;
 	from = &cl.predicted_frames[cl.parsecountmod];
+
+	int stoppoint = repredicting == false ? 1 : 0;
+
 	for (i = 1, to = NULL, pcmd = NULL; i < CL_UPDATE_BACKUP - 1; i++, from = to, fcmd = pcmd)
 	{
-		int stoppoint = i + cls.netchan.incoming_acknowledged >= !repredicting + cls.netchan.outgoing_sequence;
+		int cmdnum = i + cls.netchan.incoming_acknowledged;
 
-		if (stoppoint)
+		if (cmdnum >= stoppoint + cls.netchan.outgoing_sequence)
 			break;
 
 		g_i = i;
 
-		pcmd = &cl.commands[(cls.netchan.incoming_acknowledged + i) & CL_UPDATE_MASK];
+		pcmd = &cl.commands[cmdnum & CL_UPDATE_MASK];
 		to = &cl.predicted_frames[(cl.parsecountmod + i) & CL_UPDATE_MASK];
 
-		CL_RunUsercmd(from, to, &pcmd->cmd, !repredicting && !pcmd->processedfuncs, &dTime, cls.netchan.incoming_acknowledged + i);
+		CL_RunUsercmd(from, to, &pcmd->cmd, repredicting == false && pcmd->processedfuncs == false, &dTime, cmdnum);
 		pcmd->processedfuncs = true;
-		VectorCopy(to->playerstate.origin, cl.predicted_origins[(cls.netchan.incoming_acknowledged + i) & CL_UPDATE_MASK]);
+		VectorCopy(to->playerstate.origin, cl.predicted_origins[cmdnum & CL_UPDATE_MASK]);
 
 		if (pcmd->senttime >= targettime)
 			break;
@@ -335,10 +338,10 @@ void CL_PredictMove(qboolean repredicting)
 	if (i >= CL_UPDATE_MASK)
 		return;
 
-	if (!to && !repredicting)
+	if (to == NULL && repredicting == false)
 		return;
 
-	if (!to)
+	if (to == NULL)
 	{
 		to = from;
 		pcmd = fcmd;
@@ -407,18 +410,25 @@ void CL_PredictMove(qboolean repredicting)
 
 	if (cl_correction_time > 0.0 && cl_nosmooth.value == 0.0 && cl_smoothtime.value != 0.0)
 	{
-		if (!repredicting)
+		if (repredicting == false)
 			cl_correction_time = cl_correction_time - host_frametime;
 	
 		if (cl_smoothtime.value <= 0.0)
 			Cvar_DirectSet(&cl_smoothtime, const_cast<char*>("0.1"));
 
-		cl_correction_time = clamp(cl_correction_time, 0.0, (double)cl_smoothtime.value);
+		if (cl_correction_time < 0.0)
+			cl_correction_time = 0.0;
+
+		if (cl_correction_time >= (double)cl_smoothtime.value)
+			cl_correction_time = (double)cl_smoothtime.value;
 
 		VectorSubtract(cl.simorg, lastsimorg, delta);
 		VectorScale(delta, 1.0f - (cl_correction_time / cl_smoothtime.value), delta);
 		VectorAdd(lastsimorg, delta, cl.simorg);
 	}
+
+	VectorCopy(cl.simorg, lastsimorg);
+	CL_SetIdealPitch();
 }
 
 void CL_PushPMStates()
