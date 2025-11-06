@@ -152,9 +152,9 @@ bool DT_GetToken(char** const cPtr, ParseState* const parseState, std::string* c
 			while (true)
 			{
 				if (
-					(*ePtr - 'A') > 'Z' - 'A' &&
-					(*ePtr - 'a') > 'z' - 'a' &&
-					(*ePtr - '0') > '9' - '0'
+					((byte)(*ePtr - 'A')) > 'Z' - 'A' &&
+					((byte)(*ePtr - 'a')) > 'z' - 'a' &&
+					((byte)(*ePtr - '0')) > '9' - '0'
 					)
 				{
 					bool invalid = true;
@@ -174,6 +174,7 @@ bool DT_GetToken(char** const cPtr, ParseState* const parseState, std::string* c
 
 			if (ePtr == sPtr)
 			{
+				sPtr = ePtr;
 				state = LS_ERROR;
 				*parseState = PS_ERROR;
 				break;
@@ -184,10 +185,11 @@ bool DT_GetToken(char** const cPtr, ParseState* const parseState, std::string* c
 			if (token->empty())
 				state = LS_ERROR;
 
-			break;
-		}
-	}
+			*cPtr = ePtr;
 
+			return (*parseState != PS_COMPLETE && *parseState != PS_ERROR);
+		}
+	}	
 
 	*cPtr = ePtr;
 
@@ -404,7 +406,6 @@ void DT_LoadDetailMapFile(char* levelName)
 void DT_LoadDetailTexture(char* diffuseName, int diffuseId)
 {
 	std::string detailName;
-	std::string filename;
 
 	if (!detTexSupported)
 		return;
@@ -412,8 +413,7 @@ void DT_LoadDetailTexture(char* diffuseName, int diffuseId)
 	if (!r_detailtextures.value)
 	{
 		std::string strDiffuseName = diffuseName;
-	//	g_decalTexIDs.emplace_back(std::make_pair(strDiffuseName, diffuseId));
-		g_decalTexIDs.assign( { std::make_pair(strDiffuseName, diffuseId) } );
+		g_decalTexIDs.emplace_back(std::make_pair(strDiffuseName, diffuseId));
 		return;
 	}
 
@@ -430,7 +430,7 @@ void DT_LoadDetailTexture(char* diffuseName, int diffuseId)
 			{
 				int detailId;
 
-				detailId = loadTextureFile(const_cast<char*>(filename.c_str()));
+				detailId = loadTextureFile(const_cast<char*>(detailName.c_str()));
 
 				if (detailId == -1)
 				{
@@ -440,7 +440,15 @@ void DT_LoadDetailTexture(char* diffuseName, int diffuseId)
 				}
 
 				g_detailNameToIdMap[detailName] = detailId;
+				g_idMap[diffuseId] = g_detailVector[idx];
 				g_detailVector[idx]->_oglDetailId = detailId;
+				g_detailVector[idx]->_oglTextureId = diffuseId;
+			}
+			else
+			{
+				g_idMap[diffuseId] = g_detailVector[idx];
+				g_detailVector[idx]->_oglDetailId = g_detailNameToIdMap[detailName];
+				g_detailVector[idx]->_oglTextureId = diffuseId;
 			}
 		}
 	}
@@ -456,14 +464,16 @@ int DT_SetRenderState(int diffuseId)
 		Con_Printf(const_cast<char*>("Loading Detail Textures...\n"));
 		g_demandLoad = true;
 		DT_LoadDetailMapFile(const_cast<char*>(g_levelName.c_str()));
-		g_detTexLoaded = true;
-		g_demandLoad = false;
 
-		for (int i = 0; i < g_decalTexIDs.size(); i++)
+		int size = g_decalTexIDs.size();
+		for (int i = 0; i < size; i++)
 		{
 			auto p = g_decalTexIDs[i];
 			DT_LoadDetailTexture(const_cast<char*>(p.first.c_str()), p.second);
 		}
+		
+		g_detTexLoaded = true;
+		g_demandLoad = false;
 	}
 
 	auto iter = g_idMap.find(diffuseId);

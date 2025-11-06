@@ -852,14 +852,15 @@ void Draw_MiptexTexture(cachewad_t* wad, unsigned char* data)
 	tex = (texture_t*)data;
 	mip = (miptex_t*)(data + wad->cacheExtra);
 	tmp = *mip;
+	Q_memcpy(tex->name, tmp.name, sizeof(tmp.name));
 
 	tex->width = LittleLong(tmp.width);
 	tex->height = LittleLong(tmp.height);
 	tex->anim_max = 0;
 	tex->anim_min = 0;
 	tex->anim_total = 0;
-	tex->alternate_anims = 0;
-	tex->anim_next = 0;
+	tex->alternate_anims = NULL;
+	tex->anim_next = NULL;
 
 	for (i = 0; i < MIPLEVELS; i++)
 		tex->offsets[i] = wad->cacheExtra + LittleLong(tmp.offsets[i]);
@@ -873,8 +874,8 @@ void Draw_MiptexTexture(cachewad_t* wad, unsigned char* data)
 
 	if (gfCustomBuild)
 	{
-		Q_strncpy(tex->name, szCustName, 15);
-		tex->name[15] = 0;
+		Q_strncpy(tex->name, szCustName, sizeof(tex->name) - 1);
+		tex->name[sizeof(tex->name) - 1] = 0;
 	}
 
 	if (pal[765] || pal[766] || pal[767] != 0xFF)

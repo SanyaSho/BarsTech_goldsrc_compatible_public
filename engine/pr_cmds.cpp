@@ -1813,7 +1813,7 @@ edict_t* PF_CreateFakeClient_I(const char* netname)
 			break;
 	}
 
-	if (i >= svs.maxclients)
+	if (i == svs.maxclients)
 		return NULL;
 
 	ent = EDICT_NUM(i + 1);

@@ -239,8 +239,7 @@ void DownloadManager::CheckActiveDownload()
 	}
 
 	for (int i = 0; i < vecDeleteList.Size(); i++)
-		m_activeRequest.Unlink(vecDeleteList[i]);
-		//m_activeRequest.Free(vecDeleteList[i]);
+		m_activeRequest.Free(vecDeleteList[i]);
 
 	if (bCompletedRequest && !m_activeRequest.Count() && !m_queuedRequests.Size())
 	{
