@@ -1,23 +1,18 @@
 #ifndef ENGINE_DELTA_H
 #define ENGINE_DELTA_H
 
-const int DELTA_MAX_FIELDS = 56;	// 7*8
+#define	DT_BYTE				(1 << 0)	// A byte
+#define	DT_SHORT			(1 << 1)	// 2 byte field
+#define	DT_FLOAT			(1 << 2)	// A floating point field
+#define	DT_INTEGER			(1 << 3)	// 4 byte integer
+#define	DT_ANGLE			(1 << 4)	// A floating point angle
+#define	DT_TIMEWINDOW_8		(1 << 5)	// A floating point timestamp relative to server time
+#define	DT_TIMEWINDOW_BIG	(1 << 6)	// A floating point timestamp relative to server time (with more precision and custom multiplier)
+#define	DT_STRING			(1 << 7)	// A null terminated string, sent as 8 byte chars
+#define	DT_SIGNED			(1 << 31)	// sign modificator
 
-enum
-{
-	DT_BYTE = 1 << 0,	// A byte
-	DT_SHORT = 1 << 1,	// 2 byte field
-	DT_FLOAT = 1 << 2,	// A floating point field
-	DT_INTEGER = 1 << 3,	// 4 byte integer
-	DT_ANGLE = 1 << 4,	// A floating point angle
-	DT_TIMEWINDOW_8 = 1 << 5,	// A floating point timestamp relative to server time
-	DT_TIMEWINDOW_BIG = 1 << 6,	// A floating point timestamp relative to server time (with more precision and custom multiplier)
-	DT_STRING = 1 << 7,	// A null terminated string, sent as 8 byte chars
 
-	DT_SIGNED = 1 << 31	// sign modificator
-};
-
-const int FDT_MARK = 1 << 0;		// Delta mark for sending
+#define FDT_MARK			(1 << 0)		// Delta mark for sending
 
 typedef struct delta_s delta_t;
 typedef void(*encoder_t)(delta_t *, const unsigned char *, const unsigned char *);
@@ -122,12 +117,11 @@ int DELTA_TestDelta(unsigned char *from, unsigned char *to, delta_t *pFields);
 int DELTA_CountSendFields(delta_t *pFields);
 void DELTA_MarkSendFields(unsigned char *from, unsigned char *to, delta_t *pFields);
 void DELTA_SetSendFlagBits(delta_t *pFields, int *bits, int *bytecount);
-qboolean DELTA_IsFieldMarked(delta_t* pFields, int fieldNumber);
 void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pFields);
-qboolean DELTA_CheckDelta(unsigned char *from, unsigned char *to, delta_t *pFields);
+int DELTA_CheckDelta(unsigned char *from, unsigned char *to, delta_t *pFields);
 
-qboolean DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void));
-qboolean _DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void), qboolean sendfields);
+int DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void));
+int _DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void), qboolean sendfields);
 int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, int nBufSize);
 void DELTA_AddEncoder(char *name, void(*conditionalencode)(struct delta_s *, const unsigned char *, const unsigned char *));
 void DELTA_ClearEncoders(void);

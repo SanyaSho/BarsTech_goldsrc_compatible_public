@@ -6,6 +6,7 @@
 #include "voice_sound_engine_interface.h"
 
 qboolean GetWavinfo(char* name, byte* wav, int wavlength, wavinfo_t* info);
+sfxcache_t* S_LoadStreamSound(sfx_t* s, channel_t* ch);
 
 /*
 ================
@@ -26,18 +27,6 @@ void ResampleSfx(sfx_t *sfx, int inrate, int inwidth, byte *data
 	int		sample, samplefrac, fracstep;
 	sfxcache_t	*sc = NULL;
 
-	struct cache_system_t2
-	{
-		int						size;		// including this header
-		cache_user_t* user;
-		char					name[64];
-		cache_system_t2* prev, * next;
-		cache_system_t2* lru_prev, * lru_next;	// for LRU flushing	
-	};
-
-
-	cache_system_t2*cs = ((cache_system_t2*)sfx->cache.data) - 1;
-
 	sc = (sfxcache_t*)Cache_Check(&sfx->cache);
 	if (!sc)
 		return;
@@ -50,7 +39,7 @@ void ResampleSfx(sfx_t *sfx, int inrate, int inwidth, byte *data
 		sc->length = outcount;
 
 		if (sc->loopstart != -1)
-			sc->loopstart /= stepscale;
+			sc->loopstart = (float)sc->loopstart / stepscale;
 	}
 	else
 	{
@@ -61,7 +50,7 @@ void ResampleSfx(sfx_t *sfx, int inrate, int inwidth, byte *data
 			outcount = sc->length / stepscale;
 			sc->length = outcount;
 			if (sc->loopstart != -1)
-				sc->loopstart = sc->loopstart / stepscale;
+				sc->loopstart = (float)sc->loopstart / stepscale;
 
 			sc->speed = shm->speed;
 		}
@@ -132,14 +121,175 @@ void ResampleSfx(sfx_t *sfx, int inrate, int inwidth, byte *data
 	}
 }
 
-sfxcache_t* S_LoadStreamSound(sfx_t *s, channel_t *ch)
+sfxcache_t* S_LoadSound(sfx_t* s, channel_t* ch)
 {
-	char *dest, *src;
+	char	namebuffer[256];
+	byte* data = NULL;
+	wavinfo_t	info;
+	int		len;
+	float	stepscale;
+	sfxcache_t* sc = NULL;
+	byte	stackbuf[1 * 1024];		// avoid dirtying the cache heap
+	double startTime;
+	FileHandle_t hFile = FILESYSTEM_INVALID_HANDLE;
+	int filesize;
+
+	if (s->name[0] == CHAR_STREAM)
+		return (sfxcache_t*)S_LoadStreamSound(s, ch);
+	if (s->name[0] == CHAR_USERVOX)
+		return (sfxcache_t*)VoiceSE_GetSFXCache(s);
+	// stopline
+
+	// see if still in memory
+	sc = (sfxcache_t*)Cache_Check(&s->cache);
+	if (sc)
+	{
+		if (hisound.value != 0.0 || !shm || sc->speed <= shm->speed)
+			return sc;
+		Cache_Free(&s->cache);
+	}
+
+	if (fs_precache_timings.value != 0.0)
+		startTime = Sys_FloatTime();
+
+	// load it in
+	Q_strcpy(namebuffer, "sound");
+	if (s->name[0] != '/')
+		strncat(namebuffer, "/", sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
+	strncat(namebuffer, s->name, sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
+
+	hFile = FS_Open(namebuffer, "rb");
+
+	if (hFile != FILESYSTEM_INVALID_HANDLE)
+	{
+		data = (byte*)FS_GetReadBuffer(hFile, &filesize);
+
+		if (data == NULL)
+		{
+			filesize = FS_Size(hFile);
+			data = (byte*)Hunk_TempAlloc(filesize + 1);
+			FS_Read(data, filesize, 1, hFile);
+			FS_Close(hFile);
+
+			if (data != NULL)
+				hFile = FILESYSTEM_INVALID_HANDLE;
+		}
+	}
+
+	if (data == NULL && hFile == NULL)
+	{
+		namebuffer[0] = '\0';
+		if (s->name[0] != '/')
+			strncat(namebuffer, "/", sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
+		strncat(namebuffer, s->name, sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
+		namebuffer[sizeof(namebuffer) - 1] = '\0';
+
+		data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf), &filesize);
+
+		if (!data)
+		{
+			Con_DPrintf(const_cast<char*>(__FUNCTION__ ": Couldn't load %s\n"), namebuffer);
+			return NULL;
+		}
+	}
+
+	if (!GetWavinfo(s->name, data, filesize, &info))
+	{
+		Con_DPrintf(const_cast<char*>("Failed loading %s\n"), s->name);
+		return NULL;
+	}
+
+	if (info.channels != 1)
+	{
+		Con_Printf(const_cast<char*>("%s is a stereo sample\n"), s->name);
+		return NULL;
+	}
+
+	if (!info.rate)
+	{
+		Con_DPrintf(const_cast<char*>("Invalid rate: %s\n"), s->name);
+		return NULL;
+	}
+
+#ifdef _2020_PATCH
+	if (info.dataofs >= filesize)
+	{
+		Con_DPrintf(const_cast<char*>("%s has invalid data offset\n"), s->name);
+		return NULL;
+	}
+#endif
+
+	if ((shm != NULL && info.rate != shm->speed) && info.rate != shm->speed * 2 || hisound.value <= 0)
+	{
+		stepscale = (float)info.rate / (float)(shm->speed);
+
+		if (stepscale == 0.0f)
+		{
+			Con_DPrintf(const_cast<char*>("Invalid stepscale: %s\n"), s->name);
+			return NULL;
+		}
+	}
+	else
+		stepscale = 1;
+
+	len = (float)info.samples / stepscale;
+
+	if (len != 0)
+	{
+		if (0x7FFFFFFF / len < 1)
+		{
+			Con_DPrintf(const_cast<char*>("Invalid length (s/c): %s\n"), s->name);
+			return NULL;
+		}
+
+		if (0x7FFFFFFF / len < info.width)
+		{
+			Con_DPrintf(const_cast<char*>("Invalid length (s/c/w): %s\n"), s->name);
+			return NULL;
+		}
+
+		len *= info.width;
+
+		if (0x7FFFFFFF - len < sizeof(sfxcache_t))
+			Con_DPrintf(const_cast<char*>("Invalid length (s/c/w/sfx): %s\n"), s->name);
+	}
+
+	sc = (sfxcache_t*)Cache_Alloc(&s->cache, len + sizeof(sfxcache_t), s->name);
+	if (!sc)
+		return NULL;
+
+	sc->length = info.samples;
+	sc->loopstart = info.loopstart;
+	sc->speed = info.rate;
+	sc->width = info.width;
+	sc->stereo = info.channels;
+
+	ResampleSfx(s, sc->speed, sc->width, (byte*)data + info.dataofs
+#ifdef _2020_PATCH
+		, filesize - info.dataofs
+#endif
+	);
+
+	if (hFile != FILESYSTEM_INVALID_HANDLE)
+	{
+		FS_ReleaseReadBuffer(hFile, data);
+		FS_Close(hFile);
+	}
+
+	if (fs_precache_timings.value != 0.0)
+		Con_DPrintf(const_cast<char*>("fs_precache_timings: loaded sound %s in time %.3f sec\n"), namebuffer, Sys_FloatTime() - startTime);
+
+	return sc;
+}
+
+sfxcache_t* S_LoadStreamSound(sfx_t* s, channel_t* ch)
+{
+	char* dest, * src;
 	int count;
 	BYTE* data = NULL;
-	char namebuffer[256]; 
-	char wavname[64]; 
-	wavinfo_t info; 
+	char namebuffer[256];
+	char wavname[64];
+	wavinfo_t info;
 	int cbread;
 	qboolean firstLoad = false;
 
@@ -223,369 +373,15 @@ sfxcache_t* S_LoadStreamSound(sfx_t *s, channel_t *ch)
 	if (!firstLoad)
 		ResampleSfx(s, sc->speed, sc->width, data
 #ifdef _2020_PATCH
-		, cbread - info.dataofs
+			, cbread - info.dataofs
 #endif
 		);
 	else
 		ResampleSfx(s, sc->speed, sc->width, data + info.dataofs
 #ifdef _2020_PATCH
-		, cbread
+			, cbread
 #endif
 		);
-
-	return sc;
-}
-
-/*
-==============
-S_LoadSound
-==============
-*/
-sfxcache_t* S_LoadSound3(sfx_t* s, channel_t* ch)
-{
-	float len;
-	float stepscale;
-	double startTime;
-
-	byte stackbuf[1024];
-	char namebuffer[256];
-
-	int size;
-	int filesize;
-	wavinfo_t info;
-
-	FileHandle_t hFile = FILESYSTEM_INVALID_HANDLE;
-
-	byte* data = nullptr;
-	sfxcache_t* sc = nullptr;
-
-	if (s->name[0] == '*')
-		return S_LoadStreamSound(s, ch);
-
-	//if (s->name[0] == '?') TODO: Implement
-		//return VoiceSE_GetSFXCache(s);
-
-	sc = (sfxcache_t*)Cache_Check(&s->cache);
-	if (sc)
-	{
-		if (hisound.value != 0.0 || !shm || sc->speed <= shm->speed)
-			return sc;
-		Cache_Free(&s->cache);
-	}
-
-	if (fs_precache_timings.value != 0.0)
-		startTime = Sys_FloatTime();
-
-	Q_strcpy(namebuffer, "sound");
-
-	if (s->name[0] != '/')
-		strncat(namebuffer, "/", sizeof(namebuffer) - 1 - strlen(namebuffer));
-	strncat(namebuffer, s->name, sizeof(namebuffer) - 1 - strlen(namebuffer));
-
-	hFile = FS_Open(namebuffer, "rb");
-
-	if (!hFile)
-	{
-		namebuffer[0] = '\0';
-
-		if (s->name[0] != '/')
-			strncat(namebuffer, "/", sizeof(namebuffer) - 1 - strlen(namebuffer));
-
-		strncat(namebuffer, s->name, sizeof(namebuffer) - 1 - strlen(namebuffer));
-		namebuffer[sizeof(namebuffer) - 1] = 0;
-
-		data = COM_LoadStackFile(namebuffer, stackbuf, 1024, &filesize);
-
-		if (!data)
-		{
-			Con_DPrintf((char*)"S_LoadSound: Couldn't load %s\n", namebuffer);
-			return nullptr;
-		}
-
-		hFile = 0;
-	}
-	else
-	{
-		data = (byte*)FS_GetReadBuffer(hFile, &filesize);
-
-		if (!data)
-		{
-			filesize = FS_Size(hFile);
-			data = (byte*)Hunk_TempAlloc(filesize + 1);
-
-			FS_Read(data, filesize, 1, hFile);
-			FS_Close(hFile);
-
-			if (!data)
-			{
-				namebuffer[0] = '\0';
-
-				if (s->name[0] != '/')
-					strncat(namebuffer, "/", sizeof(namebuffer) - 1 - strlen(namebuffer));
-
-				strncat(namebuffer, s->name, sizeof(namebuffer) - 1 - strlen(namebuffer));
-				namebuffer[sizeof(namebuffer) - 1] = 0;
-
-				data = COM_LoadStackFile(namebuffer, stackbuf, 1024, &filesize);
-
-				if (!data)
-				{
-					Con_DPrintf((char*)"S_LoadSound: Couldn't load %s\n", namebuffer);
-					return nullptr;
-				}
-			}
-
-			hFile = 0;
-		}
-	}
-
-	if (!GetWavinfo(s->name, data, filesize, &info))
-	{
-		Con_DPrintf((char*)"Failed loading %s\n", s->name);
-		return nullptr;
-	}
-
-	if (info.channels != 1)
-	{
-		Con_DPrintf((char*)"%s is a stereo sample\n", s->name);
-		return nullptr;
-	}
-
-	if (!info.rate)
-	{
-		Con_DPrintf((char*)"Invalid rate: %s\n", s->name);
-		return nullptr;
-	}
-
-	if (info.dataofs >= filesize)
-	{
-		Con_DPrintf((char*)"%s has invalid data offset\n", s->name);
-		return nullptr;
-	}
-
-	stepscale = 1.f;
-
-	if ((shm && info.rate != shm->speed) && info.rate != 2 * shm->speed || hisound.value <= 0.0)
-	{
-		stepscale = (float)info.rate / (float)shm->speed;
-
-		if (stepscale == 0.0)
-		{
-			Con_DPrintf((char*)"Invalid stepscale: %s\n", s->name);
-			return nullptr;
-		}
-	}
-
-	size = 24;
-	len = (float)info.samples / stepscale;
-
-	if (len)
-	{
-		if (0x7FFFFFFF / len < 1)
-		{
-			Con_DPrintf((char*)"Invalid length (s/c): %s\n", s->name);
-			return nullptr;
-		}
-
-		if (0x7FFFFFFF / len < info.width)
-		{
-			Con_DPrintf((char*)"Invalid length (s/c/w): %s\n", s->name);
-			return nullptr;
-		}
-
-		if ((uint32)(0x7FFFFFFF - len * info.width) < 24)
-			Con_DPrintf((char*)"Invalid length (s/c/w/sfx): %s\n", s->name);
-
-		size = len * info.width + 24;
-	}
-
-	sc = (sfxcache_t*)Cache_Alloc(&s->cache, size, s->name);
-
-	if (sc)
-	{
-		sc->length = info.samples;
-		sc->loopstart = info.loopstart;
-		sc->speed = info.rate;
-		sc->width = info.width;
-		sc->stereo = info.channels;
-
-		ResampleSfx(s, sc->speed, sc->width, data + info.dataofs, filesize - info.dataofs);
-
-		if (hFile)
-		{
-			FS_ReleaseReadBuffer(hFile, data);
-			FS_Close(hFile);
-		}
-
-		if (fs_precache_timings.value != 0.0)
-		{
-			// Print the loading time
-			Con_DPrintf((char*)"fs_precache_timings: loaded sound %s in time %.3f sec\n", namebuffer, Sys_FloatTime() - startTime);
-		}
-	}
-
-	return sc;
-}
-sfxcache_t *S_LoadSound(sfx_t *s, channel_t* ch)
-{
-	char	namebuffer[256];
-	byte	*data = NULL;
-	wavinfo_t	info;
-	int		len;
-	float	stepscale;
-	sfxcache_t	*sc = NULL;
-	byte	stackbuf[1 * 1024];		// avoid dirtying the cache heap
-	double startTime;
-	FileHandle_t hFile = FILESYSTEM_INVALID_HANDLE;
-	int filesize;
-
-	if (s->name[0] == CHAR_STREAM)
-		return (sfxcache_t *)S_LoadStreamSound(s, ch);
-	if (s->name[0] == CHAR_USERVOX)
-		return (sfxcache_t *)VoiceSE_GetSFXCache(s);
-	// stopline
-
-	// see if still in memory
-	sc = (sfxcache_t*)Cache_Check(&s->cache);
-	if (sc)
-	{
-		if (hisound.value != 0.0 || !shm || sc->speed <= shm->speed)
-			return sc;
-		Cache_Free(&s->cache);
-	}
-
-	if (fs_precache_timings.value != 0.0)
-		startTime = Sys_FloatTime();
-
-	//Con_Printf ("S_LoadSound: %x\n", (int)stackbuf);
-	// load it in
-	Q_strcpy(namebuffer, "sound");
-	if (s->name[0] != '/')
-		strncat(namebuffer, "/", sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
-	strncat(namebuffer, s->name, sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
-
-	//	Con_Printf ("loading %s\n",namebuffer);
-
-	hFile = FS_Open(namebuffer, "rb");
-
-	if (hFile != NULL)
-	{
-		data = (byte*)FS_GetReadBuffer(hFile, &filesize);
-
-		if (data == NULL)
-		{
-			filesize = FS_Size(hFile);
-			data = (byte*)Hunk_TempAlloc(filesize + 1);
-			FS_Read(data, filesize, 1, hFile);
-			FS_Close(hFile);
-
-			if (data != NULL)
-				hFile = NULL;
-		}
-	}
-
-	if (data == NULL && hFile == NULL)
-	{
-		namebuffer[0] = '\0';
-		if (s->name[0] != '/')
-			strncat(namebuffer, "/", sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
-		strncat(namebuffer, s->name, sizeof(namebuffer) - 1 - Q_strlen(namebuffer));
-		namebuffer[sizeof(namebuffer) - 1] = '\0';
-
-		data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf), &filesize);
-
-		if (!data)
-		{
-			Con_DPrintf(const_cast<char*>(__FUNCTION__ ": Couldn't load %s\n"), namebuffer);
-			return NULL;
-		}
-	}
-
-	if (!GetWavinfo(s->name, data, filesize, &info))
-	{
-		Con_DPrintf(const_cast<char*>("Failed loading %s\n"), s->name);
-		return NULL;
-	}
-
-	if (info.channels != 1)
-	{
-		Con_Printf(const_cast<char*>("%s is a stereo sample\n"), s->name);
-		return NULL;
-	}
-
-	if (!info.rate)
-	{
-		Con_DPrintf(const_cast<char*>("Invalid rate: %s\n"), s->name);
-		return NULL;
-	}
-
-#ifdef _2020_PATCH
-	if (info.dataofs >= filesize)
-	{
-		Con_DPrintf(const_cast<char*>("%s has invalid data offset\n"), s->name);
-		return NULL;
-	}
-#endif
-
-	if ((shm != NULL && info.rate != shm->speed) && info.rate != shm->speed * 2 || hisound.value <= 0)
-	{
-		stepscale = (float)info.rate / (float)(shm->speed);
-
-		if (stepscale == 0.0f)
-		{
-			Con_DPrintf(const_cast<char*>("Invalid stepscale: %s\n"), s->name);
-			return NULL;
-		}
-	}
-	else 
-		stepscale = 1;
-
-	len = (float)info.samples / stepscale;
-
-	if (len != 0)
-	{
-		if (0x7FFFFFFF / len < 1)
-		{
-			Con_DPrintf(const_cast<char*>("Invalid length (s/c): %s\n"), s->name);
-			return NULL;
-		}
-
-		if (0x7FFFFFFF / len < info.width)
-		{
-			Con_DPrintf(const_cast<char*>("Invalid length (s/c/w): %s\n"), s->name);
-			return NULL;
-		}
-
-		len *= info.width;
-
-		if (0x7FFFFFFF - len < sizeof(sfxcache_t))
-			Con_DPrintf(const_cast<char*>("Invalid length (s/c/w/sfx): %s\n"), s->name);
-	}
-
-	sc = (sfxcache_t*)Cache_Alloc(&s->cache, len + sizeof(sfxcache_t), s->name);
-	if (!sc)
-		return NULL;
-
-	sc->length = info.samples;
-	sc->loopstart = info.loopstart;
-	sc->speed = info.rate;
-	sc->width = info.width;
-	sc->stereo = info.channels;
-	
-	ResampleSfx(s, sc->speed, sc->width, (byte*)data + info.dataofs
-#ifdef _2020_PATCH
-	, filesize - info.dataofs
-#endif
-	);
-
-	if (hFile != NULL)
-	{
-		FS_ReleaseReadBuffer(hFile, data);
-		FS_Close(hFile);
-	}
-
-	if (fs_precache_timings.value != 0.0)
-		Con_DPrintf(const_cast<char*>("fs_precache_timings: loaded sound %s in time %.3f sec\n"), namebuffer, Sys_FloatTime() - startTime);
 
 	return sc;
 }

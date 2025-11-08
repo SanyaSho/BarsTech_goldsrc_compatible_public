@@ -336,9 +336,6 @@ model_t* Mod_LoadModel( model_t* mod, qboolean crash, qboolean trackCRC )
 				if (!IsGameSubscribed("czero") && g_bIsCStrike && IsCZPlayerModel(currentCRC, mod->name) && cls.state != ca_dedicated)
 				{
 					COM_ExplainDisconnection(TRUE, const_cast<char*>("Cannot continue with altered model %s, disconnecting."), mod->name);
-					extern void DbgPrint(FILE*, const char* format, ...);
-					extern FILE* m_fMessages;
-					DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 					CL_Disconnect();
 					return NULL;
 				}

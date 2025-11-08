@@ -570,9 +570,6 @@ void CSteam3Client::OnClientGameServerDeny( ClientGameServerDeny_t* pParam )
 {
 	
 	COM_ExplainDisconnection( true, const_cast<char*>("Invalid server version, unable to connect.") );
-	extern void DbgPrint(FILE*, const char* format, ...);
-	extern FILE* m_fMessages;
-	DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 	CL_Disconnect();
 	
 }

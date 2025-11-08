@@ -479,11 +479,6 @@ void DELTA_SetSendFlagBits(delta_t *pFields, int *bits, int *bytecount)
 	*bytecount = (lastbit >> 3) + 1;
 }
 
-qboolean DELTA_IsFieldMarked(delta_t* pFields, int fieldNumber)
-{
-	return pFields->pdd[fieldNumber].flags & FDT_MARK;
-}
-
 void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pFields)
 {
 	int i;
@@ -493,8 +488,6 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 
 	float f2;
 	int fieldCount = pFields->fieldCount;
-	extern void DbgPrint(FILE*, const char* format, ...);
-	extern FILE* m_fMessages;
 
 	for (i = 0, pTest = pFields->pdd; i < fieldCount; i++, pTest++)
 	{
@@ -510,14 +503,12 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 			{
 				int8 si8 = *(int8 *)&to[pTest->fieldOffset];
 				si8 = (int8)((double)si8 * pTest->premultiply);
-				DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", pTest->significant_bits, si8, __FILE__, __LINE__);
 				MSG_WriteSBits(si8, pTest->significant_bits);
 			}
 			else
 			{
 				uint8 i8 = *(uint8 *)&to[pTest->fieldOffset];
 				i8 = (uint8)((double)i8 * pTest->premultiply);
-				DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", pTest->significant_bits, i8, __FILE__, __LINE__);
 				MSG_WriteBits(i8, pTest->significant_bits);
 			}
 			break;
@@ -526,14 +517,12 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 			{
 				int16 si16 = *(int16 *)&to[pTest->fieldOffset];
 				si16 = (int16)((double)si16 * pTest->premultiply);
-				DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", pTest->significant_bits, si16, __FILE__, __LINE__);
 				MSG_WriteSBits(si16, pTest->significant_bits);
 			}
 			else
 			{
 				uint16 i16 = *(uint16 *)&to[pTest->fieldOffset];
 				i16 = (uint16)((double)i16 * pTest->premultiply);
-				DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", pTest->significant_bits, i16, __FILE__, __LINE__);
 				MSG_WriteBits(i16, pTest->significant_bits);
 			}
 			break;
@@ -542,12 +531,10 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 			 double val = (double)(*(float *)&to[pTest->fieldOffset]) * pTest->premultiply;
 			 if (fieldSign)
 			 {
-				 DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", pTest->significant_bits, (int32)val, __FILE__, __LINE__);
 				 MSG_WriteSBits((int32)val, pTest->significant_bits);
 			 }
 			 else
 			 {
-				 DbgPrint(m_fMessages, "writing delta %d bits %u <%s#%d>\r\n", pTest->significant_bits, (uint32)val, __FILE__, __LINE__);
 				 MSG_WriteBits((uint32)val, pTest->significant_bits);
 			 }
 			 break;
@@ -561,7 +548,6 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 			   {
 				   signedInt = (int32)((double)signedInt * pTest->premultiply);
 			   }
-			   DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", pTest->significant_bits, signedInt, __FILE__, __LINE__);
 			   MSG_WriteSBits(signedInt, pTest->significant_bits);
 			}
 			else
@@ -571,21 +557,18 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 			   {
 				   unsignedInt = (uint32)((double)unsignedInt * pTest->premultiply);
 			   }
-			   DbgPrint(m_fMessages, "writing delta %d bits %u <%s#%d>\r\n", pTest->significant_bits, unsignedInt, __FILE__, __LINE__);
 			   MSG_WriteBits(unsignedInt, pTest->significant_bits);
 			}
 			break;
 		}
 		case DT_ANGLE:
 			f2 = *(float *)&to[pTest->fieldOffset];
-			DbgPrint(m_fMessages, "writing delta %d bits %f (%08X) <%s#%d>\r\n", pTest->significant_bits, f2, ((int)((1 << pTest->significant_bits) * fmod((double)f2, 360.0)) / 360) & (1 << pTest->significant_bits) - 1, __FILE__, __LINE__);
 			MSG_WriteBitAngle(f2, pTest->significant_bits);
 			break;
 		case DT_TIMEWINDOW_8:
 		{
 			f2 = *(float *)&to[pTest->fieldOffset];
 			int32 twVal = (int)(sv.time * 100.0) - (int)(f2 * 100.0);
-			DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", 8, twVal, __FILE__, __LINE__);
 			MSG_WriteSBits(twVal, 8);
 			break;
 		}
@@ -593,12 +576,10 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 		{
 			f2 = *(float *)&to[pTest->fieldOffset];
 			int32 twVal = (int)(sv.time * pTest->premultiply) - (int)(f2 * pTest->premultiply);
-			DbgPrint(m_fMessages, "writing delta %d bits %d <%s#%d>\r\n", pTest->significant_bits, twVal, __FILE__, __LINE__);
 			MSG_WriteSBits((int32)twVal, pTest->significant_bits);
 			break;
 		}
 		case DT_STRING:
-			DbgPrint(m_fMessages, "writing delta STRING %s <%s#%d>\r\n", (const char*)&to[pTest->fieldOffset], __FILE__, __LINE__);
 			MSG_WriteBitString((const char *)&to[pTest->fieldOffset]);
 			break;
 		default:
@@ -608,9 +589,9 @@ void DELTA_WriteMarkedFields(unsigned char *from, unsigned char *to, delta_t *pF
 	}
 }
 
-qboolean DELTA_CheckDelta(unsigned char *from, unsigned char *to, delta_t *pFields)
+int DELTA_CheckDelta(unsigned char *from, unsigned char *to, delta_t *pFields)
 {
-	qboolean sendfields;
+	int sendfields;
 
 	DELTA_ClearFlags(pFields);
 	DELTA_MarkSendFields(from, to, pFields);
@@ -619,9 +600,9 @@ qboolean DELTA_CheckDelta(unsigned char *from, unsigned char *to, delta_t *pFiel
 	return sendfields;
 }
 
-qboolean DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void))
+int DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void))
 {
-	qboolean sendfields;
+	int sendfields;
 
 	DELTA_ClearFlags(pFields);
 	DELTA_MarkSendFields(from, to, pFields);
@@ -631,7 +612,7 @@ qboolean DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force
 	return sendfields;
 }
 
-qboolean _DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void), qboolean sendfields)
+int _DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean force, delta_t *pFields, void(*callback)(void), qboolean sendfields)
 {
 	int i;
 	int bytecount;
@@ -644,13 +625,10 @@ qboolean _DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean forc
 		if (callback)
 			callback();
 
-		extern void DbgPrint(FILE*, const char* format, ...);
-		extern FILE* m_fMessages;
-		DbgPrint(m_fMessages, "writing delta bytecount %d <%s#%d>\r\n", bytecount, __FILE__, __LINE__);
 		MSG_WriteBits(bytecount, 3);
+		
 		for (i = 0; i < bytecount; i++)
 		{
-			DbgPrint(m_fMessages, "writing delta byte %02X <%s#%d>\r\n", ((byte*)bits)[i], __FILE__, __LINE__);
 			MSG_WriteBits(((byte*)bits)[i], 8);
 		}
 
@@ -662,7 +640,7 @@ qboolean _DELTA_WriteDelta(unsigned char *from, unsigned char *to, qboolean forc
 
 int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, int nBufSize)
 {
-	delta_description_t *pTest;
+	delta_description_t *ptest;
 	int i;
 	int bits[2];	// this is a limit with 64 fields max in delta
 	int nbytes;
@@ -674,7 +652,7 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 	double d2;
 	float t;
 	int addt;
-	char *st2;
+	char *st1, *st2;
 	char c;
 	int startbit;
 	int j;
@@ -690,36 +668,56 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 		((byte*)bits)[i] = MSG_ReadBits(8);
 	}
 
-	for (i = 0, pTest = pFields->pdd; i < fieldCount; i++, pTest++)
+	for (i = 0, ptest = pFields->pdd; i < fieldCount; i++, ptest++)
 	{
-		if (pTest->fieldOffset < 0 || pTest->fieldOffset >= nBufSize)
+		if (ptest->fieldOffset < 0 || ptest->fieldOffset >= nBufSize)
 			continue;
-		fieldType = pTest->fieldType & ~DT_SIGNED;
+
+		fieldType = ptest->fieldType & ~DT_SIGNED;
 
 		bitfieldnumber = 1 << (i & 0x1F);
+
 		if (!(bitfieldnumber & bits[i > 31]))
 		{
 			// Field was not sent to us, just transfer info from the "from"
 			switch (fieldType)
 			{
 			case DT_BYTE:
-				if ((int)(pTest->fieldOffset + sizeof(byte)) <= nBufSize)
-					to[pTest->fieldOffset] = from[pTest->fieldOffset];
+				if ((int)(ptest->fieldOffset + sizeof(byte)) <= nBufSize)
+					to[ptest->fieldOffset] = from[ptest->fieldOffset];
 				break;
 			case DT_SHORT:
-				if ((int)(pTest->fieldOffset + sizeof(uint16)) <= nBufSize)
-					*(uint16 *)&to[pTest->fieldOffset] = *(uint16 *)&from[pTest->fieldOffset];
+				if ((int)(ptest->fieldOffset + sizeof(uint16)) <= nBufSize)
+					*(uint16 *)&to[ptest->fieldOffset] = *(uint16 *)&from[ptest->fieldOffset];
 				break;
 			case DT_FLOAT:
 			case DT_INTEGER:
 			case DT_ANGLE:
 			case DT_TIMEWINDOW_8:
 			case DT_TIMEWINDOW_BIG:
-				if ((int)(pTest->fieldOffset + sizeof(uint32)) <= nBufSize)
-					*(uint32 *)&to[pTest->fieldOffset] = *(uint32 *)&from[pTest->fieldOffset];
+				if ((int)(ptest->fieldOffset + sizeof(uint32)) <= nBufSize)
+					*(uint32 *)&to[ptest->fieldOffset] = *(uint32 *)&from[ptest->fieldOffset];
 				break;
 			case DT_STRING:
-				Q_strncpy((char *)&to[pTest->fieldOffset], (char *)&from[pTest->fieldOffset], nBufSize);
+				j = 0;
+				st1 = (char*)&to[ptest->fieldOffset];
+				st2 = (char*)&from[ptest->fieldOffset];
+
+				// check buffer overrun
+				while (((unsigned char*)st2 - from) < nBufSize)
+				{
+					*st1++ = *st2++;
+					j++;
+
+					if (!*st2)
+						break;
+				}
+
+				// add null termination
+				if (j > 0)
+				{
+					st1[j - 1] = 0;
+				}
 				break;
 			default:
 				Con_Printf(const_cast<char*>("unparseable field type %i\n"), fieldType);
@@ -727,187 +725,184 @@ int DELTA_ParseDelta(unsigned char *from, unsigned char *to, delta_t *pFields, i
 			continue;
 		}
 
-		pTest->stats.receivedcount++;
+		ptest->stats.receivedcount++;
 
-		fieldSign = pTest->fieldType & DT_SIGNED;
+		fieldSign = ptest->fieldType & DT_SIGNED;
 		switch (fieldType)
 		{
 		case DT_BYTE:
-			if ((int)(pTest->fieldOffset + sizeof(byte)) <= nBufSize)
+			if ((int)(ptest->fieldOffset + sizeof(byte)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
-					d2 = (double)MSG_ReadSBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadSBits(ptest->significant_bits);
 
-					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+					if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 					{
-						d2 = d2 / pTest->premultiply;
+						d2 = d2 / ptest->premultiply;
 					}
-					if (pTest->postmultiply <= 0.9999 || pTest->postmultiply >= 1.0001)
+					if (ptest->postmultiply <= 0.9999 || ptest->postmultiply >= 1.0001)
 					{
-						d2 = d2 * pTest->postmultiply;
+						d2 = d2 * ptest->postmultiply;
 					}
-					*(int8 *)&to[pTest->fieldOffset] = (int8)d2;
+					*(int8 *)&to[ptest->fieldOffset] = (int8)d2;
 				}
 				else
 				{
-					d2 = (double)MSG_ReadBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadBits(ptest->significant_bits);
 
-					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+					if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 					{
-						d2 = d2 / pTest->premultiply;
+						d2 = d2 / ptest->premultiply;
 					}
-					if (pTest->postmultiply <= 0.9999 || pTest->postmultiply >= 1.0001)
+					if (ptest->postmultiply <= 0.9999 || ptest->postmultiply >= 1.0001)
 					{
-						d2 = d2 * pTest->postmultiply;
+						d2 = d2 * ptest->postmultiply;
 					}
-					*(uint8 *)&to[pTest->fieldOffset] = (uint8)d2;
+					*(uint8 *)&to[ptest->fieldOffset] = (uint8)d2;
 				}
 			}
 			break;
 		case DT_SHORT:
-			if ((int)(pTest->fieldOffset + sizeof(uint16)) <= nBufSize)
+			if ((int)(ptest->fieldOffset + sizeof(uint16)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
-					d2 = (double)MSG_ReadSBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadSBits(ptest->significant_bits);
 
-					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+					if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 					{
-						d2 = d2 / pTest->premultiply;
+						d2 = d2 / ptest->premultiply;
 					}
-					if (pTest->postmultiply <= 0.9999 || pTest->postmultiply >= 1.0001)
+					if (ptest->postmultiply <= 0.9999 || ptest->postmultiply >= 1.0001)
 					{
-						d2 = d2 * pTest->postmultiply;
+						d2 = d2 * ptest->postmultiply;
 					}
-					*(int16 *)&to[pTest->fieldOffset] = (int16)d2;
+					*(int16 *)&to[ptest->fieldOffset] = (int16)d2;
 				}
 				else
 				{
-					d2 = (double)MSG_ReadBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadBits(ptest->significant_bits);
 
-					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+					if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 					{
-						d2 = d2 / pTest->premultiply;
+						d2 = d2 / ptest->premultiply;
 					}
-					if (pTest->postmultiply <= 0.9999 || pTest->postmultiply >= 1.0001)
+					if (ptest->postmultiply <= 0.9999 || ptest->postmultiply >= 1.0001)
 					{
-						d2 = d2 * pTest->postmultiply;
+						d2 = d2 * ptest->postmultiply;
 					}
-					*(uint16 *)&to[pTest->fieldOffset] = (uint16)d2;
+					*(uint16 *)&to[ptest->fieldOffset] = (uint16)d2;
 				}
 			}
 			break;
 		case DT_FLOAT:
-			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
+			if ((int)(ptest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
-					d2 = (double)MSG_ReadSBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadSBits(ptest->significant_bits);
 				}
 				else
 				{
-					d2 = (double)MSG_ReadBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadBits(ptest->significant_bits);
 				}
 
-				if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+				if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 				{
-					d2 = d2 / pTest->premultiply;
+					d2 = d2 / ptest->premultiply;
 				}
-				if (pTest->postmultiply <= 0.9999 || pTest->postmultiply >= 1.0001)
+				if (ptest->postmultiply <= 0.9999 || ptest->postmultiply >= 1.0001)
 				{
-					d2 = d2 * pTest->postmultiply;
+					d2 = d2 * ptest->postmultiply;
 				}
-				*(float *)&to[pTest->fieldOffset] = (float)d2;
+				*(float *)&to[ptest->fieldOffset] = (float)d2;
 			}
 			break;
 		case DT_INTEGER:
-			if ((int)(pTest->fieldOffset + sizeof(uint32)) <= nBufSize)
+			if ((int)(ptest->fieldOffset + sizeof(uint32)) <= nBufSize)
 			{
 				if (fieldSign)
 				{
-					d2 = (double)MSG_ReadSBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadSBits(ptest->significant_bits);
 
-					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+					if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 					{
-						d2 = d2 / pTest->premultiply;
+						d2 = d2 / ptest->premultiply;
 					}
-					if (pTest->postmultiply <= 0.9999 || pTest->postmultiply >= 1.0001)
+					if (ptest->postmultiply <= 0.9999 || ptest->postmultiply >= 1.0001)
 					{
-						d2 = d2 * pTest->postmultiply;
+						d2 = d2 * ptest->postmultiply;
 					}
-					*(int32 *)&to[pTest->fieldOffset] = (int32)d2;
+					*(int32 *)&to[ptest->fieldOffset] = (int32)d2;
 				}
 				else
 				{
-					d2 = (double)MSG_ReadBits(pTest->significant_bits);
+					d2 = (double)MSG_ReadBits(ptest->significant_bits);
 
-					if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+					if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 					{
-						d2 = d2 / pTest->premultiply;
+						d2 = d2 / ptest->premultiply;
 					}
-					if (pTest->postmultiply <= 0.9999 || pTest->postmultiply >= 1.0001)
+					if (ptest->postmultiply <= 0.9999 || ptest->postmultiply >= 1.0001)
 					{
-						d2 = d2 * pTest->postmultiply;
+						d2 = d2 * ptest->postmultiply;
 					}
-					*(uint32 *)&to[pTest->fieldOffset] = (uint32)d2;
+					*(uint32 *)&to[ptest->fieldOffset] = (uint32)d2;
 				}
 			}
 			break;
 		case DT_ANGLE:
-			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
+			if ((int)(ptest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
-				*(float*)&to[pTest->fieldOffset] = MSG_ReadBitAngle(pTest->significant_bits);
+				*(float*)&to[ptest->fieldOffset] = MSG_ReadBitAngle(ptest->significant_bits);
 			}
 			break;
 		case DT_TIMEWINDOW_8:
-			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
+			if ((int)(ptest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
 				addt = MSG_ReadSBits(8);
 
 				t = (float)((cl.mtime[0] * 100.0 - addt) / 100.0);
-				*(float *)&to[pTest->fieldOffset] = t;
+				*(float *)&to[ptest->fieldOffset] = t;
 			}
 			break;
 		case DT_TIMEWINDOW_BIG:
-			if ((int)(pTest->fieldOffset + sizeof(float)) <= nBufSize)
+			if ((int)(ptest->fieldOffset + sizeof(float)) <= nBufSize)
 			{
-				addt = MSG_ReadSBits(pTest->significant_bits);
+				addt = MSG_ReadSBits(ptest->significant_bits);
 
-				if (pTest->premultiply <= 0.9999 || pTest->premultiply >= 1.0001)
+				if (ptest->premultiply <= 0.9999 || ptest->premultiply >= 1.0001)
 				{
-					t = (float)((cl.mtime[0] * pTest->premultiply - addt) / pTest->premultiply);
+					t = (float)((cl.mtime[0] * ptest->premultiply - addt) / ptest->premultiply);
 				}
 				else
 				{
 					t = (float)(cl.mtime[0] - addt);
 				}
-				*(float *)&to[pTest->fieldOffset] = t;
+				*(float *)&to[ptest->fieldOffset] = t;
 			}
 			break;
 		case DT_STRING:
-			st2 = (char*)&to[pTest->fieldOffset];
 			j = 0;
-			finish = true;
+			st1 = (char*)&to[ptest->fieldOffset];
 
-			while (j + pTest->fieldOffset < nBufSize)
+			// check buffer overrun
+			while ((ptest->fieldOffset + j) < nBufSize)
 			{
 				c = MSG_ReadBits(8);
-
-				*st2++ = c;
-				
+				*st1++ = c;
 				j++;
 
 				if (!c)
-				{
-					finish = false;
 					break;
-				}
 			}
 
-			// last received byte is non-zero so terminate string
-			if (finish == true && j > 0)
-				*(st2 - 1) = 0;
+			// add null termination
+			if (j > 0)
+			{
+				st1[j - 1] = 0;
+			}
 
 			break;
 		default:
@@ -938,7 +933,7 @@ void DELTA_ClearEncoders(void)
 		Mem_Free(p);
 		p = n;
 	}
-	g_encoders = 0;
+	g_encoders = NULL;
 }
 
 encoder_t DELTA_LookupEncoder(char *name)
@@ -1015,7 +1010,7 @@ delta_t *DELTA_BuildFromLinks(delta_link_t **pplinks)
 	{
 		Q_memcpy(pcur, p->delta, sizeof(delta_description_t));
 		Mem_Free(p->delta);
-		p->delta = 0;
+		p->delta = NULL;
 	}
 
 	DELTA_ClearLinks(pplinks);
@@ -1080,16 +1075,16 @@ qboolean DELTA_ParseType(delta_description_t *pdelta, char **pstream)
 
 qboolean DELTA_ParseField(int count, delta_definition_t *pdefinition, delta_link_t *pField, char **pstream)
 {
-	int readpost;
+	qboolean readpost;
 
-	readpost = 0;
+	readpost = false;
 	if (Q_strcasecmp(com_token, "DEFINE_DELTA"))
 	{
 		if (Q_strcasecmp(com_token, "DEFINE_DELTA_POST"))
 		{
 			Sys_Error(__FUNCTION__ ":  Expecting DEFINE_*, got %s\n", com_token);
 		}
-		readpost = 1;
+		readpost = true;
 	}
 
 	*pstream = COM_Parse(*pstream);
@@ -1104,14 +1099,15 @@ qboolean DELTA_ParseField(int count, delta_definition_t *pdefinition, delta_link
 		Sys_Error(__FUNCTION__ ":  Expecting fieldname\n");
 	}
 
-	Q_strncpy(pField->delta->fieldName, com_token, 31);
-	pField->delta->fieldName[31] = 0;
+	Q_strncpy(pField->delta->fieldName, com_token, sizeof(pField->delta->fieldName) - 1);
+	pField->delta->fieldName[sizeof(pField->delta->fieldName) - 1] = 0;
+	
 	pField->delta->fieldOffset = DELTA_FindOffset(count, pdefinition, com_token);
 
 	*pstream = COM_Parse(*pstream);
 	if (!DELTA_ParseType(pField->delta, pstream))
 	{
-		return FALSE;
+		return false;
 	}
 
 	*pstream = COM_Parse(*pstream);
@@ -1129,7 +1125,7 @@ qboolean DELTA_ParseField(int count, delta_definition_t *pdefinition, delta_link
 	}
 	else
 	{
-		pField->delta->postmultiply = 1.0;
+		pField->delta->postmultiply = 1.0f;
 	}
 
 	*pstream = COM_Parse(*pstream);
@@ -1147,23 +1143,23 @@ void DELTA_FreeDescription(delta_t **ppdesc)
 {
 	delta_t *p;
 
-	if (ppdesc)
+	if (ppdesc == NULL)
+		return;
+
+	p = *ppdesc;
+	if (p != NULL)
 	{
-		p = *ppdesc;
-		if (p)
-		{
-			if (p->dynamic)
-				Mem_Free(p->pdd);
-			Mem_Free(p);
-			*ppdesc = 0;
-		}
+		if (p->dynamic != NULL)
+			Mem_Free(p->pdd);
+		Mem_Free(p);
+		*ppdesc = 0;
 	}
 }
 
 void DELTA_AddDefinition(char *name, delta_definition_t *pdef, int numelements)
 {
 	delta_definition_list_t *p = g_defs;
-	while (p)
+	while (p != NULL)
 	{
 		if (!Q_strcasecmp(name, p->ptypename))
 			break;
@@ -1185,7 +1181,7 @@ void DELTA_AddDefinition(char *name, delta_definition_t *pdef, int numelements)
 void DELTA_ClearDefinitions(void)
 {
 	delta_definition_list_t *n, *p = g_defs;
-	while (p)
+	while (p != NULL)
 	{
 		n = p->next;
 		Mem_Free(p->ptypename);
@@ -1201,7 +1197,7 @@ delta_definition_t *DELTA_FindDefinition(char *name, int *count)
 
 	*count = 0;
 
-	while (p)
+	while (p != NULL)
 	{
 		if (!Q_strcasecmp(name, p->ptypename))
 		{
@@ -1246,20 +1242,20 @@ qboolean DELTA_ParseOneField(char **ppstream, delta_link_t **pplist, int count, 
 		Q_memset(&link, 0, sizeof(delta_link_t));
 		link.delta = (delta_description_t *)Mem_ZeroMalloc(sizeof(delta_description_t));
 		if (!DELTA_ParseField(count, pdefinition, &link, ppstream))
-			return FALSE;
+			return false;
 
 		newlink = (delta_link_t *)Mem_ZeroMalloc(sizeof(delta_link_t));
 		newlink->delta = link.delta;
 		newlink->next = *pplist;
 		*pplist = newlink;
 	}
-	return TRUE;
+	return true;
 }
 
 qboolean DELTA_ParseDescription(char *name, delta_t **ppdesc, char *pstream)
 {
 	delta_link_t *links;
-	delta_definition_t *pdefinition;
+	delta_definition_t *pdefinition = NULL;
 	char encoder[32];
 	char source[32];
 	int count;
@@ -1269,12 +1265,12 @@ qboolean DELTA_ParseDescription(char *name, delta_t **ppdesc, char *pstream)
 	count = 0;
 	encoder[0] = 0;
 
-	if (!ppdesc)
+	if (ppdesc == NULL)
 		Sys_Error(__FUNCTION__ ": called with no delta_description_t\n");
 	
-	*ppdesc = 0;
+	*ppdesc = NULL;
 
-	if (!pstream)
+	if (pstream == NULL)
 		Sys_Error(__FUNCTION__ ": called with no data stream\n");
 
 	while (true)
@@ -1320,12 +1316,16 @@ qboolean DELTA_ParseDescription(char *name, delta_t **ppdesc, char *pstream)
 			while (true)
 			{
 				pstream = COM_Parse(pstream);
+
 				if (Q_strlen(com_token) <= 0)
 					break;
+				
 				if (!Q_strcasecmp(com_token, "}"))
 					break;
+				
 				if (Q_strcasecmp(com_token, "{"))
 					Con_Printf(const_cast<char*>(__FUNCTION__ ":  Expecting {, got %s\n"), com_token);
+				
 				if (!DELTA_ParseOneField(&pstream, &links, count, pdefinition))
 					return FALSE;
 			}
@@ -1334,11 +1334,11 @@ qboolean DELTA_ParseDescription(char *name, delta_t **ppdesc, char *pstream)
 
 	*ppdesc = DELTA_BuildFromLinks(&links);
 
-	if (encoder[0] != 0)
+	if (Q_strlen(encoder) > 0)
 	{
 		Q_strncpy((*ppdesc)->conditionalencodename, encoder, sizeof((*ppdesc)->conditionalencodename) - 1);
 		(*ppdesc)->conditionalencodename[sizeof((*ppdesc)->conditionalencodename) - 1] = 0;
-		(*ppdesc)->conditionalencode = 0;
+		(*ppdesc)->conditionalencode = NULL;
 	}
 
 	return TRUE;
@@ -1350,7 +1350,7 @@ qboolean DELTA_Load(char *name, delta_t **ppdesc, char *pszFile)
 	qboolean bret;
 
 	pbuf = (char *)COM_LoadFile(pszFile, 5, 0);
-	if (!pbuf)
+	if (pbuf == NULL)
 	{
 		Sys_Error(__FUNCTION__ ":  Couldn't load file %s\n", pszFile);
 		return false;
@@ -1369,28 +1369,28 @@ void DELTA_RegisterDescription(char *name)
 	p->next = g_deltaregistry;
 	g_deltaregistry = p;
 	p->name = Mem_Strdup(name);
-	p->pdesc = 0;
+	p->pdesc = NULL;
 }
 
 void DELTA_ClearRegistrations(void)
 {
 	delta_registry_t *n, *p = g_deltaregistry;
-	while (p)
+	while (p != NULL)
 	{
 		n = p->next;
 		Mem_Free(p->name);
-		if (p->pdesc)
+		if (p->pdesc != NULL)
 			DELTA_FreeDescription(&p->pdesc);
 		Mem_Free(p);
 		p = n;
 	}
-	g_deltaregistry = 0;
+	g_deltaregistry = NULL;
 }
 
 delta_t **DELTA_LookupRegistration(const char *name)
 {
 	delta_registry_t *p = g_deltaregistry;
-	while (p)
+	while (p != NULL)
 	{
 		if (!Q_strcasecmp(p->name, name))
 			return &p->pdesc;
@@ -1410,7 +1410,6 @@ void DELTA_ClearStats(delta_t *p)
 		p->pdd[i].stats.sendcount = 0;
 		p->pdd[i].stats.receivedcount = 0;
 	}
-
 }
 
 void DELTA_ClearStats_f(void)
@@ -1418,29 +1417,30 @@ void DELTA_ClearStats_f(void)
 	delta_registry_t *p;
 
 	Con_Printf(const_cast<char*>("Clearing delta stats\n"));
-	for (p = g_deltaregistry; p; p = p->next)
+	for (p = g_deltaregistry; p != NULL; p = p->next)
 		DELTA_ClearStats(p->pdesc);
 }
 
 void DELTA_PrintStats(const char *name, delta_t *p)
 {
-	if (p)
-	{
-		Con_Printf(const_cast<char*>("Stats for '%s'\n"), name);
-		if (p->fieldCount > 0)
-		{
-			delta_description_t *dt = p->pdd;
-			for (int i = 0; i < p->fieldCount; i++, dt++)
-				Con_Printf(const_cast<char*>("  %02i % 10s:  s % 5i r % 5i\n"), i + 1, dt->fieldName, dt->stats.sendcount, dt->stats.receivedcount);
-		}
-		Con_Printf(const_cast<char*>("\n"));
-	}
+	if (p == NULL)
+		return;
+	
+	delta_description_t *dt = p->pdd;
+	
+	Con_Printf(const_cast<char*>("Stats for '%s'\n"), name);
+
+	for (int i = 0; i < p->fieldCount; i++, dt++)
+		Con_Printf(const_cast<char*>("  %02i % 10s:  s % 5i r % 5i\n"), i + 1, dt->fieldName, dt->stats.sendcount, dt->stats.receivedcount);
+	
+	Con_Printf(const_cast<char*>("\n"));
 }
 
 void DELTA_DumpStats_f(void)
 {
 	Con_Printf(const_cast<char*>("Delta Stats\n"));
-	for (delta_registry_t *dr = g_deltaregistry; dr; dr = dr->next)
+	
+	for (delta_registry_t *dr = g_deltaregistry; dr != NULL; dr = dr->next)
 		DELTA_PrintStats(dr->name, dr->pdesc);
 }
 

@@ -55,119 +55,36 @@ HINSTANCE hInstDS;
 sndinitstat SNDDMA_InitDirect(void);
 qboolean SNDDMA_InitWav(void);
 
-/*
-==================
-SNDDMA_Init
-
-Try to find a sound device to mix for.
-Returns false if nothing is found.
-==================
-*/
-
-int SNDDMA_Init(void)
+void* S_GetWAVPointer(void)
 {
-	sndinitstat	stat;
+	if (hWaveOut)
+		return (void*)&hWaveOut;
 
-	if (COM_CheckParm(const_cast<char*>("-wavonly")))
-		wavonly = true;
-
-	dsound_init = wav_init = 0;
-
-	stat = SIS_FAILURE;	// assume DirectSound won't initialize
-
-	/* Init DirectSound */
-	if (!wavonly && Win32AtLeastV4)
-	{
-		if (snd_firsttime || snd_isdirect)
-		{
-			stat = SNDDMA_InitDirect();;
-
-			if (stat == SIS_SUCCESS)
-			{
-				snd_isdirect = true;
-
-				if (snd_firsttime)
-					Con_DPrintf(const_cast<char*>("DirectSound initialized\n"));
-			}
-			else
-			{
-				snd_isdirect = false;
-				Con_DPrintf(const_cast<char*>("DirectSound failed to init\n"));
-			}
-		}
-	}
-
-	// if DirectSound didn't succeed in initializing, try to initialize
-	// waveOut sound, unless DirectSound failed because the hardware is
-	// already allocated (in which case the user has already chosen not
-	// to have sound)
-	if (!dsound_init && (stat != SIS_NOTAVAIL))
-	{
-		if (snd_firsttime || snd_iswave)
-		{
-
-			snd_iswave = SNDDMA_InitWav();
-
-			if (snd_iswave)
-			{
-				if (snd_firsttime)
-					Con_DPrintf(const_cast<char*>("Wave sound initialized\n"));
-			}
-			else
-			{
-				Con_DPrintf(const_cast<char*>("Wave sound failed to init\n"));
-			}
-		}
-	}
-
-	snd_firsttime = false;
-
-	/*if (!dsound_init && !wav_init)
-	{
-		if (snd_firsttime)
-			Con_SafePrintf("No sound device initialized\n");
-
-		return 0;
-	}
-
-	return 1;*/
-	snd_buffer_count = 1;
-	return dsound_init || wav_init;
+	return NULL;
 }
 
-
-/*
-==============
-SNDDMA_GetDMAPos
-
-return the current sample position (in mono samples read)
-inside the recirculating dma rgba, so the mixing code will know
-how many sample are required to fill it up.
-===============
-*/
-int SNDDMA_GetDMAPos(void)
+void S_GetDSPointer(LPDIRECTSOUND* lpDS, LPDIRECTSOUNDBUFFER* lpDSBuf)
 {
-	MMTIME	mmtime;
-	int		s = 0;
-	DWORD	dwWrite = 0;
+	*lpDS = pDS;
+	*lpDSBuf = pDSBuf;
+}
 
-	if (dsound_init)
-	{
-		mmtime.wType = TIME_SAMPLES;
-		pDSBuf->lpVtbl->GetCurrentPosition(pDSBuf, &mmtime.u.sample, &dwWrite);
-		s = mmtime.u.sample - mmstarttime.u.sample;
-	}
-	else if (wav_init)
-	{
-		s = snd_sent * WAV_BUFFER_SIZE;
-	}
+void S_BlockSound(void)
+{
+	if (snd_iswave && ++snd_blocked == 1)
+		waveOutReset(hWaveOut);
+	
+	if (pDSBuf != NULL)
+		pDSBuf->lpVtbl->Stop(pDSBuf);
+}
 
+void S_UnblockSound(void)
+{
+	if (snd_iswave)
+		snd_blocked--;
 
-	s >>= sample16;
-
-	s &= (shm->samples - 1);
-
-	return s;
+	if (pDSBuf != NULL)
+		pDSBuf->lpVtbl->Play(pDSBuf, 0, 0, DSBPLAY_LOOPING);
 }
 
 /*
@@ -185,7 +102,7 @@ void FreeSound(void)
 		pDSBuf->lpVtbl->Release(pDSBuf);
 	}
 
-	// only release primary rgba if it's not also the mixing rgba we just released
+	// only release primary buffer if it's not also the mixing buffer we just released
 	if (pDSPBuf && (pDSBuf != pDSPBuf))
 	{
 		pDSPBuf->lpVtbl->Release(pDSPBuf);
@@ -244,6 +161,21 @@ void FreeSound(void)
 		FreeLibrary(hInstDS);
 		hInstDS = NULL;
 	}
+}
+
+void Snd_ReleaseBuffer()
+{
+	if (snd_isdirect && --snd_buffer_count == 0)
+	{
+		S_ClearBuffer();
+		S_Shutdown();
+	}
+}
+
+void Snd_AcquireBuffer()
+{
+	if (snd_isdirect && ++snd_buffer_count == 1)
+		S_Startup();
 }
 
 /*
@@ -403,7 +335,6 @@ sndinitstat SNDDMA_InitDirect(void)
 	}
 	else
 	{
-		
 		if (DS_OK != pDS->lpVtbl->SetCooperativeLevel(pDS, wmi.info.win.window, DSSCL_WRITEPRIMARY))
 		{
 			Con_SafePrintf("Set coop level failed\n");
@@ -418,7 +349,7 @@ sndinitstat SNDDMA_InitDirect(void)
 		}
 
 		pDSBuf = pDSPBuf;
-				Con_SafePrintf ("Using primary sound buffer\n");
+		Con_SafePrintf ("Using primary sound buffer\n");
 	}
 
 	// Make sure mixer is active
@@ -600,6 +531,112 @@ qboolean SNDDMA_InitWav(void)
 }
 
 /*
+==================
+SNDDMA_Init
+
+Try to find a sound device to mix for.
+Returns false if nothing is found.
+==================
+*/
+
+int SNDDMA_Init(void)
+{
+	sndinitstat	stat;
+
+	if (COM_CheckParm(const_cast<char*>("-wavonly")))
+		wavonly = true;
+
+	dsound_init = wav_init = false;
+
+	stat = SIS_FAILURE;	// assume DirectSound won't initialize
+
+	/* Init DirectSound */
+	if (!wavonly && Win32AtLeastV4)
+	{
+		if (snd_firsttime || snd_isdirect)
+		{
+			stat = SNDDMA_InitDirect();
+
+			if (stat == SIS_SUCCESS)
+			{
+				snd_isdirect = true;
+
+				if (snd_firsttime)
+					Con_DPrintf(const_cast<char*>("DirectSound initialized\n"));
+			}
+			else
+			{
+				snd_isdirect = false;
+				Con_DPrintf(const_cast<char*>("DirectSound failed to init\n"));
+			}
+		}
+	}
+
+	// if DirectSound didn't succeed in initializing, try to initialize
+	// waveOut sound, unless DirectSound failed because the hardware is
+	// already allocated (in which case the user has already chosen not
+	// to have sound)
+	if (!dsound_init && (stat != SIS_NOTAVAIL))
+	{
+		if (snd_firsttime || snd_iswave)
+		{
+
+			snd_iswave = SNDDMA_InitWav();
+
+			if (snd_iswave)
+			{
+				if (snd_firsttime)
+					Con_DPrintf(const_cast<char*>("Wave sound initialized\n"));
+			}
+			else
+			{
+				Con_DPrintf(const_cast<char*>("Wave sound failed to init\n"));
+			}
+		}
+	}
+
+	snd_firsttime = false;
+	snd_buffer_count = 1;
+
+	return dsound_init == true || wav_init == true;
+}
+
+
+/*
+==============
+SNDDMA_GetDMAPos
+
+return the current sample position (in mono samples read)
+inside the recirculating dma rgba, so the mixing code will know
+how many sample are required to fill it up.
+===============
+*/
+int SNDDMA_GetDMAPos(void)
+{
+	MMTIME	mmtime;
+	int		s = 0;
+	DWORD	dwWrite = 0;
+
+	if (dsound_init)
+	{
+		mmtime.wType = TIME_SAMPLES;
+		pDSBuf->lpVtbl->GetCurrentPosition(pDSBuf, &mmtime.u.sample, &dwWrite);
+		s = mmtime.u.sample - mmstarttime.u.sample;
+	}
+	else if (wav_init)
+	{
+		s = snd_sent * WAV_BUFFER_SIZE;
+	}
+
+
+	s >>= sample16;
+
+	s &= (shm->samples - 1);
+
+	return s;
+}
+
+/*
 ==============
 SNDDMA_Submit
 
@@ -636,7 +673,7 @@ void SNDDMA_Submit(void)
 	//
 	// submit two new sound blocks
 	//
-	while (((snd_sent - snd_completed) >> sample16) < 4)
+	while (((snd_sent - snd_completed) >> sample16) < 8)
 	{
 		h = lpWaveHdr + (snd_sent&WAV_MASK);
 

@@ -365,10 +365,6 @@ void Cbuf_Execute()
 		}
 	}*/
 
-	extern void DbgPrint(FILE*, const char* format, ...);
-	extern FILE* m_fMessages;
-	fwrite(cmd_text.data, cmd_text.cursize, 1, m_fMessages);
-	DbgPrint(m_fMessages, "\r\n");
 	Cbuf_ExecuteCommandsFromBuffer(&cmd_text, 1);
 	Cbuf_ExecuteCommandsFromBufferWithFlag(&filteredcmd_text, 0, 1);
 }

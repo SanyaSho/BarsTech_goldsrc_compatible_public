@@ -257,7 +257,7 @@ void SetMouseEnable( int fState );
 
 void VOX_Init();
 
-void SetCareerAudioState(qboolean st);
+void SetCareerAudioState(int paused);
 
 void S_FreeChannel(channel_t* chan);
 int Wavstream_Init(void);
@@ -289,7 +289,7 @@ void S_ExtraUpdate(void);
 void S_ClearBuffer(void);
 void S_BeginPrecaching(void);
 void S_EndPrecaching(void);
-void S_Update(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
+void S_Update(vec_t* origin, vec_t* forward, vec_t* right, vec_t* up);
 void S_PrintStats();
 void SND_ForceInitMouth(int entnum);
 void SND_MoveMouth16(int entnum, short* pdata, int count);

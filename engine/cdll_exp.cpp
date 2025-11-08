@@ -149,7 +149,7 @@ void hudGetPlayerInfo( int ent_num, hud_player_info_t* pinfo )
 		cl.players[ ent_num - 1 ].name[ 0 ] )
 	{
 		//Adjust to 0 based
-		--ent_num;
+		ent_num--;
 
 		pinfo->name = cl.players[ ent_num ].name;
 		pinfo->ping = cl.players[ ent_num ].ping;

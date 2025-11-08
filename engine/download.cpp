@@ -97,7 +97,11 @@ void DownloadManager::OnHTTPRequestCompleted(HTTPRequestCompleted_t *pCallback)
 		{
 			strncpy(filedir, ctx->gamePath, MAX_PATH);
 			COM_FixSlashes(filedir);
+#ifdef _WIN32
+			pch = strrchr(filedir, '\\');
+#else
 			pch = strrchr(filedir, '/');
+#endif
 
 			if (pch)
 			{
@@ -354,7 +358,9 @@ void DownloadManager::StartNewDownload()
 		_snprintf(fullURL, sizeof(fullURL), "%s%s", m_activeRequest[idx]->baseURL, m_activeRequest[idx]->gamePath);
 		fullURL[sizeof(fullURL) - 1] = 0;
 
-		COM_FixSlashes(fullURL);
+		for (int i = 0; i < sizeof(fullURL); i++)
+			if (fullURL[i] == '\\')
+				fullURL[i] = '/';
 
 		m_activeRequest[idx]->hOpenResource = SteamHTTP()->CreateHTTPRequest(k_EHTTPMethodGET, fullURL);
 

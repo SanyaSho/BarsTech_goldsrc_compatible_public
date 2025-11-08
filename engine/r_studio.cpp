@@ -2344,13 +2344,13 @@ void BuildNormalIndexTable(void)
 	for (i = 0; i < psubmodel->numverts; i++)
 		g_NormalIndex[i] = 255;
 
-	pmesh = (mstudiomesh_t*)((byte*)psubmodel + psubmodel->meshindex);
+	pmesh = (mstudiomesh_t*)((byte*)pstudiohdr + psubmodel->meshindex);
 	// mstudiotrivert_t в количестве n сразу же после задания n (2 байта)
 	ptri = (short*)((byte*)pstudiohdr + pmesh->triindex);
 
 	for (i = 0; i < psubmodel->nummesh; i++, pmesh++)
 	{
-		while (((tri = *ptri++) != 0))
+		while (((tri = *(ptri++)) != 0))
 		{
 			if (tri < 0)
 				tri = -tri;
@@ -2358,8 +2358,8 @@ void BuildNormalIndexTable(void)
 			ptrivert = (mstudiotrivert_t*)(ptri);
 			for (j = 0; j < tri; j++, ptri = (short*)++ptrivert)
 			{
-				if (g_NormalIndex[ptrivert->normindex] < 0)
-					g_NormalIndex[ptrivert->normindex] = ptrivert->s;
+				if (g_NormalIndex[ptrivert->vertindex] < 0)
+					g_NormalIndex[ptrivert->vertindex] = ptrivert->normindex;
 			}
 
 		}

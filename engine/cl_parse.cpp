@@ -1020,13 +1020,13 @@ void CL_ParseConsistencyInfo()
 		int isdelta = MSG_ReadBits(1);
 
 		if (isdelta)
-			i = lastcheck + MSG_ReadBits(5);
+			delta = lastcheck + MSG_ReadBits(5);
 		else
-			i = MSG_ReadBits(10);
+			delta = MSG_ReadBits(10);
 
-		skip = i;
+		skip = delta - lastcheck;
 
-		for (delta = skip - lastcheck; delta > 0; delta--) // SH_CODE: was delta >= 0;
+		for (i = 0; i < skip; i++)
 		{
 			if (r != skip_crc_change && strstr(r->szFileName, "models/"))
 				Mod_NeedCRC(r->szFileName, false);
@@ -1901,8 +1901,6 @@ void CL_WriteMessageHistory(int starting_count, int cmd)
 	if (developer.value)
 		CL_WriteErrorMessage(starting_count, msg_readcount - 1, &net_message);
 }
-
-FILE* m_fMessages = fopen("wmessages.log", "wb");
 
 //-----------------------------------------------------------------------------
 // Purpose: Parse incoming message from server.

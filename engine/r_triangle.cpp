@@ -82,32 +82,7 @@ TRICULLSTYLE gFaceRule;
 void R_TriangleSetTexture(void* pixels, word width, word height, word* palette);
 #endif
 
-BOOL ScreenTransform(vec_t* point, vec_t* screen)
-{
-	float w;
-
-#if defined(GLQUAKE)
-	screen[0] = gWorldToScreen[0] * point[0] + gWorldToScreen[4] * point[1] + gWorldToScreen[8] * point[2] + gWorldToScreen[12];
-	screen[1] = gWorldToScreen[1] * point[0] + gWorldToScreen[5] * point[1] + gWorldToScreen[9] * point[2] + gWorldToScreen[13];
-	//	z		 = worldToScreen[2][0] * point[0] + worldToScreen[2][1] * point[1] + worldToScreen[2][2] * point[2] + worldToScreen[2][3];
-	w = gWorldToScreen[3] * point[0] + gWorldToScreen[7] * point[1] + gWorldToScreen[11] * point[2] + gWorldToScreen[15];
-#else
-	vec3_t local;
-	VectorSubtract(point, r_origin, local);
-	TransformVector(local, screen);
-
-	w = screen[2];
-#endif
-
-	if (w == .0f)
-		return w <= .0f;
-
-	float invw = 1.0f / w;
-	screen[0] *= invw;
-	screen[1] *= invw;
-
-	return invw <= .0f;
-}
+void WorldTransform(vec_t* screen, vec_t* point);
 
 #if defined(GLQUAKE)
 void tri_GL_RenderMode(int mode)
@@ -632,24 +607,6 @@ void R_RenderFog( float* flFogColor, float flStart, float flEnd, int bOn )
 	else
 	{
 		g_bUserFogOn = FALSE;
-	}
-#endif
-}
-
-void WorldTransform(vec_t* screen, vec_t* point)
-{
-#if defined(GLQUAKE)
-
-	point[0] = gWorldToScreen[0] * screen[0] + gWorldToScreen[4] * screen[1] + gWorldToScreen[8] * screen[2] + gWorldToScreen[12];
-	point[1] = gWorldToScreen[1] * screen[0] + gWorldToScreen[5] * screen[1] + gWorldToScreen[9] * screen[2] + gWorldToScreen[13];
-	point[2] = gWorldToScreen[2] * screen[0] + gWorldToScreen[6] * screen[1] + gWorldToScreen[10] * screen[2] + gWorldToScreen[14];
-	float w = gWorldToScreen[3] * screen[0] + gWorldToScreen[7] * screen[1] + gWorldToScreen[11] * screen[2] + gWorldToScreen[15];
-
-	if (w != 0.0f)
-	{
-		point[0] *= (1.0f / w);
-		point[1] *= (1.0f / w);
-		point[2] *= (1.0f / w);
 	}
 #endif
 }

@@ -723,7 +723,7 @@ qboolean SV_BuildSoundMsg(edict_t* entity, int channel, const char* sample, int 
 
 	field_mask = fFlags;
 
-	if (*sample == CHAR_SENTENCE)
+	if (sample != NULL && sample[0] == CHAR_SENTENCE)
 	{
 		field_mask |= SND_SENTENCE;
 		sound_num = Q_atoi(sample + 1);
@@ -733,7 +733,7 @@ qboolean SV_BuildSoundMsg(edict_t* entity, int channel, const char* sample, int 
 			return FALSE;
 		}
 	}
-	else if (*sample == CHAR_DRYMIX)
+	else if (sample != NULL && sample[0] == CHAR_DRYMIX)
 	{
 		field_mask |= SND_SENTENCE;
 		sound_num = Q_atoi(sample + 1) + CVOXFILESENTENCEMAX;

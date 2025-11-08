@@ -591,9 +591,6 @@ void CL_ParseClientdata(void)
 	}
 }
 
-extern void DbgPrint(FILE*, const char* format, ...);
-extern FILE* m_fMessages;
-
 void CL_ParsePacketEntities(qboolean delta, int *playerbits)
 {
 	int newblindex, offset = 0, numbase, oldindex, newindex;
@@ -683,7 +680,7 @@ void CL_ParsePacketEntities(qboolean delta, int *playerbits)
 	else
 	{
 		// Have we already looped around and flushed this info?
-		if ( ( ( ( cls.netchan.incoming_sequence & 0xff ) - oldpacket ) & 0xff ) >= CL_UPDATE_MASK )
+		if ( (byte)(cls.netchan.incoming_sequence - oldpacket) >= CL_UPDATE_MASK )
 		{
 			CL_FlushEntityPacket(true);
 			CL_ClearPacket(pents);
@@ -1048,13 +1045,12 @@ void CL_LinkCustomEntity(cl_entity_t* ent, entity_state_t* state)
 {
 	entity_state_t* p_prevstate, * p_curstate;
 
+	ent->curstate.movetype = state->modelindex;
+
 	if (ent->model->type != mod_sprite)
 		Sys_Error("Bad model on beam ( not sprite ) ");
 
-	p_prevstate = &ent->prevstate;
-	p_curstate = &ent->curstate;
-
-	*p_prevstate = *p_curstate;
+	ent->prevstate = ent->curstate;
 
 	ent->latched.prevsequence = ent->curstate.sequence;
 	VectorCopy(ent->origin, ent->latched.prevorigin);

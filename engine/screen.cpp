@@ -447,9 +447,6 @@ void SCR_UpdateScreen()
 					Con_Printf(const_cast<char*>("load failed.\n"));
 
 					COM_ExplainDisconnection( true, const_cast<char*>("Connection to server lost during level change.") );
-					extern void DbgPrint(FILE*, const char* format, ...);
-					extern FILE* m_fMessages;
-					DbgPrint(m_fMessages, "disconnecting... <%s#%d>\r\n", __FILE__, __LINE__);
 					CL_Disconnect();
 					
 				}

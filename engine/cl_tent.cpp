@@ -2422,10 +2422,6 @@ void CL_ParseTEnt(void)
 
 		if (r_decals.value)
 		{
-			extern void DbgPrint(FILE*, const char* format, ...);
-			extern FILE* m_fMessages;
-			DbgPrint(m_fMessages, "trying to shoot decal %d custom <%s#%d>\r\n", decalTextureIndex, pCust == NULL, __FILE__, __LINE__);
-
 			if (pCust != NULL)
 			{
 				if (pTexture != NULL)
@@ -2433,7 +2429,6 @@ void CL_ParseTEnt(void)
 			}
 			else
 				efx.R_DecalShoot(efx.Draw_DecalIndex(decalTextureIndex), entnumber, 0, pos, FDECAL_CUSTOM);
-
 		}
 	}
 		break;

@@ -330,7 +330,7 @@ pmtrace_t _PM_PlayerTrace(vec_t *start, vec_t *end, int traceFlags, int numphyse
 	vec3_t maxs;
 	vec3_t mins;
 	int closest;
-	bool rotated;
+	qboolean rotated;
 	int pNumHulls;
 	vec_t end_l[3];
 	vec_t start_l[3];

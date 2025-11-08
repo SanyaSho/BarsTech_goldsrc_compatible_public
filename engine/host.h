@@ -30,7 +30,6 @@ extern unsigned short* host_basepal;
 extern unsigned char* host_colormap;
 
 extern CareerStateType g_careerState;
-extern qboolean s_careerAudioPaused;
 
 extern qboolean g_bUsingInGameAdvertisements;
 extern qboolean gfNoMasterServer;

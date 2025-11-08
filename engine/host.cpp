@@ -106,7 +106,6 @@ cvar_t pausable = { const_cast<char*>("pausable"), const_cast<char*>("1"), FCVAR
 unsigned short* host_basepal = nullptr;
 unsigned char* host_colormap = nullptr;
 
-qboolean s_careerAudioPaused;
 qboolean gfNoMasterServer;
 
 int host_hunklevel = 0;
@@ -1280,7 +1279,7 @@ int Host_Init(quakeparms_t* parms)
 	Host_InitLocal();
 
 	if (COM_CheckParm(const_cast<char*>("-dev")))
-		Cvar_SetValue(const_cast<char*>("developer"), 2.0);
+		Cvar_SetValue(const_cast<char*>("developer"), 1.0);
 
 	Cbuf_Init();
 
