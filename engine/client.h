@@ -116,7 +116,6 @@ struct client_static_t
 	cactive_t state;
 
 	// network stuff
-	//TODO: implement - Solokiller
 	netchan_t netchan;
 
 	sizebuf_t datagram;
@@ -135,7 +134,6 @@ struct client_static_t
 
 	float slist_time;
 
-	//TODO: define constants - Solokiller
 	int signon;
 
 	char servername[ FILENAME_MAX ];	// name of server from original connect
@@ -229,7 +227,6 @@ struct frame_t
 
 struct client_state_t
 {
-	//TODO: verify contents - Solokiller
 	int max_edicts;
 
 	resource_t resourcesonhand;

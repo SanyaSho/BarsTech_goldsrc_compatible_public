@@ -3,16 +3,12 @@
 
 #include "screenfade.h"
 
-//Replacement for POINT, which is a Windows type.
-//TODO: find a better place for this. - Solokiller
-struct CPoint
+#ifndef _WINDOWS_
+struct POINT
 {
 	int x;
 	int y;
-};
-
-#ifndef _WINDOWS_
-#define POINT CPoint
+}; 
 #endif
 
 int hudGetScreenInfo( SCREENINFO* pscrinfo );

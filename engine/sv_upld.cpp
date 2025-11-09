@@ -70,10 +70,6 @@ void SV_CreateCustomizationList(client_t* pHost)
 			if (bNoError)
 			{
 				pCust->nUserData2 = nLumps;
-#ifdef _DEBUG
-				int iEdict = pHost->edict - sv.edicts;
-				Con_Printf((char*)"trying to register customization of edict %d\n", iEdict);
-#endif
 				gEntityInterface.pfnPlayerCustomization(pHost->edict, pCust);
 			}
 			else
@@ -227,10 +223,6 @@ void SV_RequestMissingResourcesFromClients()
 
 qboolean SV_UploadComplete( client_t* cl )
 {
-	// SH_CODE: TODO: remove this
-	if (cl->edict->pvPrivateData == NULL)
-		return false;
-
 	if( cl->resourcesneeded.pNext == &cl->resourcesneeded )
 	{
 		SV_RegisterResources();

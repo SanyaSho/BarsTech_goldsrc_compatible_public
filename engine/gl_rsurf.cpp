@@ -2334,7 +2334,7 @@ int R_DecalUnProject( decal_t* pdecal, vec_t* position )
 	float x, y, len;
 	float inverseScale;
 
-	vec3_t forward, right, up;
+	vec3_t forward, right, up, temp;
 
 	mtexinfo_t* tex = NULL;
 	model_t* model = NULL;
@@ -2349,18 +2349,18 @@ int R_DecalUnProject( decal_t* pdecal, vec_t* position )
 	x = (float)tex->texture->width * pdecal->dx - (float)pdecal->psurface->texturemins[0];
 	y = (float)tex->texture->height * pdecal->dy - (float)pdecal->psurface->texturemins[1];
 
-	len = Length((const vec_t*)tex) * 0.5;
+	len = Length(tex->vecs[0]) * 0.5;
 	ptex = Draw_DecalTexture(pdecal->texture);
 
 	x = (float)ptex->width * len + x + (float)pdecal->psurface->texturemins[0] - tex->vecs[0][3];
 	y = (float)ptex->height * len + y + (float)pdecal->psurface->texturemins[1] - tex->vecs[1][3];
 
-	inverseScale = fabs(Length((const vec_t*)tex));
+	inverseScale = fabs(Length(tex->vecs[0]));
 
 	if (inverseScale != 0.0)
 		inverseScale = (1.0 / inverseScale) * (1.0 / inverseScale);
 
-	VectorScale((const vec_t*)tex, x * inverseScale, position);
+	VectorScale(tex->vecs[0], x * inverseScale, position);
 
 	VectorMA(position, y * inverseScale, tex->vecs[1], position);
 	VectorMA(position, pdecal->psurface->plane->dist, pdecal->psurface->plane->normal, position);
@@ -2383,21 +2383,17 @@ int R_DecalUnProject( decal_t* pdecal, vec_t* position )
 		if (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2])
 		{
 			AngleVectorsTranspose(ent->v.angles, forward, right, up);
+			VectorCopy(position, temp);
 
-			position[0] = DotProduct(position, forward);
-			position[1] = DotProduct(position, right);
-			position[1] = DotProduct(position, up);
+			position[0] = DotProduct(temp, forward);
+			position[1] = DotProduct(temp, right);
+			position[2] = DotProduct(temp, up);
 		}
 
 		if (model->firstmodelsurface)
 		{
-			position[0] += model->hulls[0].clip_mins[0];
-			position[1] += model->hulls[0].clip_mins[1];
-			position[2] += model->hulls[0].clip_mins[2];
-
-			position[0] += ent->v.origin[0];
-			position[1] += ent->v.origin[1];
-			position[2] += ent->v.origin[2];
+			VectorAdd(ent->v.origin, model->hulls[0].clip_mins, temp);
+			VectorAdd(temp, position, position);
 		}
 	}
 
@@ -2476,12 +2472,13 @@ void R_DecalShoot_( texture_t* ptexture, int index, int entity, int modelIndex, 
 
 		if (pent->angles[0] || pent->angles[1] || pent->angles[2])
 		{
-			vec3_t forward, right, up;
+			vec3_t forward, right, up, temp;
 			AngleVectors(pent->angles, forward, right, up);
+			VectorCopy(gDecalPos, temp);
 			
-			gDecalPos[0] = DotProduct(gDecalPos, forward);
-			gDecalPos[1] = -DotProduct(gDecalPos, right);
-			gDecalPos[2] = DotProduct(gDecalPos, up);
+			gDecalPos[0] = DotProduct(temp, forward);
+			gDecalPos[1] = -DotProduct(temp, right);
+			gDecalPos[2] = DotProduct(temp, up);
 		}
 	}
 
@@ -2635,37 +2632,42 @@ void R_CustomDecalShoot( texture_t* ptexture, int playernum, int entity, int mod
 // Check for intersecting decals on this surface
 decal_t* R_DecalIntersect( msurface_t* psurf, int* pcount, float x, float y )
 {
-	decal_t* pDecal;
+	decal_t* plist;
 	decal_t* plast;
-
-	qboolean bPermanent;
-
+	int			dist;
+	int			lastDist;
+	int			dx, dy;
 	texture_t* ptexture;
+	float		w, h;
+	float		maxWidth;
+	qboolean	bPermanent;
 
 	plast = NULL;
+
+	lastDist = 0xFFFF;
 	*pcount = 0;
 
-	float lastArea = 2;
-	float maxWidth = (float)(gDecalTexture->width) * 1.5;
+	maxWidth = (float)(gDecalTexture->width) * 1.5;
 
-	pDecal = psurf->pdecals;
-	while (pDecal)
+	plist = psurf->pdecals;
+	while (plist)
 	{
+		ptexture = Draw_DecalTexture(plist->texture);
+
 		// Don't steal bigger decals and replace them with smaller decals
 		// Don't steal permanent decals
-		bPermanent = (pDecal->flags & (FDECAL_DONTSAVE | FDECAL_PERMANENT));
+		bPermanent = (plist->flags & FDECAL_PERMANENT);
 		if (!bPermanent)
 		{
-			ptexture = Draw_DecalTexture(pDecal->texture);
-
 			if (maxWidth >= (float)ptexture->width)
 			{
-				float w = abs((int)((gDecalTexture->width >> 1) + psurf->texinfo->texture->width * x - (psurf->texinfo->texture->width * pDecal->dx + (ptexture->width >> 1))));
-				float h = abs((int)((gDecalTexture->height >> 1) + psurf->texinfo->texture->height * y - (psurf->texinfo->texture->height * pDecal->dy + (ptexture->height >> 1))));
+				w = abs((int)((gDecalTexture->width >> 1) + psurf->texinfo->texture->width * x
+					- (psurf->texinfo->texture->width * plist->dx + (ptexture->width >> 1))));
+				h = abs((int)((gDecalTexture->height >> 1) + psurf->texinfo->texture->height * y
+					- (psurf->texinfo->texture->height * plist->dy + (ptexture->height >> 1))));
 
-				// Now figure out the part of the projection that intersects pDecal's
+				// Now figure out the part of the projection that intersects plist's
 				// clip box [0,0,1,1].
-				int dx, dy;
 				if (h <= w)
 				{
 					dx = w;
@@ -2678,36 +2680,21 @@ decal_t* R_DecalIntersect( msurface_t* psurf, int* pcount, float x, float y )
 				}
 
 				// Figure out how much of this intersects the (0,0) - (1,1) bbox
-				float flArea = (float)dx + (float)dy * 0.5;
-				if ((flArea * pDecal->scale) < 8)
+				dist = (float)dx + (float)dy * 0.5;
+				if ((dist * plist->scale) < 8)
 				{
 					*pcount += 1;
 
-					if (!plast || flArea <= lastArea)
+					if (!plast || dist <= lastDist)
 					{
-						lastArea = flArea;
-						plast = pDecal;
+						lastDist = dist;
+						plast = plist;
 					}
 				}
 			}
 		}
 
-		if (pDecal == pDecal->pnext)
-		{
-			decal_t* p = psurf->pdecals;
-			while (p)
-			{
-				ptexture = Draw_DecalTexture(p->texture);
-				
-				if (p == p->pnext)
-					break;
-
-				p = p->pnext;
-			}
-			break;
-		}
-
-		pDecal = pDecal->pnext;
+		plist = plist->pnext;
 	}
 
 	return plast;

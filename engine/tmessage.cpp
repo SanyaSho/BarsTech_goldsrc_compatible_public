@@ -362,7 +362,7 @@ static void TextMessageParse( byte* pMemFile, int fileSize )
 		case MSGFILE_TEXT:
 			if (IsEndOfText(trim))
 			{
-				int length = strlen(currentName);
+				int length = Q_strlen(currentName);
 
 				// Save name on name heap
 				if (lastNamePos + length > NAME_HEAP_SIZE)
@@ -470,7 +470,7 @@ client_textmessage_t* TextMessageGet( const char* pName )
 {
 	int i;
 
-	g_engdstAddrs.pfnTextMessageGet( &pName );
+	RecEngTextMessageGet( pName );
 
 	if (!Q_strcasecmp(pName, DEMO_MESSAGE))
 	{
@@ -501,7 +501,7 @@ client_textmessage_t* TextMessageGet( const char* pName )
 
 int TextMessageDrawCharacter( int x, int y, int number, int r, int g, int b )
 {
-	g_engdstAddrs.pfnDrawCharacter( &x, &y, &number, &r, &g, &b );
+	RecEngTextMessageDrawCharacter( x, y, number, r, g, b );
 
 	if( r || g || b )
 	{

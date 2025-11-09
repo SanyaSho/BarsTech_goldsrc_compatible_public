@@ -150,11 +150,6 @@ char* ED_ParseEdict(char* data, edict_t* ent)
 	{
 		className = (char*)(pr_strings + ent->v.classname);
 
-
-		char dbg[256];
-		snprintf(dbg, 256, __FUNCTION__ " trying to init entity %s\n", className);
-		Con_DPrintf(dbg);
-
 		pEntityInit = GetEntityInit(className);
 		if (pEntityInit)
 		{

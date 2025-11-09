@@ -31,8 +31,9 @@ void PM_CL_PlaybackEventFull(int flags, int clientindex, word eventindex, float 
 
 const char* PM_CL_TraceTexture( int ground, float* vstart, float* vend )
 {
-	vec3_t temp, end, right, forward, up, delta;
+	vec3_t temp, end, right, forward, up, delta, start;
 	msurface_t *psurf;
+	int firstnode = 0;
 	
 	if (ground < 0)
 		return NULL;
@@ -43,31 +44,35 @@ const char* PM_CL_TraceTexture( int ground, float* vstart, float* vend )
 
 	if (ground < 1)
 	{
-		VectorCopy(vstart, temp);
+		VectorCopy(vstart, start);
 		VectorCopy(vend, end);
 	}
 	else
 	{
 		VectorAdd(pmove->physents[ground].model->hulls[0].clip_mins, pmove->physents[ground].origin, delta);
-		VectorSubtract(vstart, delta, temp);
+		VectorSubtract(vstart, delta, start);
 		VectorSubtract(vend, delta, end);
+
+		firstnode = pmove->physents[ground].model->hulls[0].firstclipnode;
 
 		if (!VectorCompare(pmove->physents[ground].angles, vec_origin))
 		{
 			AngleVectors(pmove->physents[ground].angles, forward, right, up);
-			temp[0] = DotProduct(temp, forward);
-			temp[1] = -DotProduct(temp, right);
-			temp[2] = DotProduct(temp, up);
+			VectorCopy(start, temp);
+			start[0] = DotProduct(temp, forward);
+			start[1] = -DotProduct(temp, right);
+			start[2] = DotProduct(temp, up);
 
-			end[0] = DotProduct(end, forward);
-			end[1] = -DotProduct(end, right);
-			end[2] = DotProduct(end, up);
+			VectorCopy(end, temp);
+			end[0] = DotProduct(temp, forward);
+			end[1] = -DotProduct(temp, right);
+			end[2] = DotProduct(temp, up);
 		}
 	}
 
 	if (pmove->physents[ground].model->type == mod_brush && pmove->physents[ground].model->nodes)
 	{
-		psurf = SurfaceAtPoint(pmove->physents[ground].model, &pmove->physents[ground].model->nodes[0], temp, end);
+		psurf = SurfaceAtPoint(pmove->physents[ground].model, &pmove->physents[ground].model->nodes[firstnode], start, end);
 		if (psurf)
 			return psurf->texinfo->texture->name;
 	}

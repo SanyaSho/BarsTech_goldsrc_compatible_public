@@ -136,7 +136,7 @@ HSPRITE SPR_Load( const char* pTextureName )
 		if (!Q_strcasecmp(pTextureName, gSpriteList[i].pName))
 		{
 			gSpriteMipMap = FALSE;
-			gSpriteList[i].pSprite = Mod_ForName(pTextureName, 0, 1);
+			gSpriteList[i].pSprite = Mod_ForName(pTextureName, false, true);
 			gSpriteMipMap = TRUE;
 
 			if (gSpriteList[i].pSprite != NULL)
@@ -144,6 +144,8 @@ HSPRITE SPR_Load( const char* pTextureName )
 				gSpriteList[i].frameCount = ModelFrameCount(gSpriteList[i].pSprite);
 				return i + 1;
 			}
+
+			return NULL;
 		}
 	}
 

@@ -3052,7 +3052,7 @@ void R_DecalShoot_(texture_t *ptexture, int index, int entity, int modelIndex, v
 {
 	cl_entity_t *ent;
 	mnode_t *pnodes;
-	vec3_t forward, right, up;
+	vec3_t forward, right, up, temp;
 	
 	if (ptexture != NULL && g_bUsingInGameAdvertisements && !Q_strcasecmp(ptexture->name, "}lambda06"))
 		flags |= FDECAL_CUSTOM;
@@ -3095,9 +3095,10 @@ void R_DecalShoot_(texture_t *ptexture, int index, int entity, int modelIndex, v
 		if (ent->angles[0] || ent->angles[1] || ent->angles[2])
 		{
 			AngleVectors(ent->angles, forward, right, up);
-			gDecalPos[0] = DotProduct(forward, gDecalPos);
-			gDecalPos[1] = -DotProduct(right, gDecalPos);
-			gDecalPos[2] = DotProduct(up, gDecalPos);
+			VectorCopy(gDecalPos, temp);
+			gDecalPos[0] = DotProduct(forward, temp);
+			gDecalPos[1] = -DotProduct(right, temp);
+			gDecalPos[2] = DotProduct(up, temp);
 		}
 	}
 
@@ -3172,7 +3173,7 @@ int R_DecalUnProject(decal_t* pdecal, vec_t* position)
 	float planedist;
 	float inverseScale;
 
-	vec3_t forward, right, up;
+	vec3_t forward, right, up, temp;
 
 	mtexinfo_t* tex = NULL;
 	model_t* model = NULL;
@@ -3235,10 +3236,11 @@ int R_DecalUnProject(decal_t* pdecal, vec_t* position)
 		if (ent->v.angles[0] || ent->v.angles[1] || ent->v.angles[2])
 		{
 			AngleVectorsTranspose(ent->v.angles, forward, right, up);
+			VectorCopy(position, temp);
 
-			position[0] = DotProduct(position, forward);
-			position[1] = DotProduct(position, right);
-			position[2] = DotProduct(position, up);
+			position[0] = DotProduct(temp, forward);
+			position[1] = DotProduct(temp, right);
+			position[2] = DotProduct(temp, up);
 		}
 
 		if (model->firstmodelsurface)

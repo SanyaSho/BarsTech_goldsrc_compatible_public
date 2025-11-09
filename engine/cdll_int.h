@@ -22,7 +22,6 @@
 #ifndef CDLL_INT_H
 #define CDLL_INT_H
 
-//Disabling this because it interferes with engine rebuild. - Solokiller
 //#ifdef __cplusplus
 //extern "C" {
 //#endif

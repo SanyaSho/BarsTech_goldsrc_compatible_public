@@ -20,12 +20,12 @@
 extern SDL_Window* pmainwindow;
 extern vrect_t scr_vrect;
 
+#if !defined ( GLQUAKE )
+
 EngineSurface::EngineSurface()
 {
 	createRenderPlat();
 }
-
-#if !defined ( GLQUAKE )
 
 int g_TranslateX;
 int g_TranslateY;
