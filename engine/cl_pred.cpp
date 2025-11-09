@@ -53,7 +53,7 @@ void CL_CheckPredictionError()
 		cl_correction_time = cl_smoothtime.value;
 }
 
-void CL_RunUsercmd( local_state_t* from, local_state_t* to, usercmd_t* u, bool runfuncs, double* pfElapsed, unsigned int random_seed )
+void CL_RunUsercmd(local_state_t* from, local_state_t* to, usercmd_t* u, qboolean runfuncs, double* pfElapsed, unsigned int random_seed)
 {
 	usercmd_t cmd, split;
 	local_state_t temp;
@@ -93,7 +93,7 @@ void CL_RunUsercmd( local_state_t* from, local_state_t* to, usercmd_t* u, bool r
 
 	VectorCopy(from->client.velocity, pmove->velocity);
 	VectorCopy(from->client.view_ofs, pmove->view_ofs);
-	VectorCopy(from->client.origin, pmove->origin);
+	VectorCopy(from->playerstate.origin, pmove->origin);
 	VectorCopy(from->playerstate.basevelocity, pmove->basevelocity);
 	VectorCopy(from->client.punchangle, pmove->punchangle);
 	VectorCopy(from->playerstate.angles, pmove->angles);
@@ -272,7 +272,6 @@ void CL_PredictMove(qboolean repredicting)
 	frame_t *pframe;
 	local_state_t *from, *to = NULL;
 	cmd_t *pcmd = NULL;
-	int i;
 	float f;
 	double dTime;
 
@@ -313,20 +312,20 @@ void CL_PredictMove(qboolean repredicting)
 
 	int stoppoint = repredicting == false ? 1 : 0;
 
-	for (i = 1, to = NULL, pcmd = NULL; i < CL_UPDATE_BACKUP - 1; i++, from = to, fcmd = pcmd)
+	for (g_i = 1; g_i < CL_UPDATE_BACKUP - 1; g_i++, from = to, fcmd = pcmd)
 	{
-		int cmdnum = i + cls.netchan.incoming_acknowledged;
+		int cmdnum = g_i + cls.netchan.incoming_acknowledged;
 
 		if (cmdnum >= stoppoint + cls.netchan.outgoing_sequence)
 			break;
 
-		g_i = i;
-
 		pcmd = &cl.commands[cmdnum & CL_UPDATE_MASK];
-		to = &cl.predicted_frames[(cl.parsecountmod + i) & CL_UPDATE_MASK];
+		to = &cl.predicted_frames[(cl.parsecountmod + g_i) & CL_UPDATE_MASK];
 
 		CL_RunUsercmd(from, to, &pcmd->cmd, repredicting == false && pcmd->processedfuncs == false, &dTime, cmdnum);
+		
 		pcmd->processedfuncs = true;
+
 		VectorCopy(to->playerstate.origin, cl.predicted_origins[cmdnum & CL_UPDATE_MASK]);
 
 		if (pcmd->senttime >= targettime)
@@ -335,7 +334,7 @@ void CL_PredictMove(qboolean repredicting)
 
 	CL_PopPMStates();
 
-	if (i >= CL_UPDATE_MASK)
+	if (g_i >= CL_UPDATE_MASK)
 		return;
 
 	if (to == NULL && repredicting == false)
@@ -394,7 +393,7 @@ void CL_PredictMove(qboolean repredicting)
 
 	if (cl.onground > 0 && cl.onground < cl.num_entities)
 	{
-		VectorSubtract(cl_entities[cl.onground].curstate.origin, cl_entities[i].prevstate.origin, delta);
+		VectorSubtract(cl_entities[cl.onground].curstate.origin, cl_entities[cl.onground].prevstate.origin, delta);
 
 		if (Length(delta) > 0.f)
 			cl.moving = 1;

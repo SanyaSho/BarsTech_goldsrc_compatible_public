@@ -1742,7 +1742,7 @@ void CL_ParseTEnt(void)
 		pos[1] = MSG_ReadCoord(&net_message);
 		pos[2] = MSG_ReadCoord(&net_message);
 		spriteIndex = MSG_ReadShort();
-		scale = (float)MSG_ReadByte() * 10.f;
+		scale = (float)MSG_ReadByte() / 10.f;
 		framerate = (float)MSG_ReadByte();
 		efx.R_Sprite_Smoke(R_DefaultSprite(pos, spriteIndex, framerate), scale);
 	}

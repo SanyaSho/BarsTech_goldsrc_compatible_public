@@ -1406,7 +1406,7 @@ void CL_SetSolidEntities()
 	physent_t* pe;
 
 	pmove = &g_clmove;
-	Q_memset(&g_clmove.physents[0], 0, sizeof(physent_t));
+	Q_memset(&pmove->physents[0], 0, sizeof(physent_t));
 	Q_memset(&pmove->visents[0], 0, sizeof(physent_t));
 
 	pmove->physents[0].model = cl.worldmodel;

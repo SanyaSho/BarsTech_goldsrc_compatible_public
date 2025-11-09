@@ -34,7 +34,7 @@ void CL_PushPMStates();
 
 void CL_PopPMStates();
 
-void CL_RunUsercmd( local_state_t* from, local_state_t* to, usercmd_t* u, bool runfuncs, double* pfElapsed, unsigned int random_seed );
+void CL_RunUsercmd( local_state_t* from, local_state_t* to, usercmd_t* u, qboolean runfuncs, double* pfElapsed, unsigned int random_seed );
 
 void CL_InitPrediction();
 
