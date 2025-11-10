@@ -125,7 +125,7 @@ void SCR_DrawCenterString( void )
 	// the finale prints the characters one at a time
 	if (cl.intermission)
 	{
-		if (VGuiWrap2_IsInCareerMatch())
+		if (VGuiWrap2_IsInCareerMatch() != CAREER_NONE)
 			return;
 
 		remaining = scr_printspeed.value * (cl.time - scr_centertime_start);

@@ -240,7 +240,6 @@ void HPAK_AddLump(qboolean bUseQueue, char *pakname, resource_t *pResource, void
 	if (!iWrite)
 	{
 		FS_Close(iRead);
-		Con_Printf(const_cast<char*>("%s: %s -> %d\n"), __FILE__, __FUNCTION__, __LINE__);
 		Con_Printf(const_cast<char*>("ERROR: couldn't open %s.\n"), szTempName);
 		return;
 	}

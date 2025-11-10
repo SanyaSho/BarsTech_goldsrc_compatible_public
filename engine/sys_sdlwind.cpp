@@ -722,7 +722,7 @@ void CGame::AppActivate( bool fActive )
 				g_BaseUISurface.CalculateMouseVisible();
 
 				int dx, dy;
-				g_BaseUISurface.GetMouseDelta( dx, dy );
+				g_BaseUISurface.GetMouseDelta( &dx, &dy );
 			}
 
 			if( VGuiWrap2_IsInCareerMatch() && bPausedByCareer )

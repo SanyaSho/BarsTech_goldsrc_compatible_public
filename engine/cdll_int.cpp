@@ -169,9 +169,9 @@ cl_enginefunc_t cl_enginefuncs =
 	&VGUI2_Draw_Character,
 	&VGUI2_Draw_CharacterAdd,
 	&COM_GetApproxWavePlayLength,
-	&hudVguiWrap2_GetCareerUI,
+	(pfnEngSrc_pfnGetCareerUI_t)&VguiWrap2_GetCareerUI,
 	&hudCvar_Set,
-	&hudVGuiWrap2_IsInCareerMatch,
+	(pfnEngSrc_pfnIsPlayingCareerMatch_t)&VGuiWrap2_IsInCareerMatch,
 	&hudPlaySoundVoiceByName,
 	&PrimeMusicStream,
 	&Sys_FloatTime,
@@ -392,6 +392,8 @@ void ClientDLL_UpdateClientData()
 	if( cls.state == ca_active && !cls.demoplayback )
 	{
 		client_data_t cdat;
+		client_data_t oldcdat;
+
 		Q_memset( &cdat, 0, sizeof( cdat ) );
 
 		VectorCopy(cl.viewangles, cdat.viewangles);
@@ -403,12 +405,8 @@ void ClientDLL_UpdateClientData()
 		cdat.fov = scr_fov_value;
 		cdat.iWeaponBits = cl.weapons;
 
-		client_data_t oldcdat;
-
 		if( cls.demorecording )
-		{
-			memcpy( &oldcdat, &cdat, sizeof( oldcdat ) );
-		}
+			oldcdat = cdat;
 
 		if( cl_funcs.pHudUpdateClientDataFunc )
 		{

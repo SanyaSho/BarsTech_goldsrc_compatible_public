@@ -14,7 +14,6 @@
 #include "GameUI/IClientVGUI.h"
 #include "GameUI/IGameConsole.h"
 #include "GameUI/IGameUI.h"
-//#include "gl_rmain.h"
 #if defined(GLQUAKE)
 #include "gl_screen.h"
 #else
@@ -30,9 +29,9 @@
 
 static CUtlVector<char> g_TempConsoleBuffer;
 
-static IBaseUI* staticUIFuncs = nullptr;
+static IBaseUI* staticUIFuncs = NULL;
 
-static bool staticExclusiveInputShadow = false;
+static qboolean staticExclusiveInputShadow = false;
 
 static int s_tutorMessageDecayData[ 256 ] = {};
 
@@ -41,20 +40,20 @@ void VGuiWrap2_Startup()
 	if( staticUIFuncs )
 		return;
 
-	auto factoryFn = Sys_GetFactoryThis();
+	CreateInterfaceFn engineFactory = Sys_GetFactoryThis();
 
 	CreateInterfaceFn factories[ 2 ] = 
 	{
-		factoryFn,
+		engineFactory,
 		GetFileSystemFactory()
 	};
 
-	staticUIFuncs = static_cast<IBaseUI*>( factoryFn( BASEUI_INTERFACE_VERSION, nullptr ) );
+	staticUIFuncs = (IBaseUI*)(engineFactory(BASEUI_INTERFACE_VERSION, NULL));
 
-	staticUIFuncs->Initialize( factories, ARRAYSIZE( factories ) );
-	staticUIFuncs->Start( &cl_enginefuncs, CLDLL_INTERFACE_VERSION );
+	staticUIFuncs->Initialize(factories, ARRAYSIZE(factories));
+	staticUIFuncs->Start(&cl_enginefuncs, CLDLL_INTERFACE_VERSION);
 
-	//Flush temporary rgba
+	//Flush temporary buffer
 	g_TempConsoleBuffer.AddToTail( '\0' );
 	VGuiWrap2_ConPrintf( g_TempConsoleBuffer.Base() );
 	g_TempConsoleBuffer.Purge();
@@ -65,38 +64,38 @@ void VGuiWrap2_Shutdown()
 	if( staticUIFuncs )
 	{
 		staticUIFuncs->Shutdown();
-		staticUIFuncs = nullptr;
+		staticUIFuncs = NULL;
 	}
 }
 
-bool VGuiWrap2_CallEngineSurfaceAppHandler( void* event, void* userData )
+int VGuiWrap2_CallEngineSurfaceAppHandler( void* event, void* userData )
 {
 	if( staticUIFuncs )
 		staticUIFuncs->CallEngineSurfaceAppHandler( event, userData );
 
-	return false;
+	return FALSE;
 }
 
-bool VGuiWrap2_IsGameUIVisible()
+int VGuiWrap2_IsGameUIVisible()
 {
 	if( !staticGameUIFuncs )
-		return false;
+		return FALSE;
 
-	return staticGameUIFuncs->IsGameUIActive() != 0;
+	return staticGameUIFuncs->HasExclusiveInput() != 0;
 }
 
-bool VGuiWrap2_UseVGUI1()
+int VGuiWrap2_UseVGUI1()
 {
 	if( !staticClient )
-		return true;
+		return TRUE;
 
 	return staticClient->UseVGUI1() != 0;
 }
 
-vgui::Panel* VGuiWrap2_GetPanel()
+void* VGuiWrap2_GetPanel()
 {
 	//Nothing
-	return nullptr;
+	return NULL;
 }
 
 void VGuiWrap2_ReleaseMouse()
@@ -109,17 +108,17 @@ void VGuiWrap2_GetMouse()
 	//Nothing
 }
 
-void VGuiWrap2_SetVisible( bool state )
+void VGuiWrap2_SetVisible( int state )
 {
 	//Nothing
 }
 
-bool VGuiWrap2_GameUIKeyPressed()
+int VGuiWrap2_GameUIKeyPressed()
 {
-	if( !staticGameUIFuncs )
-		return false;
+	if (!staticGameUIFuncs)
+		return FALSE;
 
-	if( staticGameUIFuncs->IsGameUIActive() )
+	if( staticGameUIFuncs->HasExclusiveInput() )
 	{
 		if( cl.levelname[ 0 ] )
 		{
@@ -131,53 +130,56 @@ bool VGuiWrap2_GameUIKeyPressed()
 		staticUIFuncs->ActivateGameUI();
 	}
 
-	return true;
+	return TRUE;
 }
 
-bool VGuiWrap2_Key_Event( int down, int keynum, const char* pszCurrentBinding )
+int VGuiWrap2_Key_Event( int down, int keynum, const char* pszCurrentBinding )
 {
 	if( !staticUIFuncs )
-		return true;
+		return TRUE;
 
-	return !staticUIFuncs->Key_Event( down, keynum, pszCurrentBinding );
+	return staticUIFuncs->Key_Event( down, keynum, pszCurrentBinding ) == 0;
 }
 
 void VGuiWrap2_Paint()
 {
+	RECT rect;
+	POINT pnt;
+
 	if( !staticGameUIFuncs )
 	{
 		return;
 	}
 
-	int x = 0, y = 0;
-
-	Rect_t rect;
-
-	rect.y = 0;
+	pnt.x = 0;
+	pnt.y = 0;
+	rect.top = 0;
 
 	if( VideoMode_IsWindowed() )
 	{
-		SDL_GetWindowPosition( pmainwindow, &x, &y );
-		SDL_GetWindowSize( pmainwindow, &rect.width, &rect.height );
+		SDL_GetWindowPosition( pmainwindow, (int*)&pnt.x, (int*)&pnt.y);
+		SDL_GetWindowSize( pmainwindow, (int*)&rect.right, (int*)&rect.bottom );
 	}
 	else
 	{
-		VideoMode_GetCurrentVideoMode( &rect.width, &rect.height, nullptr );
+		pnt.x = 0;
+		pnt.y = 0;
+		VideoMode_GetCurrentVideoMode((int*)&rect.right, (int*)&rect.bottom, NULL );
 	}
 
-	rect.height += y;
+	rect.bottom += rect.top;
 
-	AllowFog( false );
+	AllowFog( FALSE );
 
-	staticUIFuncs->Paint( x, y, rect.width, rect.height );
+	staticUIFuncs->Paint( pnt.x, pnt.y, rect.right, rect.bottom );
 
 	if (VGuiWrap2_UseVGUI1())
 	{
-		const bool bInputState = staticGameUIFuncs->HasExclusiveInput();
+		qboolean excl = staticGameUIFuncs->HasExclusiveInput() != 0;
 
-		if( bInputState != staticExclusiveInputShadow )
+		if( excl != staticExclusiveInputShadow )
 		{
-			if( bInputState )
+			if( excl )
 			{
 				VGuiWrap_ReleaseMouse();
 			}
@@ -188,10 +190,10 @@ void VGuiWrap2_Paint()
 			}
 		}
 
-		staticExclusiveInputShadow = bInputState;
+		staticExclusiveInputShadow = excl;
 	}
 
-	AllowFog( true );
+	AllowFog( TRUE );
 }
 
 void VGuiWrap2_NotifyOfServerDisconnect()
@@ -206,20 +208,22 @@ void VGuiWrap2_HideGameUI()
 		staticUIFuncs->HideGameUI();
 }
 
-bool VGuiWrap2_IsConsoleVisible()
+int VGuiWrap2_IsConsoleVisible()
 {
 	if( !staticGameConsole )
-		return false;
+		return FALSE;
 
 	return staticGameConsole->IsConsoleVisible();
 }
 
 void VGuiWrap2_ShowConsole()
 {
-	if( staticUIFuncs )
+	if (staticUIFuncs)
 	{
 		staticUIFuncs->ActivateGameUI();
-		staticUIFuncs->ShowConsole();
+
+		if (staticUIFuncs)
+			staticUIFuncs->ShowConsole();
 	}
 }
 
@@ -252,9 +256,9 @@ void VGuiWrap2_ConPrintf( const char* msg )
 		return;
 	}
 
-	const size_t uiLength = strlen( msg );
+	int len = strlen( msg );
 
-	g_TempConsoleBuffer.InsertMultipleBefore( g_TempConsoleBuffer.Count(), uiLength, msg );
+	g_TempConsoleBuffer.InsertMultipleBefore( g_TempConsoleBuffer.Count(), len, msg );
 }
 
 void VGuiWrap2_ConDPrintf( const char* msg )
@@ -265,9 +269,9 @@ void VGuiWrap2_ConDPrintf( const char* msg )
 		return;
 	}
 
-	const size_t uiLength = strlen( msg );
+	int len = strlen( msg );
 
-	g_TempConsoleBuffer.InsertMultipleBefore( g_TempConsoleBuffer.Count(), uiLength, msg );
+	g_TempConsoleBuffer.InsertMultipleBefore( g_TempConsoleBuffer.Count(), len, msg );
 }
 
 void VGuiWrap2_LoadingStarted( const char* resourceType, const char* resourceName )
@@ -282,17 +286,99 @@ void VGuiWrap2_LoadingFinished( const char* resourceType, const char* resourceNa
 		staticGameUIFuncs->LoadingFinished( resourceType, resourceName );
 }
 
-void VGuiWrap2_NotifyOfServerConnect( const char* game, int IP, int port )
+void StartLoadingProgressBar(const char* loadingType, int numProgressPoints)
 {
-	if( staticGameUIFuncs )
+	//Display the bar only if we're playing a multiplayer game or are connected to a server
+	if (!Host_IsSinglePlayerGame() && (!UserIsConnectedOnLoopback() || gmodinfo.type != SINGLEPLAYER_ONLY))
+	{
+		if (staticUIFuncs)
+			staticUIFuncs->ActivateGameUI();
+
+		if (staticGameUIFuncs)
+		{
+			staticGameUIFuncs->StartProgressBar(loadingType, numProgressPoints);
+			SCR_UpdateScreen();
+		}
+	}
+}
+
+void ContinueLoadingProgressBar(const char* loadingType, int progressPoint, float progressFraction)
+{
+	if (staticGameUIFuncs)
+	{
+		if (staticGameUIFuncs->ContinueProgressBar(progressPoint, progressFraction))
+			SCR_UpdateScreen();
+	}
+}
+
+void SetLoadingProgressBarStatusText(const char* statusText)
+{
+	if (staticGameUIFuncs)
+	{
+		if (staticGameUIFuncs->SetProgressBarStatusText(statusText))
+			SCR_UpdateScreen();
+	}
+}
+
+void StopLoadingProgressBar()
+{
+	if (cls.state == ca_active)
+	{
+		if (staticUIFuncs)
+			staticUIFuncs->HideGameUI();
+	}
+	else if (staticUIFuncs)
+	{
+		if (staticClient)
+		{
+			staticClient->HideAllVGUIMenu();
+		}
+
+		staticUIFuncs->ActivateGameUI();
+	}
+	if (staticGameUIFuncs)
+		staticGameUIFuncs->StopProgressBar(gfExtendedError != false, gszDisconnectReason, gszExtendedDisconnectReason);
+
+	gfExtendedError = false;
+	gszDisconnectReason[0] = '\0';
+	gszExtendedDisconnectReason[0] = '\0';
+}
+
+void VGuiWrap2_NotifyOfServerConnect(const char* game, int IP, int port)
+{
+	if (staticGameUIFuncs)
 	{
 		gfExtendedError = false;
-		gszDisconnectReason[ 0 ] = '\0';
-		gszExtendedDisconnectReason[ 0 ] = '\0';
+		gszDisconnectReason[0] = '\0';
+		gszExtendedDisconnectReason[0] = '\0';
 		StopLoadingProgressBar();
 
-		staticGameUIFuncs->ConnectToServer( game, IP, port );
+		staticGameUIFuncs->ConnectToServer(game, IP, port);
 	}
+}
+
+void SetSecondaryProgressBar(float progress)
+{
+	if (staticGameUIFuncs)
+		staticGameUIFuncs->SetSecondaryProgressBar(progress);
+}
+
+void SetSecondaryProgressBarText(const char* statusText)
+{
+	if (staticGameUIFuncs)
+		staticGameUIFuncs->SetSecondaryProgressBarText(statusText);
+}
+
+void ValidateCDKey(int force, int inConnect)
+{
+	if (staticGameUIFuncs)
+		staticGameUIFuncs->ValidateCDKey(force != 0, inConnect != 0);
+}
+
+void VGUI2_OnDisconnectFromServer(int eLoginFailure)
+{
+	if (staticGameUIFuncs)
+		staticGameUIFuncs->OnDisconnectFromServer(eLoginFailure, "");
 }
 
 CareerStateType VGuiWrap2_IsInCareerMatch()
@@ -308,7 +394,7 @@ ICareerUI* VguiWrap2_GetCareerUI()
 	return staticCareerUI;
 }
 
-size_t VGuiWrap2_GetLocalizedStringLength( const char* label )
+int VGuiWrap2_GetLocalizedStringLength( const char* label )
 {
 	if( !label || !vgui2::localize() )
 		return 0;
@@ -321,97 +407,10 @@ size_t VGuiWrap2_GetLocalizedStringLength( const char* label )
 	return wcslen( pszLocalized );
 }
 
-void VguiWrap2_GetMouseDelta( int* x, int* y )
-{
-	g_BaseUISurface.GetMouseDelta( *x, *y );
-}
-
-void VGUI2_OnDisconnectFromServer( int eLoginFailure )
-{
-	if( staticGameUIFuncs )
-		staticGameUIFuncs->OnDisconnectFromServer( eLoginFailure, "" );
-}
-
-void StartLoadingProgressBar( const char* loadingType, int numProgressPoints )
-{
-	//Display the bar only if we're playing a multiplayer game or are connected to a server
-	if( !Host_IsSinglePlayerGame() && ( !UserIsConnectedOnLoopback() || gmodinfo.type != SINGLEPLAYER_ONLY ) )
-	{
-		if( staticUIFuncs )
-			staticUIFuncs->ActivateGameUI();
-
-		if( staticGameUIFuncs )
-		{
-			staticGameUIFuncs->StartProgressBar( loadingType, numProgressPoints );
-			SCR_UpdateScreen();
-		}
-	}
-}
-
-void ContinueLoadingProgressBar( const char* loadingType, int progressPoint, float progressFraction )
-{
-	if( staticGameUIFuncs )
-	{
-		if( staticGameUIFuncs->ContinueProgressBar( progressPoint, progressFraction ) )
-			SCR_UpdateScreen();
-	}
-}
-
-void SetLoadingProgressBarStatusText( const char* statusText )
-{
-	if( staticGameUIFuncs )
-	{
-		if( staticGameUIFuncs->SetProgressBarStatusText( statusText ) )
-			SCR_UpdateScreen();
-	}
-}
-
-void StopLoadingProgressBar()
-{
-	if( cls.state == ca_active )
-	{
-		if( staticUIFuncs )
-			staticUIFuncs->HideGameUI();
-	}
-	else if( staticUIFuncs )
-	{
-		if( staticClient )
-		{
-			staticClient->HideAllVGUIMenu();
-		}
-
-		staticUIFuncs->ActivateGameUI();
-	}
-	if( staticGameUIFuncs )
-		staticGameUIFuncs->StopProgressBar( gfExtendedError != false, gszDisconnectReason, gszExtendedDisconnectReason );
-	
-	gfExtendedError = false;
-	gszDisconnectReason[ 0 ] = '\0';
-	gszExtendedDisconnectReason[ 0 ] = '\0';
-}
-
-void SetSecondaryProgressBar( float progress )
-{
-	if( staticGameUIFuncs )
-		staticGameUIFuncs->SetSecondaryProgressBar( progress );
-}
-
-void SetSecondaryProgressBarText( const char *statusText )
-{
-	if( staticGameUIFuncs )
-		staticGameUIFuncs->SetSecondaryProgressBarText( statusText );
-}
-
-void ValidateCDKey( int force, int inConnect )
-{
-	if( staticGameUIFuncs )
-		staticGameUIFuncs->ValidateCDKey( force != 0, inConnect != 0 );
-}
-
 void RegisterTutorMessageShown( int mid )
 {
 	if( mid >= 0 && mid < ARRAYSIZE( s_tutorMessageDecayData ) )
-		++s_tutorMessageDecayData[ mid ];
+		s_tutorMessageDecayData[ mid ]++;
 }
 
 int GetTimesTutorMessageShown( int mid )
@@ -422,34 +421,35 @@ int GetTimesTutorMessageShown( int mid )
 	return -1;
 }
 
-void ProcessTutorMessageDecayBuffer( int* buffer, int bufferLength )
+void ProcessTutorMessageDecayBuffer(int* buffer, int bufferLength)
 {
 	ResetTutorMessageDecayData();
 
-	const auto count = min( static_cast<int>( ARRAYSIZE( s_tutorMessageDecayData ) ), bufferLength );
+	int amountToCopy = min((int)ARRAYSIZE(s_tutorMessageDecayData), bufferLength);
 
-	if( count > 0 )
-	{
-		memcpy( s_tutorMessageDecayData, buffer, sizeof( int ) * count );
-	}
+	if (amountToCopy > 0)
+		memcpy(s_tutorMessageDecayData, buffer, sizeof(int) * amountToCopy);
 }
 
-void ConstructTutorMessageDecayBuffer( int* buffer, int bufferLength )
+void ConstructTutorMessageDecayBuffer(int* buffer, int bufferLength)
 {
-	if( !buffer )
+	if (!buffer)
 		return;
 
-	memset( buffer, 0, sizeof( int ) * bufferLength );
+	memset(buffer, 0, sizeof(int) * bufferLength);
 
-	const auto count = min( static_cast<int>( ARRAYSIZE( s_tutorMessageDecayData ) ), bufferLength );
+	int amountToCopy = min((int)ARRAYSIZE(s_tutorMessageDecayData), bufferLength);
 
-	if( count > 0 )
-	{
-		memcpy( buffer, s_tutorMessageDecayData, sizeof( int ) * count );
-	}
+	if (amountToCopy > 0)
+		memcpy(buffer, s_tutorMessageDecayData, sizeof(int) * amountToCopy);
 }
 
 void ResetTutorMessageDecayData()
 {
 	memset( s_tutorMessageDecayData, 0, sizeof( s_tutorMessageDecayData ) );
+}
+
+void VguiWrap2_GetMouseDelta(int* x, int* y)
+{
+	g_BaseUISurface.GetMouseDelta(x, y);
 }

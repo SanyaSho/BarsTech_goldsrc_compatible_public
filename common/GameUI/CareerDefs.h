@@ -3,7 +3,7 @@
 
 #include <vector>
 
-enum CareerStateType
+enum CareerStateType : int
 {
 	CAREER_NONE = 0,
 	CAREER_LOADING,

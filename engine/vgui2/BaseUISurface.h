@@ -35,7 +35,7 @@ public:
 	
 	void Init( vgui2::VPANEL embeddedPanel, IEngineSurface* engineSurface, IHTMLChromeController* pChromeController );
 
-	void GetMouseDelta( int& x, int& y );
+	void GetMouseDelta( int* x, int* y );
 
 	void SetScreenBounds( int x, int y, int wide, int tall );
 

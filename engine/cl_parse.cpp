@@ -1048,7 +1048,7 @@ void CL_ParseConsistencyInfo()
 
 		pc->issound = r->type == t_sound;
 		pc->filename = r->szFileName;
-		pc->orig_index = i;
+		pc->orig_index = delta;
 		pc->value = 0;
 
 		if (r->type == t_model && Q_memcmp(nullbuffer, r->rguc_reserved, sizeof(r->rguc_reserved)))
@@ -1057,7 +1057,7 @@ void CL_ParseConsistencyInfo()
 			pc->check_type = r->rguc_reserved[0];
 		}
 
-		lastcheck = skip;
+		lastcheck = delta;
 	}
 
 	if (fs_startup_timings.value != 0.0)
@@ -2484,7 +2484,7 @@ void CL_Parse_SetPause(void)
 {
 	cl.paused = MSG_ReadByte();
 
-	if (!VGuiWrap2_IsInCareerMatch())
+	if (VGuiWrap2_IsInCareerMatch() == CAREER_NONE)
 	{
 		if (cl.paused)
 			CDAudio_Pause();

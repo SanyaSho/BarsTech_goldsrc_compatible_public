@@ -17,21 +17,21 @@ void VGui_Shutdown();
 
 void VGui_CallEngineSurfaceAppHandler( void* event, void* userData );
 
-vgui::Panel* VGui_GetPanel();
+void* VGui_GetPanel();
 
 void VGui_ReleaseMouse();
 
 void VGui_GetMouse();
 
-void VGui_SetVisible( bool state );
+void VGui_SetVisible( int state );
 
 void VGui_Paint();
 
-bool VGui_GameUIKeyPressed();
+int VGui_GameUIKeyPressed();
 
-bool VGui_Key_Event( int down, int keynum, const char* pszCurrentBinding );
+int VGui_Key_Event( int down, int keynum, const char* pszCurrentBinding );
 
-bool VGui_LoadBMP( FileHandle_t file, byte* buffer, int bufsize, int* width, int* height );
+int VGui_LoadBMP( FileHandle_t file, byte* buffer, int bufsize, int* width, int* height );
 
 //VGUI1 wrappers
 
@@ -41,7 +41,7 @@ void VGuiWrap_Startup();
 
 void VGuiWrap_Shutdown();
 
-bool VGuiWrap_CallEngineSurfaceAppHandler( void* event, void* userData );
+int VGuiWrap_CallEngineSurfaceAppHandler( void* event, void* userData );
 
 vgui::Panel* VGuiWrap_GetPanel();
 
@@ -49,9 +49,9 @@ void VGuiWrap_ReleaseMouse();
 
 void VGuiWrap_GetMouse();
 
-void VGuiWrap_SetVisible( bool state );
+void VGuiWrap_SetVisible( int state );
 
-void VGuiWrap_Paint( bool paintAll );
+void VGuiWrap_Paint( int paintAll );
 
 //VGUI2 wrappers
 
@@ -59,23 +59,23 @@ void VGuiWrap2_Startup();
 
 void VGuiWrap2_Shutdown();
 
-bool VGuiWrap2_CallEngineSurfaceAppHandler( void* event, void* userData );
+int VGuiWrap2_CallEngineSurfaceAppHandler( void* event, void* userData );
 
-bool VGuiWrap2_IsGameUIVisible();
+int VGuiWrap2_IsGameUIVisible();
 
-bool VGuiWrap2_UseVGUI1();
+int VGuiWrap2_UseVGUI1();
 
-vgui::Panel* VGuiWrap2_GetPanel();
+void* VGuiWrap2_GetPanel();
 
 void VGuiWrap2_ReleaseMouse();
 
 void VGuiWrap2_GetMouse();
 
-void VGuiWrap2_SetVisible( bool state );
+void VGuiWrap2_SetVisible( int state );
 
-bool VGuiWrap2_GameUIKeyPressed();
+int VGuiWrap2_GameUIKeyPressed();
 
-bool VGuiWrap2_Key_Event( int down, int keynum, const char* pszCurrentBinding );
+int VGuiWrap2_Key_Event( int down, int keynum, const char* pszCurrentBinding );
 
 void VGuiWrap2_Paint();
 
@@ -83,7 +83,7 @@ void VGuiWrap2_NotifyOfServerDisconnect();
 
 void VGuiWrap2_HideGameUI();
 
-bool VGuiWrap2_IsConsoleVisible();
+int VGuiWrap2_IsConsoleVisible();
 
 void VGuiWrap2_ShowConsole();
 
@@ -107,7 +107,7 @@ CareerStateType VGuiWrap2_IsInCareerMatch();
 
 ICareerUI* VguiWrap2_GetCareerUI();
 
-size_t VGuiWrap2_GetLocalizedStringLength( const char* label );
+int VGuiWrap2_GetLocalizedStringLength( const char* label );
 
 void VguiWrap2_GetMouseDelta( int* x, int* y );
 

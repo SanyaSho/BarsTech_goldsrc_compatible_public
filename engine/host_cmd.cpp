@@ -25,7 +25,7 @@
 #include "pr_edict.h"
 #include "voice.h"
 
-CareerStateType g_careerState = CAREER_NONE;
+CareerStateType g_careerState;
 qboolean noclip_anglehack;
 int g_iQuitCommandIssued = false;
 

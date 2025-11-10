@@ -253,7 +253,7 @@ void S_StopAllSounds( qboolean clear );
 void Snd_AcquireBuffer();
 void Snd_ReleaseBuffer();
 
-void SetMouseEnable( int fState );
+void SetMouseEnable(qboolean fEnable);
 
 void VOX_Init();
 

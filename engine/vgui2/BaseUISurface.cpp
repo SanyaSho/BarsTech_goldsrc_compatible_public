@@ -130,10 +130,10 @@ void BaseUISurface::Init( vgui2::VPANEL embeddedPanel, IEngineSurface* engineSur
 	}
 }
 
-void BaseUISurface::GetMouseDelta( int& x, int& y )
+void BaseUISurface::GetMouseDelta( int* x, int* y )
 {
-	x = m_deltax;
-	y = m_deltay;
+	*x = m_deltax;
+	*y = m_deltay;
 
 	m_deltax = m_deltay = 0;
 }

@@ -22,54 +22,55 @@ static vgui::Panel* staticPanel = nullptr;
 
 void VGuiWrap_SetRootPanelSize()
 {
-	auto pRoot = VGuiWrap_GetPanel();
+	vgui::Panel* panel = VGuiWrap_GetPanel();
 
-	if( pRoot )
+	if (panel)
 	{
-		int x = 0, y = 0;
-		Rect_t rect;
+		POINT pnt;
+		RECT rect;
 
-		rect.y = 0;
+		pnt.x = pnt.y = 0;
 
-		if( VideoMode_IsWindowed() )
+		SDL_GetWindowPosition(pmainwindow, (int*)&pnt.x, (int*)&pnt.y);
+
+		rect.top = 0;
+
+		if (VideoMode_IsWindowed())
 		{
-			SDL_GetWindowPosition( pmainwindow, &x, &y );
-			SDL_GetWindowSize( pmainwindow, &rect.width, &rect.height );
+			SDL_GetWindowSize(pmainwindow, (int*)&rect.right, (int*)&rect.bottom);
 		}
 		else
 		{
-			VideoMode_GetCurrentVideoMode( &rect.width, &rect.height, nullptr );
+			VideoMode_GetCurrentVideoMode((int*)&rect.right, (int*)&rect.bottom, NULL);
 		}
 
-		rect.height += rect.y;
+		rect.bottom += rect.top;
 
-		pRoot->setBounds( x, y, rect.width, rect.height );
+		panel->setBounds(pnt.x, pnt.y, rect.right, rect.bottom);
 	}
 }
 
 void VGuiWrap_Startup()
 {
-	if( staticEngineSurface )
+	if (staticEngineSurface)
 		return;
 
-	auto pApp = vgui::App::getInstance();
+	vgui::App* pApp = vgui::App::getInstance();
 
 	pApp->reset();
 
-	staticPanel = new vgui::Panel( 0, 0, 320, 240 );
+	staticPanel = new vgui::Panel(0, 0, 320, 240);
 
-	auto pScheme = pApp->getScheme();
+	vgui::Scheme* pScheme = pApp->getScheme();
 
-	staticPanel->setPaintBorderEnabled( false );
-	staticPanel->setPaintBackgroundEnabled( false );
-	staticPanel->setPaintEnabled( false );
-	staticPanel->setCursor( pScheme->getCursor( vgui::Scheme::scu_none ) );
+	staticPanel->setPaintBorderEnabled(false);
+	staticPanel->setPaintBackgroundEnabled(false);
+	staticPanel->setPaintEnabled(false);
+	staticPanel->setCursor(pScheme->getCursor(vgui::Scheme::scu_none));
 
-	auto factoryFn = Sys_GetFactoryThis();
+	CreateInterfaceFn engineFactory = Sys_GetFactoryThis();
 
-	auto pSurface = static_cast<IEngineSurface*>( factoryFn( ENGINESURFACE_INTERFACE_VERSION, nullptr ) );
-
-	staticEngineSurface = new EngineSurfaceWrap( staticPanel, pSurface );
+	staticEngineSurface = new EngineSurfaceWrap(staticPanel, (IEngineSurface*)engineFactory(ENGINESURFACE_INTERFACE_VERSION, NULL));
 
 	VGuiWrap_SetRootPanelSize();
 }
@@ -77,25 +78,25 @@ void VGuiWrap_Startup()
 void VGuiWrap_Shutdown()
 {
 	delete staticPanel;
-	staticPanel = nullptr;
+	staticPanel = NULL;
 
 	if( staticEngineSurface )
 		delete staticEngineSurface;
 
-	staticEngineSurface = nullptr;
+	staticEngineSurface = NULL;
 }
 
-bool VGuiWrap_CallEngineSurfaceAppHandler( void* event, void* userData )
+int VGuiWrap_CallEngineSurfaceAppHandler( void* event, void* userData )
 {
 	if( staticEngineSurface )
 		staticEngineSurface->AppHandler( event, userData );
 
-	return false;
+	return FALSE;
 }
 
 vgui::Panel* VGuiWrap_GetPanel()
 {
-	g_engdstAddrs.VGui_GetPanel();
+	RecEngVGuiWrap_GetPanel();
 
 	return staticPanel;
 }
@@ -131,7 +132,7 @@ void VGuiWrap_GetMouse()
 	}
 }
 
-void VGuiWrap_SetVisible( bool state )
+void VGuiWrap_SetVisible( int state )
 {
 	if( staticPanel )
 	{
@@ -139,32 +140,29 @@ void VGuiWrap_SetVisible( bool state )
 	}
 }
 
-void VGuiWrap_Paint( bool paintAll )
+void VGuiWrap_Paint(int paintAll)
 {
-	auto pRoot = VGuiWrap_GetPanel();
+	vgui::Panel* panel = VGuiWrap_GetPanel();
 
-	if( pRoot )
+	if (panel)
 	{
 		VGuiWrap_SetRootPanelSize();
 
+		panel->repaint();
+
 		vgui::App::getInstance()->externalTick();
 
-		if( paintAll )
+		if (paintAll)
 		{
-			pRoot->paintTraverse();
+			panel->paintTraverse();
 		}
 		else
 		{
-			int extents[ 4 ];
+			int extents[4];
 
-			pRoot->getAbsExtents(
-				extents[ 0 ],
-				extents[ 1 ],
-				extents[ 2 ],
-				extents[ 3 ]
-			);
+			panel->getAbsExtents(extents[0], extents[1], extents[2], extents[3]);
 
-			VGui_ViewportPaintBackground( extents );
+			VGui_ViewportPaintBackground(extents);
 		}
 	}
 }

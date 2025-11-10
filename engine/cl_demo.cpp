@@ -948,7 +948,7 @@ void CL_ListDemo_f()
 		else
 			snprintf(type, sizeof(type), "Start segment");
 
-		Con_Printf(const_cast<char*>("%i:  %s\n  \"%20s\"\nTime:  %.2f s.\nFrames:  %i\nSize:  %.2fK\n"), i + 1, directory.p_rgEntries[i].nEntryType, directory.p_rgEntries[i].szDescription,
+		Con_Printf(const_cast<char*>("%i:  %s\n  \"%20s\"\nTime:  %.2f s.\nFrames:  %i\nSize:  %.2fK\n"), i + 1, type, directory.p_rgEntries[i].szDescription,
 			directory.p_rgEntries[i].fTrackTime, directory.p_rgEntries[i].nFrames, (float)directory.p_rgEntries[i].nFileLength * 1024.0f);
 
 		if (directory.p_rgEntries[i].nFlags != 0)
@@ -1113,13 +1113,13 @@ void CL_DemoReadCmdInfo(float time)
 void CL_RecordHUDCommand(const char* pszCmd)
 {
 	hud_command_t hc;
-	hc.cmd = clc_stringcmd;
+	hc.cmd = dem_cmd;
 	hc.time = LittleFloat(CL_DemoOutTime() - cls.demostarttime);
 	hc.frame = LittleLong(host_framecount - cls.demostartframe);
 	Q_memset(hc.szNameBuf, 0, sizeof(hc.szNameBuf));
 	Q_strncpy(hc.szNameBuf, (char*)pszCmd, sizeof(hc.szNameBuf) - 1);
 	hc.szNameBuf[sizeof(hc.szNameBuf) - 1] = 0;
-	FS_Write(&hc, sizeof(hc.szNameBuf), 1, cls.demofile);
+	FS_Write(&hc, sizeof(hc), 1, cls.demofile);
 }
 
 void CL_WriteDLLUpdate(client_data_t* cdata)
@@ -1285,7 +1285,7 @@ void CL_BeginDemoStartup()
 	if (cls.demoheader)
 		FS_Close(cls.demoheader);
 
-	fh = FS_OpenPathID("demoheader.dmf", "wb", "GAMECONFIG");
+	fh = FS_OpenPathID("demoheader.dmf", "w+b", "GAMECONFIG");
 
 	cls.demoheader = fh;
 
@@ -1370,8 +1370,8 @@ void CL_WriteDemoMessage(int start, sizebuf_t* msg)
 
 	FS_Write(&demcmd, sizeof(demcmd), 1, cls.demofile);
 
-	CL_DemoWriteCmdInfo(cls.demoheader);
-	CL_DemoWriteSequenceInfo(cls.demoheader, len);
+	CL_DemoWriteCmdInfo(cls.demofile);
+	CL_DemoWriteSequenceInfo(cls.demofile, len);
 
 	FS_Write(&msg->data[start], len, 1, cls.demofile);
 }
@@ -1562,10 +1562,10 @@ void CL_Record_f()
 	FS_Write(&cmd, sizeof(cmd), 1, cls.demofile);
 
 	fTime = LittleFloat(CL_DemoOutTime() - cls.demostarttime);
-	FS_Write(&fTime, sizeof(fTime), 1, cls.demoheader);
+	FS_Write(&fTime, sizeof(fTime), 1, cls.demofile);
 
 	swlen = LittleLong(host_framecount - cls.demostartframe);
-	FS_Write(&swlen, sizeof(swlen), 1, cls.demoheader);
+	FS_Write(&swlen, sizeof(swlen), 1, cls.demofile);
 
 	cls.demoappending = false;
 	cls.td_startframe = host_framecount;

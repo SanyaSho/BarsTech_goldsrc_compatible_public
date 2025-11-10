@@ -21,7 +21,7 @@ void VGui_CallEngineSurfaceAppHandler( void* event, void* userData )
 		VGuiWrap_CallEngineSurfaceAppHandler( event, userData );
 }
 
-vgui::Panel* VGui_GetPanel()
+void* VGui_GetPanel()
 {
 	return VGuiWrap_GetPanel();
 }
@@ -38,7 +38,7 @@ void VGui_GetMouse()
 	VGuiWrap2_GetMouse();
 }
 
-void VGui_SetVisible( bool state )
+void VGui_SetVisible( int state )
 {
 	VGuiWrap_SetVisible( state );
 	VGuiWrap2_SetVisible( state );
@@ -48,23 +48,22 @@ void VGui_Paint()
 {
 	if( VGuiWrap2_UseVGUI1() )
 	{
-		// SH_CODE: was !VGuiWrap2_IsGameUIVisible()
-		VGuiWrap_Paint( VGuiWrap2_IsGameUIVisible() );
-		VGuiWrap2_Paint();
+		VGuiWrap_Paint( VGuiWrap2_IsGameUIVisible() == 0 );
 	}
 	else
 	{
 		VGuiWrap_Paint( false );
-		VGuiWrap2_Paint();
 	}
+	
+	VGuiWrap2_Paint();
 }
 
-bool VGui_GameUIKeyPressed()
+int VGui_GameUIKeyPressed()
 {
 	return VGuiWrap2_GameUIKeyPressed();
 }
 
-bool VGui_Key_Event( int down, int keynum, const char* pszCurrentBinding )
+int VGui_Key_Event( int down, int keynum, const char* pszCurrentBinding )
 {
 	return VGuiWrap2_Key_Event( down, keynum, pszCurrentBinding ) != 0;
 }
@@ -120,60 +119,56 @@ struct BMPQuad
 };*/
 #define BMP_TYPE 0x4D42
 
-bool VGui_LoadBMP( FileHandle_t file, byte* buffer, int bufsize, int* width, int* height )
+int VGui_LoadBMP(FileHandle_t file, byte* buffer, int bufsize, int* width, int* height)
 {
-	const auto size = FS_Size( file );
-
 	BITMAPFILEHEADER bmfHeader;
 
-	FS_Read( &bmfHeader, sizeof( BITMAPFILEHEADER ), 1, file );
+	DWORD dwFileSize = FS_Size(file);
 
-	bool bSuccess = false;
+	FS_Read(&bmfHeader, sizeof(BITMAPFILEHEADER), 1, file);
 
-	if( bmfHeader.bfType == BMP_TYPE )
+	int success = false;
+
+	if (bmfHeader.bfType == BMP_TYPE)
 	{
-		const auto dataSize = size - sizeof( BITMAPFILEHEADER );
+		DWORD dwBitsSize = dwFileSize - sizeof(BITMAPFILEHEADER);
 
-		auto pBuffer = reinterpret_cast<byte*>( malloc( dataSize ) );
+		char* pDIB = (char*)malloc(dwBitsSize);
 
-		FS_Read( pBuffer, dataSize, 1, file );
+		FS_Read(pDIB, dwBitsSize, 1, file);
 
-		auto pInfo = reinterpret_cast<BITMAPINFO*>( pBuffer );
+		*width = ((BITMAPINFO*)pDIB)->bmiHeader.biWidth;
+		*height = ((BITMAPINFO*)pDIB)->bmiHeader.biHeight;
 
-		*width = pInfo->bmiHeader.biWidth;
-		*height = pInfo->bmiHeader.biHeight;
+		int readWidth = *width;
 
-		int iWidth = *width;
+		if (*width & 3)
+			readWidth += (readWidth + 4) % 4;
 
-		if( *width & 3 )
-			iWidth = AlignValue( *width, 16 );
-
-		auto pPalette = pInfo->bmiColors;
-
-		auto pSource = reinterpret_cast<byte*>( pInfo ) + bmfHeader.bfOffBits - sizeof( bmfHeader );
-
-		auto pDest = buffer;
+		RGBQUAD* pPalette = ((BITMAPINFO*)pDIB)->bmiColors;
+		byte* src = (byte*)pDIB + bmfHeader.bfOffBits - sizeof(bmfHeader);
 
 		//Convert into an RGBA format.
-		for( int y = 0; y < *height; ++y )
+		for (int y = 0; y < *height; y++)
 		{
-			for( int x = 0; x < *width; ++x, pDest += 4 )
+			for (int x = 0; x < *width; x++)
 			{
-				auto pPixels = &pSource[ x + iWidth * ( *height - y - 1 ) ];
+				int offs = x + readWidth * (*height - y - 1);
+				char* dst = (char*)&buffer[4 * x + 4 * y * *width];
 
-				pDest[ 0 ] = pPalette[ *pPixels ].rgbRed;
-				pDest[ 1 ] = pPalette[ *pPixels ].rgbGreen;
-				pDest[ 2 ] = pPalette[ *pPixels ].rgbBlue;
-				pDest[ 3 ] = 0xFF;
+				dst[0] = pPalette[src[offs]].rgbRed;
+				dst[1] = pPalette[src[offs]].rgbGreen;
+				dst[2] = pPalette[src[offs]].rgbBlue;
+				dst[3] = 0xFF;
 			}
 		}
 
-		free( pBuffer );
+		free(pDIB);
 
-		bSuccess = true;
+		success = true;
 	}
 
-	FS_Close( file );
+	FS_Close(file);
 
-	return bSuccess;
+	return success;
 }

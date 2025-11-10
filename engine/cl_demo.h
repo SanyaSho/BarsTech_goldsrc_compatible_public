@@ -105,12 +105,8 @@ typedef struct hud_command_s : demo_command_s
 	char szNameBuf[64];
 } hud_command_t;
 
-typedef struct cl_demo_data_s : demo_command_s
+typedef struct cl_demo_data_s : demo_command_s, client_data_t
 {
-	vec3_t origin;
-	vec3_t viewangles;
-	int iWeaponBits;
-	float fov;
 } cl_demo_data_t;
 
 typedef struct demo_anim_s : demo_command_s

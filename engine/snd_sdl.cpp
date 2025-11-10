@@ -4,7 +4,7 @@
 
 qboolean g_fUseDInput = false;
 
-void SetMouseEnable( int fState )
+void SetMouseEnable(qboolean fEnable)
 {
 	//Nothing since HL25
 }

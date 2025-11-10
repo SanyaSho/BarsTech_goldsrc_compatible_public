@@ -367,19 +367,9 @@ byte* hudCOM_LoadFile( char* path, int usehunk, int* pLength )
 	return COM_LoadFile( path, usehunk, pLength );
 }
 
-void* hudVguiWrap2_GetCareerUI()
-{
-	return VguiWrap2_GetCareerUI();
-}
-
 void hudCvar_Set( char* var_name, char* value )
 {
 	Cvar_Set( var_name, value );
-}
-
-int hudVGuiWrap2_IsInCareerMatch()
-{
-	return VGuiWrap2_IsInCareerMatch();
 }
 
 int hudGetGameAppID()

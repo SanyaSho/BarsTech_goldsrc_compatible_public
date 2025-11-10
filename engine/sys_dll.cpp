@@ -131,7 +131,7 @@ static enginefuncs_t g_engfuncsExportedToDlls =
 	SequencePickSentence, COM_FileSize,
 	COM_GetApproxWavePlayLength,
 	(decltype(enginefuncs_t::pfnIsCareerMatch))VGuiWrap2_IsInCareerMatch,
-	(decltype(enginefuncs_t::pfnGetLocalizedStringLength))VGuiWrap2_GetLocalizedStringLength,
+	VGuiWrap2_GetLocalizedStringLength,
 	RegisterTutorMessageShown,
 	GetTimesTutorMessageShown,
 	ProcessTutorMessageDecayBuffer,

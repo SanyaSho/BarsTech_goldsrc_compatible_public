@@ -33,7 +33,7 @@ public:
 	/**
 	*	@return 1 if VGUI1 should be used, 0 if VGUI2 should be used.
 	*/
-	virtual int UseVGUI1() = 0;
+	virtual bool UseVGUI1() = 0;
 
 	/**
 	*	Tells the client to hide the score board panel.
