@@ -30,7 +30,7 @@ typedef struct
 {
 	sfx_t m_SFX;
 	sfxcache_t m_SFXCache;
-	unsigned short m_PrevUpsampleValue;
+	short m_PrevUpsampleValue;
 } VoiceSE_SFX;
 
 
