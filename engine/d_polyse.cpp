@@ -689,8 +689,6 @@ void D_PolysetDrawHole32(spanpackage_t *pspanpackage)
 					b = (step1_b * lightcomp) / 255;
 
 					*lpdest = mask_a_32 | PACKEDRGB888(r, g, b);
-
-					*lpz = lzi;
 				}
 				llight += r_lstepx;
 				lzi += r_zistepx;
@@ -768,7 +766,6 @@ void D_PolysetDrawHole(spanpackage_t *pspanpackage)
 					b = r_lut[r_lut[((PackedColorVec*)r_palette)[*lptex].b + r_icolormix.b] + (llight & 0xFF00)];
 
 					*lpdest = is15bit ? PACKEDRGB555(r, g, b) : PACKEDRGB565(r, g, b);
-					*lpz = lzi >> 16;
 				}
 				llight += r_lstepx;
 				lzi += r_zistepx;
@@ -850,7 +847,6 @@ void D_PolysetDrawSpansTrans32(spanpackage_t *pspanpackage)
 					b = ScaleToColor(RGB_BLUE888(*oldcolor), b, 0xFF, r_blend) & 0xFF;
 
 					*oldcolor = mask_a_32 | PACKEDRGB888(r, g, b);
-					*lpz = lzi;
 				}
 				llight += r_lstepx;
 				lzi += r_zistepx;
@@ -946,7 +942,6 @@ void D_PolysetDrawSpansTrans(spanpackage_t *pspanpackage)
 					scaledb = ScaleToColor(*oldcolor, newcolor, mask_b_16, r_blend) & mask_b_16;
 
 					*oldcolor = scaledr | scaledg | scaledb;
-					*lpz = lzi >> 16;
 				}
 				llight += r_lstepx;
 				lzi += r_zistepx;
@@ -1039,8 +1034,6 @@ void D_PolysetDrawSpansTransAdd32(spanpackage_t *pspanpackage)
 					}
 
 					*lpdest = mask_a_32 | PACKEDRGB888(r_result, g_result, b_result);
-
-					*lpz = lzi;
 				}
 				lpdest++;
 				lzi += r_zistepx;
@@ -1215,8 +1208,6 @@ void D_PolysetDrawSpansTransAdd(spanpackage_t *pspanpackage)
 						*lpdest = (oldcolor >> 16) & (mask_r_16 | mask_b_16) | oldcolor & mask_g_16;
 
 					}
-
-					*lpz = lzi >> 16;
 				}
 				lpdest++;
 				lzi += r_zistepx;
