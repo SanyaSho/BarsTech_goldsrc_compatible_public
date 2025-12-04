@@ -139,9 +139,7 @@ void DispatchUserMsg(int iMsg)
 	int MsgSize;
 
 	if (iMsg <= SVC_LASTMSG || iMsg >= MAX_USERMESSAGES)
-		Host_Error(__FUNCTION__ ":  Illegal User Msg %d\n", iMsg);
-
-	// Con_SafePrintf("trying to dispatch message %d\r\n", iMsg);
+		return Host_Error(__FUNCTION__ ":  Illegal User Msg %d\n", iMsg);
 
 	for (pList = gClientUserMsgs; pList != NULL; pList = pList->next)
 	{
@@ -154,8 +152,6 @@ void DispatchUserMsg(int iMsg)
 		Host_Error("UserMsg: Not Present on Client %d\n", iMsg);
 		return;
 	}
-
-	//Con_SafePrintf("detected message %s with pfn %08X\r\n", pList->szName, pList->pfn);
 
 	MsgSize = pList->iSize;
 
@@ -192,11 +188,6 @@ void DispatchUserMsg(int iMsg)
 	{
 		Con_DPrintf(const_cast<char*>("UserMsg: No pfn %s %d\n"), pList->szName, iMsg);
 	}
-}
-
-void DispatchMsgOld(int iMsg, void* pBuf)
-{
-	//
 }
 
 int DispatchDirectUserMsg(const char *pszName, int iSize, void *pBuf)
@@ -642,7 +633,7 @@ void CL_SendConsistencyInfo(sizebuf_t* msg)
 		case force_model_samebounds:
 		case force_model_specifybounds:
 			if (!R_GetStudioBounds(filename, mins, maxs))
-				Host_Error("Unable to find %s\n", filename);
+				return Host_Error("Unable to find %s\n", filename);
 
 			if (user_changed_diskfile)
 			{
@@ -659,7 +650,7 @@ void CL_SendConsistencyInfo(sizebuf_t* msg)
 			else
 			{
 				if (!R_GetStudioBounds(filename, mins, maxs))
-					Host_Error("Unable to find %s\n", filename);
+					return Host_Error("Unable to find %s\n", filename);
 
 				if (user_changed_diskfile)
 				{
@@ -682,11 +673,6 @@ void CL_SendConsistencyInfo(sizebuf_t* msg)
 	*(word*)&msg->data[savepos] = len;
 
 	COM_Munge(&msg->data[savepos + 2], len, CL_GetServerCount());
-}
-
-void CL_ResourcesRelated(int arg1, int arg2)
-{
-	//
 }
 
 void CL_RegisterResources(sizebuf_t *msg)
@@ -1064,11 +1050,6 @@ void CL_ParseConsistencyInfo()
 		AddStartupTiming("end   CL_ParseConsistencyInfo()");
 }
 
-void CL_ConsistencyRelated(int arg)
-{
-	//
-}
-
 void CL_ParseResourceList()
 {
 	int total;
@@ -1216,7 +1197,7 @@ void CL_ParseCustomization()
 	i = MSG_ReadByte();
 
 	if (i >= MAX_CLIENTS)
-		Host_Error("Bogus player index during customization parsing.\n");
+		return Host_Error("Bogus player index during customization parsing.\n");
 
 	resource = (resource_t*)Mem_ZeroMalloc(sizeof(resource_t));
 	resource->type = (resourcetype_t)MSG_ReadByte();
@@ -1280,11 +1261,6 @@ void CL_ParseCustomization()
 	}
 }
 
-void CL_CustomizationRelated(int arg)
-{
-	//
-}
-
 qboolean CL_RequestMissingResources()
 {
 	if (cls.dl.doneregistering == false && (cls.dl.custom || cls.state == ca_uninitialized))
@@ -1344,11 +1320,6 @@ void CL_CreateCustomizationList()
 	pListHead = &cl.players[cl.playernum].customdata;
 	for (int i = 0; i < cl.num_resources; i++)
 	{
-		/*while (COM_CreateCustomization(pListHead, &cl.resourcelist[i], cl.playernum, 0, 0, 0))
-		{
-			if (cl.num_resources <= ++i)
-				return;
-		}*/
 		if (COM_CreateCustomization(pListHead, &cl.resourcelist[i], cl.playernum, 0, 0, 0) == false)
 			Con_DPrintf(const_cast<char*>("Problem with client customization %i, ignoring..."), i);
 	}
@@ -1708,7 +1679,7 @@ void CL_Parse_DeltaDescription()
 
 	name = MSG_ReadString();
 	if (!name || !name[0])
-		Host_Error(__FUNCTION__ ":  Illegible description name\n");
+		return Host_Error(__FUNCTION__ ":  Illegible description name\n");
 
 	Q_strncpy(szDesc, name, sizeof(szDesc) - 1);
 	szDesc[sizeof(szDesc) - 1] = 0;
@@ -1733,11 +1704,6 @@ void CL_Parse_DeltaDescription()
 
 	(*ppdelta)->pdd = pdesc;
 	MSG_EndBitReading(&net_message);
-}
-
-void CL_ParseUndefined()
-{
-	//
 }
 
 /*
@@ -2204,12 +2170,8 @@ void CL_Parse_Disconnect()
 		COM_ExplainDisconnection(true, const_cast<char*>("#GameUI_DisconnectedFromServer"));
 	}
 
+	// removed duplicates
 	Host_EndGame(const_cast<char*>("Server disconnected\n"));
-}
-
-void CL_Parse_QuakeLegacy()
-{
-	//
 }
 
 void CL_Parse_Version()

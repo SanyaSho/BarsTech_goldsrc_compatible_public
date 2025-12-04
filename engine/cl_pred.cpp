@@ -399,12 +399,7 @@ void CL_PredictMove(qboolean repredicting)
 			cl.moving = 1;
 
 		if (cl.moving)
-		{
 			cl_correction_time = 0.f;
-			VectorCopy(cl.simorg, lastsimorg);
-			CL_SetIdealPitch();
-			return;
-		}
 	}
 
 	if (cl_correction_time > 0.0 && cl_nosmooth.value == 0.0 && cl_smoothtime.value != 0.0)
